@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="auto">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#F6F4EF" />
+    <meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)" />
+    <!-- 防 FOUC:在样式加载前把 localStorage 里的主题选择 apply 到 <html> -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("jrb.theme");
+          if (saved === "day" || saved === "night" || saved === "auto") {
+            document.documentElement.setAttribute("data-theme", saved);
+          }
+        } catch (_) {}
+      })();
+    </script>
+    <meta name="color-scheme" content="light" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="读书" />
+    <title>读书 · JustReadBooks</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="stylesheet" href="./src/styles.css" />
+    <link rel="stylesheet" href="./src/vendor/pdfjs/web/pdf_viewer.css" />
+  </head>
+  <body>
+    <main class="surface" aria-label="读书">
+      <!-- PDF viewer 主表面 -->
+      <div id="pdfViewerContainer" class="viewer-container hidden">
+        <div id="viewer" class="pdfViewer"></div>
+      </div>
+
+      <!-- TXT viewer 主表面 -->
+      <div id="txtViewerContainer" class="viewer-container txt-container hidden" data-font-family="serif"></div>
+
+      <!-- 空态(没登录 / 没书 / 没选) -->
+      <div id="emptyLanding" class="empty-landing hidden" aria-live="polite">
+        <div class="title" id="emptyTitle">还没有书</div>
+        <div class="hint" id="emptyHint">点左上角菜单,上传一本 TXT 或 PDF。</div>
+        <button id="emptyUploadButton" type="button" hidden>上传文件</button>
+      </div>
+
+      <!-- 下载进度 -->
+      <div id="progressBar" class="progress-bar hidden">
+        <div class="fill" id="progressFill"></div>
+      </div>
+
+      <!-- 拖拽上传 overlay -->
+      <div id="dropOverlay" class="drop-overlay hidden" aria-hidden="true">
+        <div class="drop-card">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <p class="drop-title">松手即上传</p>
+          <p class="drop-hint">TXT / PDF 都行,进当前文件夹</p>
+        </div>
+      </div>
+
+      <!-- 顶栏 -->
+      <header class="top-bar" id="topBar">
+        <button class="icon-button" id="menuButton" type="button" aria-label="书架" title="书架">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="4" y1="7" x2="20" y2="7"></line>
+            <line x1="4" y1="12" x2="20" y2="12"></line>
+            <line x1="4" y1="17" x2="20" y2="17"></line>
+          </svg>
+        </button>
+        <button class="icon-button" id="outlineButton" type="button" aria-label="目录" title="本书目录" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            <line x1="8" y1="7" x2="16" y2="7"></line>
+            <line x1="8" y1="11" x2="14" y2="11"></line>
+            <line x1="8" y1="15" x2="13" y2="15"></line>
+          </svg>
+        </button>
+        <span class="title" id="currentTitle"></span>
+        <span class="status" aria-live="polite">
+          <span id="pageStatus"></span>
+          <span class="sep" aria-hidden="true">·</span>
+          <span id="syncStatus">就绪</span>
+        </span>
+        <button class="icon-button" id="settingsButton" type="button" aria-label="设置" title="设置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </header>
+    </main>
+
+    <!-- 共用 backdrop -->
+    <div id="drawerBackdrop" class="backdrop hidden" aria-hidden="true"></div>
+
+    <!-- 书架 drawer -->
+    <aside id="drawer" class="drawer hidden" aria-hidden="true" aria-label="书架">
+      <header class="drawer-header">
+        <button class="icon-button" id="drawerCloseButton" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="6" y1="18" x2="18" y2="6"></line>
+          </svg>
+        </button>
+        <h2 id="drawerTitle">书架</h2>
+        <button class="icon-button" id="drawerSortButton" type="button" aria-label="切换排序" title="按修改日期 / 名称排序">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="3" y1="6" x2="13" y2="6"></line>
+            <line x1="3" y1="12" x2="11" y2="12"></line>
+            <line x1="3" y1="18" x2="9" y2="18"></line>
+            <polyline points="17 4 17 20 21 16"></polyline>
+            <line x1="17" y1="20" x2="13" y2="16"></line>
+          </svg>
+        </button>
+        <button class="icon-button" id="drawerRefreshButton" type="button" aria-label="刷新" title="重新从云端列出">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+      </header>
+
+      <div class="auth-row" id="authRow">
+        <span class="who" id="authWho">未登录</span>
+        <button id="loginButton" type="button">登录</button>
+        <button id="logoutButton" type="button" hidden>登出</button>
+      </div>
+
+      <!-- 当前路径 breadcrumb -->
+      <nav class="breadcrumb" id="breadcrumb" aria-label="当前路径"></nav>
+
+      <div class="drawer-actions" id="booksActions">
+        <input type="file" id="fileInput" accept=".txt,.pdf,text/plain,application/pdf" multiple hidden />
+        <button class="drawer-action" id="uploadButton" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span>上传</span>
+        </button>
+        <button class="drawer-action" id="newFolderButton" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            <line x1="12" y1="11" x2="12" y2="17"></line>
+            <line x1="9" y1="14" x2="15" y2="14"></line>
+          </svg>
+          <span>新建文件夹</span>
+        </button>
+        <button class="drawer-action" id="openTrashButton" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+          </svg>
+          <span>垃圾箱</span>
+        </button>
+      </div>
+
+      <div class="drawer-actions hidden" id="trashActions">
+        <button class="drawer-action" id="backFromTrashButton" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span>返回</span>
+        </button>
+        <button class="drawer-action danger" id="emptyTrashButton" type="button">清空垃圾箱</button>
+      </div>
+
+      <ul id="docList" class="doc-list" role="list"></ul>
+      <p id="docListEmpty" class="doc-list-empty hidden">这里还没有文件。</p>
+
+      <footer class="drawer-foot">
+        <button class="drawer-foot-button" id="cacheStatsButton" type="button" title="本地缓存,点击打开设置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <ellipse cx="12" cy="6" rx="9" ry="3"></ellipse>
+            <path d="M3 6v6a9 3 0 0 0 18 0V6"></path>
+            <path d="M3 12v6a9 3 0 0 0 18 0v-6"></path>
+          </svg>
+          <span id="cacheStatsText">缓存 0 B</span>
+        </button>
+        <button class="drawer-foot-button" id="themeButton" type="button" title="主题(日 / 夜 / 跟随系统)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <span id="themeLabel">跟随系统</span>
+        </button>
+      </footer>
+    </aside>
+
+    <!-- 目录 drawer (PDF outline 或 TXT 章节列表) -->
+    <aside id="outlineDrawer" class="drawer outline-drawer hidden" aria-hidden="true" aria-label="目录">
+      <header class="drawer-header">
+        <button class="icon-button" id="outlineCloseButton" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="6" y1="18" x2="18" y2="6"></line>
+          </svg>
+        </button>
+        <h2 id="outlineTitle">目录</h2>
+      </header>
+      <ul id="outlineList" class="outline-list" role="list"></ul>
+      <p id="outlineEmpty" class="doc-list-empty hidden">本书没有目录。</p>
+    </aside>
+
+    <!-- 设置 panel -->
+    <aside id="settingsPanel" class="settings-panel hidden" aria-hidden="true" aria-label="设置">
+      <header class="drawer-header">
+        <h2>设置</h2>
+        <button class="icon-button" id="settingsCloseButton" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="6" y1="18" x2="18" y2="6"></line>
+          </svg>
+        </button>
+      </header>
+      <div class="settings-body">
+        <section class="settings-section">
+          <h3>本地缓存</h3>
+          <div class="cache-stats" id="cacheStatsDetail">缓存 0 B / 上限 500 MB</div>
+          <div class="cache-bar"><div class="fill" id="cacheBarFill"></div><div class="fill pinned" id="cacheBarPinned"></div></div>
+          <div class="settings-row">
+            <label for="cacheCapInput">上限(MB)</label>
+            <input id="cacheCapInput" type="number" min="50" step="50" />
+          </div>
+          <p class="hint">飞机上想看的书,先在书架里点缓存按钮拉到本地。容量到上限会先淘汰未钉住的。</p>
+          <div class="settings-row" style="gap:8px; margin-top:8px;">
+            <button class="drawer-action" id="clearUnpinnedButton" type="button">清空未钉住</button>
+            <button class="drawer-action danger" id="clearAllCacheButton" type="button">清空所有缓存</button>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>TXT 阅读偏好</h3>
+          <div class="settings-row">
+            <label for="txtFontSize">字号</label>
+            <input id="txtFontSize" type="number" min="12" max="40" step="1" />
+          </div>
+          <div class="settings-row">
+            <label for="txtLineHeight">行高</label>
+            <input id="txtLineHeight" type="number" min="1.2" max="2.6" step="0.1" />
+          </div>
+          <div class="settings-row">
+            <label for="txtMaxWidth">阅读宽度 (px)</label>
+            <input id="txtMaxWidth" type="number" min="480" max="1200" step="20" />
+          </div>
+          <div class="settings-row">
+            <label for="txtFontFamily">字体</label>
+            <select id="txtFontFamily">
+              <option value="serif">衬线 (宋体)</option>
+              <option value="sans">无衬线 (黑体)</option>
+              <option value="mono">等宽</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="settings-section" id="txtChapterSection" hidden>
+          <h3>本书章节切分</h3>
+          <div class="settings-row">
+            <label for="chapterRegexSelect">切分规则</label>
+            <select id="chapterRegexSelect"></select>
+          </div>
+          <div class="settings-row" style="display:block;">
+            <label for="chapterRegexCustom" style="display:block; margin-bottom:4px;">自定义正则(多行模式)</label>
+            <input id="chapterRegexCustom" type="text" placeholder="例如 ^Chapter \d+" />
+          </div>
+          <p class="hint" id="chapterSplitStatus">尚未切分。</p>
+          <button class="drawer-action" id="reapplyChaptersButton" type="button">应用并重切</button>
+        </section>
+
+        <section class="settings-section">
+          <h3>主题</h3>
+          <div class="settings-row">
+            <label>当前模式</label>
+            <select id="themeSelect">
+              <option value="auto">跟随系统</option>
+              <option value="day">日 (象牙白金)</option>
+              <option value="night">夜 (黑金)</option>
+            </select>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <!-- 更新 toast -->
+    <div id="updateToast" class="toast hidden" role="status" aria-live="polite">
+      <span id="updateToastText">云端有更新</span>
+      <button id="updateToastReload" type="button">同步</button>
+      <button id="updateToastDismiss" type="button" class="dismiss" aria-label="忽略">×</button>
+    </div>
+
+    <!-- 闲置蒙层 -->
+    <div id="idleOverlay" class="idle-overlay hidden" role="dialog" aria-label="已闲置">
+      <div class="idle-card">
+        <p class="idle-title">已闲置一段时间</p>
+        <p class="idle-hint">点击同步云端最新版</p>
+      </div>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
