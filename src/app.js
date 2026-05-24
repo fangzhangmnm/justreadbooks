@@ -160,6 +160,14 @@ let trashFolderIdCache = null;
 let idleTimer = null;
 let pendingUploadDraining = false;
 
+// 当前 MSAL 账号的稳定标识(homeAccountId = "<oid>.<tid>")。
+// 用来:1) cache.meta 上 stamp 这条 onedrive entry 属于哪个账号
+//       2) 列表里 hide 别账号的 entry,避免换号一片鬼态
+function getCurrentAccountId() {
+  const a = getActiveAccount();
+  return a?.homeAccountId || a?.localAccountId || null;
+}
+
 // ── 小工具 ───────────────────────────────────────────────────────────────
 
 function escapeHtml(s) {
@@ -351,7 +359,7 @@ async function loadCurrentFolderItems() {
         items = await listChildren(subPath);
         folderItemsCache.set(subPath, items);
         // constraint #5: 用户在 OneDrive 网页改了名 / 挪了文件夹 → cache.meta 跟上
-        cache.reconcileWithRemoteList(items, currentFolder).catch(() => {});
+        cache.reconcileWithRemoteList(items, currentFolder, getCurrentAccountId()).catch(() => {});
       }
     } catch (e) {
       console.warn("listChildren failed", e?.message);
@@ -362,6 +370,25 @@ async function loadCurrentFolderItems() {
       if (currentFolder === "" && i.name && RESERVED_NAMES.has(i.name)) return false;
       return i.folder || (i.file && detectKindByName(i.name));
     });
+
+    // 合并当前文件夹的 ghost 项 (云端没了但 cache 还有的)。
+    // **不按 accountId 过滤** —— 让用户也能看到别账号的鬼孤儿,处理掉。
+    // (活的 onedrive 项才有 accountId 隔离,鬼一律 surface)
+    const ghostsHere = (await cache.listMeta()).filter((m) =>
+      m.source === "onedrive"
+      && m.remoteFound === false
+      && m.folderPath === currentFolder
+    );
+    for (const m of ghostsHere) {
+      items.push({
+        id: m.itemId,
+        name: m.name || m.itemId,
+        file: { mimeType: m.type || "application/octet-stream" },
+        size: m.size || 0,
+        lastModifiedDateTime: new Date(m.lastAccessed || Date.now()).toISOString(),
+        _ghost: true,
+      });
+    }
   }
 
   // 根目录:append 一个虚拟"本地"文件夹。
@@ -530,26 +557,24 @@ async function renderDocList() {
     const pinned = !!meta?.pinned;
     const isLocal = !!item._local;
     const isCollision = !!meta?.uploadCollision;
-    const isGhost = meta?.remoteFound === false;
+    const isGhost = !!item._ghost || meta?.remoteFound === false;
     if (cached) li.classList.add("cached");
     const dateText = fmtDate(item.lastModifiedDateTime);
 
-    // tag 优先级 (高 → 低):
-    //   - source:"local" + uploadCollision → 重名,云端有同名,改名后才能传
-    //   - source:"local" + 已登录 → 待上传 (登录后会自动 drain)
-    //   - source:"local" + 未登录 → 本地 (没账号,无处可推)
-    //   - ghost (云端找不到了但本地缓存还有) → 已不在云端
-    //   - 默认 → 文件扩展名
+    // tag 优先级 (高 → 低)
     let tag = kind.toUpperCase();
     let tagTitle = "";
     let tagCls = "";
-    if (isLocal && isCollision) {
+    if (isGhost) {
+      tag = "云端找不到";
+      tagCls = "ghost";
+      tagTitle = "当前账号的 OneDrive 没看到这个文件(被删 / 挪了 / 属于别的账号)。本地缓存还能看。要么再上传(把本地推回当前账号云端),要么改名再上传(避冲突),要么也从本地删。";
+    } else if (isLocal && isCollision) {
       tag = "重名";
       tagCls = "collision";
       tagTitle = "云端已有同名文件 —— 上传被阻止。请在书架里改名(点 ✎),改完会自动再试。";
     } else if (isLocal && isSignedIn()) { tag = "待上传"; tagCls = "pending"; tagTitle = "本地副本,马上会自动推到 OneDrive"; }
     else if (isLocal) { tag = "本地"; tagTitle = "用户上传的本地文件(登录 OneDrive 后会自动同步)"; }
-    else if (isGhost) { tag = "已不在云端"; tagCls = "ghost"; tagTitle = "云端找不到了(可能你在 OneDrive 网页删了),本地缓存还能看"; }
 
     li.innerHTML = `
       <span class="cache-dot" title="${cached ? '已缓存' : '未缓存'}"></span>
@@ -557,7 +582,14 @@ async function renderDocList() {
       <span class="name">${escapeHtml(nameToTitle(item.name))}</span>
       <span class="meta">${escapeHtml(dateText)}</span>
       <span class="row-actions">
-        ${ drawerView === "books" ? `
+        ${ drawerView === "books" ? (isGhost ? `
+          <button data-act="ghostReupload" title="再上传:把本地副本推回云端" aria-label="再上传">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          </button>
+          <button data-act="ghostDelete" title="也从本地删:云端已经没了,本地副本也删" aria-label="也从本地删">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        ` : `
           ${ !cached && !isLocal ? `
             <button data-act="cache" title="缓存到本地(飞机上能看)" aria-label="缓存">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="8 12 12 16 16 12"></polyline><line x1="12" y1="2" x2="12" y2="16"></line></svg>
@@ -582,7 +614,7 @@ async function renderDocList() {
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
           ` }
-        ` : `
+        `) : `
           <button data-act="restore" title="还原" aria-label="还原">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
           </button>
@@ -610,6 +642,8 @@ async function renderDocList() {
       else if (act === "deleteLocal") deleteLocalBook(item);
       else if (act === "restore") restoreBook(item);
       else if (act === "purge") purgeBook(item);
+      else if (act === "ghostReupload") reuploadGhost(item);
+      else if (act === "ghostDelete") deleteGhost(item);
     });
     docList.appendChild(li);
   }
@@ -647,16 +681,18 @@ function startRename(rowEl, item) {
     const newName = next + ext;
     try {
       setSyncStatus("改名中…");
-      if (item._local) {
-        // 本地文件:只改 cache.meta.name,不动云端 (没云端副本)
-        // cache.renameLocal 内部会清 uploadCollision,下次 drain 重检
+      if (item._local || item._ghost) {
+        // 本地文件 / 鬼:只改 cache.meta.name,不动云端
+        //   - 本地:没云端副本可改
+        //   - 鬼:云端那 itemId 没了 / 不属当前账号,改了无意义
+        //     (用户改名是为了 再上传 时避开冲突)
         await cache.renameLocal(item.id, newName);
         item.name = newName;
         setSyncStatus("已改名");
         if (currentDocId === item.id) currentTitle.textContent = nameToTitle(newName);
         await renderDocList();
-        // 改完立刻试一次 drain (用户改名意图就是想让它能推上去)
-        drainPendingUploads().catch(() => {});
+        // 本地改完立刻 drain (用户意图就是让它能推上去)。鬼不 drain,等 [再上传]
+        if (item._local) drainPendingUploads().catch(() => {});
       } else {
         const updated = await renameItem(item.id, newName, item.eTag);
         item.name = updated.name; item.eTag = updated.eTag;
@@ -690,6 +726,7 @@ async function downloadAndCache(item) {
     const ok = await cache.set(item.id, blob, {
       name: item.name, folderPath, eTag: item.eTag,
       source: "onedrive", pinned: true,
+      accountId: getCurrentAccountId(),
     });
     showProgress(null);
     if (!ok) {
@@ -715,6 +752,150 @@ async function togglePinned(item) {
 async function uncacheItem(item) {
   if (!confirm(`从本地缓存删除「${nameToTitle(item.name)}」?(云端不动)`)) return;
   await cache.del(item.id);
+  await renderDocList();
+}
+
+// 登录后:cache 里 source:"onedrive" 但 accountId 跟当前账号不一样的 → 标鬼。
+// 这样用户能在书架里看到这些孤儿,选择 [改名再上传] / [也从本地删]。
+// accountId 没 stamp 的(老数据)留给 reconcileWithRemoteList 在下次列文件夹时
+// 乐观打上当前账号 ID(假定属于当前账号)。
+async function reconcileAccountSwitch() {
+  const curId = getCurrentAccountId();
+  if (!curId) return;
+  const all = await cache.listMeta();
+  let n = 0;
+  for (const m of all) {
+    if (m.source !== "onedrive") continue;
+    if (!m.accountId) continue;             // 老数据,留给 reconcile stamp
+    if (m.accountId === curId) continue;    // 当前账号,正常
+    if (m.remoteFound === false) continue;  // 已经鬼了,不重复
+    await cache.markGhost(m.itemId);
+    n++;
+  }
+  if (n > 0) {
+    console.log(`[account-switch] ${n} 个别账号项标鬼`);
+    if (openPanel === "books") renderDocList().catch(() => {});
+  }
+}
+
+// 鬼 → 本地待上传。用户意图:云端没了,我想把本地副本再传回去。
+async function reuploadGhost(item) {
+  if (!isSignedIn()) {
+    alert("请先登录 OneDrive,才能把鬼态文件再上传");
+    return;
+  }
+  const newLocalId = `local:${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
+  const ok = await cache.promoteGhostToLocal(item.id, newLocalId);
+  if (!ok) {
+    setSyncStatus("无法再上传 (本地副本可能已丢)", { error: true });
+    return;
+  }
+  // session.docs 里的位置也搬过去
+  await migrateSessionDocId(item.id, newLocalId);
+  setSyncStatus("已转成待上传");
+  // 立刻触发 drain
+  drainPendingUploads().catch(() => {});
+  await renderDocList();
+}
+
+// constraint #6:某个 cache 项 (source:"onedrive") 跟云端 etag 一致 = fresh,
+// 否则静默 pull 新内容覆盖。404 → markGhost。我们这边只读,云端版本永远是 ground truth。
+// 详见 docs/02-cloud-conflict-policy.md
+//
+// 跟换号 ghost 不重不冲:换号鬼是 accountId mismatch,这里只摸属于当前账号的项。
+async function silentRefreshIfStale(itemId) {
+  if (!isSignedIn()) return;
+  if (typeof itemId !== "string" || itemId.startsWith("local:")) return;
+  const m = await cache.getMeta(itemId);
+  if (!m || m.source !== "onedrive") return;
+  if (m.remoteFound === false) return;  // 已是鬼,不主动碰
+  if (!m.eTag) return;                  // 没基线对比不了
+  const curId = getCurrentAccountId();
+  if (m.accountId && curId && m.accountId !== curId) return; // 别账号的,不动
+
+  let meta;
+  try {
+    meta = await getItemMeta(itemId);
+  } catch (e) {
+    if (e.status === 404 || e.status === 403) {
+      await cache.markGhost(itemId).catch(() => {});
+      if (itemId === currentDocId && openPanel === "books") renderDocList().catch(() => {});
+    }
+    return;
+  }
+  if (!meta.eTag || meta.eTag === m.eTag) return;  // 新鲜
+
+  // 云端有新版,静默 pull
+  try {
+    const { blob } = await downloadItemBlob(itemId);
+    await cache.set(itemId, blob, {
+      name: meta.name,
+      folderPath: m.folderPath || "",
+      eTag: meta.eTag,
+      source: "onedrive",
+      pinned: m.pinned,            // 保留原 pinned 状态
+      accountId: getCurrentAccountId(),
+    });
+    // 如果用户还在读这本书,重 load viewer 在当前位置 (yFraction 保留)
+    if (itemId === currentDocId) {
+      const pos = currentDocKind === "pdf" ? currentPdfPosition() : currentTxtPosition();
+      if (currentDocKind === "pdf") {
+        await loadPdf({ docId: itemId, data: blob, position: pos });
+      } else if (currentDocKind === "txt") {
+        const buf = await blob.arrayBuffer();
+        const { text, encoding } = decodeBytes(buf);
+        currentDocText = text;
+        const pref = getBookMeta(itemId);
+        const { chapters, chosen } = splitByPreference(text, pref);
+        currentDocChapters = chapters;
+        loadTxt({ docId: itemId, text, chapters, position: pos });
+        renderOutline(chapters.map((c, i) => ({ title: c.title, chapterIndex: i })), { kind: "txt" });
+        outlineButton.hidden = chapters.length <= 1;
+        outlineTitle.textContent = `目录 · ${chapters.length} 章`;
+        updateChapterSettingsForCurrentBook(chosen);
+        if (encoding && encoding !== pref?.encoding) setBookMeta(itemId, { encoding });
+      }
+      currentTitle.textContent = nameToTitle(meta.name);
+      setSyncStatus("已同步云端新版");
+    }
+    if (openPanel === "books") renderDocList().catch(() => {});
+  } catch (e) {
+    console.warn("silentRefresh failed:", itemId, e?.message);
+  }
+}
+
+// 遍历所有 source:"onedrive" 的 cache 项做 freshness check。
+// 触发点:focus / online / signin。本地用户场景下 cache 一般 < 50 项,顺序跑可以接受。
+let pendingFullSync = false;
+async function syncAllCachedItems() {
+  if (!isSignedIn() || pendingFullSync) return;
+  pendingFullSync = true;
+  try {
+    const all = await cache.listMeta();
+    const curId = getCurrentAccountId();
+    const targets = all.filter((m) =>
+      m.source === "onedrive"
+      && m.eTag
+      && m.remoteFound !== false
+      && (!m.accountId || !curId || m.accountId === curId)
+    );
+    for (const m of targets) {
+      await silentRefreshIfStale(m.itemId);
+    }
+  } finally {
+    pendingFullSync = false;
+  }
+}
+
+// 鬼 → 也从本地删。云端已经没了,本地副本也清掉。**真删** (不像 trash 那样进垃圾箱)
+async function deleteGhost(item) {
+  if (!confirm(
+    `也从本地删「${nameToTitle(item.name)}」?\n\n` +
+    `这文件云端已经没了,本地副本也会一并清掉。`
+  )) return;
+  await cache.del(item.id);
+  if (currentDocId === item.id) closeCurrentBook();
+  forgetDoc(item.id);
   await renderDocList();
 }
 
@@ -842,10 +1023,12 @@ async function openBook(item) {
 
   // 1) 试 cache
   let blob = null;
+  let cameFromCache = false;
   try { blob = await cache.getBlob(item.id); } catch (_) {}
   if (blob) {
     cache.touch(item.id).catch(() => {});
     showProgress(null);
+    cameFromCache = true;
   } else if (item._local) {
     // 本地索引里有但 blob 没了(用户清缓存) → 失效
     setSyncStatus("本地文件已丢失", { error: true });
@@ -895,6 +1078,7 @@ async function openBook(item) {
       eTag: item.eTag,
       source: "onedrive",
       pinned: false,
+      accountId: getCurrentAccountId(),
     }).catch(() => {});
   }
 
@@ -936,6 +1120,11 @@ async function openBook(item) {
     setSyncStatus(`渲染失败: ${e.message}`, { error: true });
     showLanding({ title: "渲染失败", hint: e.message, showUpload: false });
     outlineButton.hidden = true;
+  }
+
+  // constraint #6:从 cache 开的书,后台静默检查 etag。云端有新版就 silentRefresh。
+  if (cameFromCache && !item._local && !item._ghost) {
+    setTimeout(() => silentRefreshIfStale(item.id).catch(() => {}), 800);
   }
 }
 
@@ -1356,6 +1545,8 @@ async function reconcileOnFocus() {
     const changed = await checkRemoteChanged();
     if (changed) showUpdateToast("session", "云端有更新", "同步");
   } catch (_) {}
+  // constraint #6: 所有 cached onedrive 项的 etag 检查
+  syncAllCachedItems().catch(() => {});
 }
 
 let updateMode = null;
@@ -1426,6 +1617,8 @@ window.addEventListener("online", () => {
   flush().catch(() => {});
   // constraint #4:online 后试着 drain 之前堆的本地文件
   drainPendingUploads().catch(() => {});
+  // constraint #6:online 后所有 cached onedrive 项也 etag check 一遍
+  syncAllCachedItems().catch(() => {});
   if (openPanel === "books") renderDocList().catch(() => {});
 });
 
@@ -1891,7 +2084,13 @@ async function main() {
     return;
   }
   refreshAuthRow(authResult.account);
-  if (authResult.signedIn) rememberEverSignedIn();
+  if (authResult.signedIn) {
+    rememberEverSignedIn();
+    // 换号检测:cache 里 source:"onedrive" + accountId 跟当前不一样 → 标鬼。
+    // 一直没登过 → accountId 未 stamp,留着等下次 reconcile stamp 上当前账号(乐观)。
+    // 这一步必须在任何 cache 读之前先做(否则用户会看到别账号的 alive 项)
+    reconcileAccountSwitch().catch(() => {});
+  }
 
   if (!authResult.signedIn) {
     if (!localJumped) {
@@ -1925,7 +2124,11 @@ async function main() {
   }
 
   // 登录成功 → 试 drain 之前堆的本地文件 (constraint #4)
-  setTimeout(() => drainPendingUploads().catch(() => {}), 1500);
+  //          + 所有 cached onedrive 项 etag check (constraint #6)
+  setTimeout(() => {
+    drainPendingUploads().catch(() => {});
+    syncAllCachedItems().catch(() => {});
+  }, 1500);
 
   resetIdle();
 }
