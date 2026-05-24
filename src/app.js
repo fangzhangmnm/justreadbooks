@@ -52,8 +52,15 @@ import {
   currentCharOffset as txtCurrentCharOffset,
 } from "./viewer-txt.js";
 import {
-  BOOKS_FOLDER, TRASH_FOLDER, IDLE_MS, MIN_CACHE_CAP_MB,
+  BOOKS_FOLDER, TRASH_FOLDER, RESERVED_NAMES, IDLE_MS, MIN_CACHE_CAP_MB,
 } from "./config.js";
+
+// 拼 approot 子路径,处理 BOOKS_FOLDER 为空 (= 直接放 approot 根) 的情况。
+// e.g.  joinApprootPath("", "novels", "foo.txt") → "novels/foo.txt"
+//       joinApprootPath("books", "", "bar.pdf") → "books/bar.pdf"
+function joinApprootPath(...segments) {
+  return segments.filter((s) => s !== null && s !== undefined && s !== "").join("/");
+}
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 
@@ -336,7 +343,7 @@ async function loadCurrentFolderItems() {
   // OneDrive 文件夹
   let items = [];
   if (isSignedIn()) {
-    const subPath = currentFolder ? `${BOOKS_FOLDER}/${currentFolder}` : BOOKS_FOLDER;
+    const subPath = joinApprootPath(BOOKS_FOLDER, currentFolder);
     try {
       const cached = folderItemsCache.get(subPath);
       if (cached) {
@@ -344,23 +351,32 @@ async function loadCurrentFolderItems() {
       } else {
         items = await listChildren(subPath);
         folderItemsCache.set(subPath, items);
+        // constraint #5: 用户在 OneDrive 网页改了名 / 挪了文件夹 → cache.meta 跟上
+        cache.reconcileWithRemoteList(items, currentFolder).catch(() => {});
       }
     } catch (e) {
       console.warn("listChildren failed", e?.message);
     }
-    // 文件夹和文件混合;文件只保留可读类型
-    items = items.filter((i) => i.folder || (i.file && detectKindByName(i.name)));
+    // 文件夹和文件混合;文件只保留可读类型;**根目录**还要过滤掉 RESERVED_NAMES
+    // (session.json / library.json / .trash 是 app 内部用的,不该出现在书架里)
+    items = items.filter((i) => {
+      if (currentFolder === "" && i.name && RESERVED_NAMES.has(i.name)) return false;
+      return i.folder || (i.file && detectKindByName(i.name));
+    });
   }
 
-  // 根目录:append 一个虚拟"本地"文件夹(只要 cache.meta 里有 local 文件)
+  // 根目录:append 一个虚拟"本地"文件夹。
+  // 已登录时,所有 source:"local" 文件都是"待上传";未登录时它们是"纯本地"
   if (currentFolder === "" && drawerView === "books") {
     const local = await cache.listLocalFiles();
     if (local.length > 0) {
-      const pendCount = local.filter((m) => m.pendingUpload).length;
+      const label = isSignedIn()
+        ? `本地文件 (${local.length} 待上传)`
+        : "本地文件";
       items = [
         {
           id: "__local__",
-          name: pendCount > 0 ? `本地文件 (${pendCount} 待上传)` : "本地文件",
+          name: label,
           folder: { childCount: local.length },
           _virtualLocal: true,
         },
@@ -519,16 +535,21 @@ async function renderDocList() {
     if (cached) li.classList.add("cached");
     const dateText = fmtDate(item.lastModifiedDateTime);
 
-    // tag 优先级:本地未上传 > 本地已上传 > ghost > ext
+    // tag 优先级:
+    //   - source:"local" + 已登录 → 待上传 (登录后会自动 drain)
+    //   - source:"local" + 未登录 → 本地 (没账号,无处可推)
+    //   - ghost (云端找不到了但本地缓存还有) → 已不在云端
+    //   - 默认 → 文件扩展名
     let tag = kind.toUpperCase();
     let tagTitle = "";
-    if (isLocal && pendingUpload) { tag = "待上传"; tagTitle = "本地副本,登录/上线后会自动推到云端"; }
-    else if (isLocal) { tag = "本地"; tagTitle = "用户上传的本地文件"; }
-    else if (isGhost) { tag = "已不在云端"; tagTitle = "云端找不到了(可能你在 OneDrive 网页删了),本地缓存还能看"; }
+    let tagCls = "";
+    if (isLocal && isSignedIn()) { tag = "待上传"; tagCls = "pending"; tagTitle = "本地副本,马上会自动推到 OneDrive"; }
+    else if (isLocal) { tag = "本地"; tagTitle = "用户上传的本地文件(登录 OneDrive 后会自动同步)"; }
+    else if (isGhost) { tag = "已不在云端"; tagCls = "ghost"; tagTitle = "云端找不到了(可能你在 OneDrive 网页删了),本地缓存还能看"; }
 
     li.innerHTML = `
       <span class="cache-dot" title="${cached ? '已缓存' : '未缓存'}"></span>
-      <span class="ext-tag ${pendingUpload ? 'pending' : ''} ${isGhost ? 'ghost' : ''}" title="${escapeHtml(tagTitle)}">${escapeHtml(tag)}</span>
+      <span class="ext-tag ${tagCls}" title="${escapeHtml(tagTitle)}">${escapeHtml(tag)}</span>
       <span class="name">${escapeHtml(nameToTitle(item.name))}</span>
       <span class="meta">${escapeHtml(dateText)}</span>
       <span class="row-actions">
@@ -712,8 +733,11 @@ async function restoreBook(item) {
   if (!isSignedIn()) return;
   try {
     setSyncStatus("还原中…");
-    const booksId = await ensureSubfolder(BOOKS_FOLDER);
-    await moveItemToFolder(item.id, booksId);
+    // BOOKS_FOLDER 为空时,"还原"的目标 = approot 根本身
+    const targetId = BOOKS_FOLDER
+      ? await ensureSubfolder(BOOKS_FOLDER)
+      : await getApprootId();
+    await moveItemToFolder(item.id, targetId);
     setSyncStatus("已同步");
     folderItemsCache.clear();
     await renderDocList();
@@ -1049,8 +1073,9 @@ async function uploadFiles(files) {
       } catch (e) { console.warn("decode failed:", e); }
     }
 
-    // 2) 先入本地 cache (source:"local", pinned:true, pendingUpload:true)
+    // 2) 先入本地 cache (source:"local" + pinned:true)
     //    constraint #2:即使后续推云失败,本地副本也不会丢
+    //    source:"local" 本身就是"待推云"标记;一旦 rekeyLocalToOnedrive 改成 onedrive 就不再待推
     const localId = `local:${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
     setSyncStatus(`保存本地 ${f.name}…`);
     const ok = await cache.set(localId, storedBlob, {
@@ -1058,7 +1083,6 @@ async function uploadFiles(files) {
       folderPath: "__local__",
       source: "local",
       pinned: true,
-      pendingUpload: isAuthConfigured(),  // 本地模式没必要标 pending(永远没机会推)
     });
     if (!ok) {
       alert(`本地存储空间不够 (${f.name}),先去设置里调大缓存上限或清掉一些缓存。`);
@@ -1072,11 +1096,10 @@ async function uploadFiles(files) {
 
     // 3) 试推云端 (constraint #4)
     if (isSignedIn() && currentFolder !== "__local__") {
-      const targetSub = currentFolder ? `${BOOKS_FOLDER}/${currentFolder}` : BOOKS_FOLDER;
       try {
         setSyncStatus(`上传到云端 ${f.name}…`);
         const item = await uploadFileToApproot(
-          `${targetSub}/${sanitizeFilename(f.name)}`,
+          joinApprootPath(BOOKS_FOLDER, currentFolder, sanitizeFilename(f.name)),
           storedBlob,
           contentType,
         );
@@ -1149,10 +1172,10 @@ async function drainPendingUploads() {
       const kind = detectKindByName(m.name);
       const contentType = kind === "pdf" ? "application/pdf" : "text/plain; charset=utf-8";
       try {
-        // 默认推到 books/ 根 (本地上传时的 currentFolder 信息没保留,简化:都进根)
+        // 默认推到 approot 根 (本地上传时的 currentFolder 信息没保留,简化:都进根)
         // 之后 v2 可以记录 originalFolder
         const item = await uploadFileToApproot(
-          `${BOOKS_FOLDER}/${sanitizeFilename(m.name)}`,
+          joinApprootPath(BOOKS_FOLDER, sanitizeFilename(m.name)),
           blob,
           contentType,
         );
@@ -1188,7 +1211,7 @@ async function createNewFolder() {
   if (!clean) return;
   try {
     setSyncStatus("新建文件夹…");
-    const targetPath = currentFolder ? `${BOOKS_FOLDER}/${currentFolder}/${clean}` : `${BOOKS_FOLDER}/${clean}`;
+    const targetPath = joinApprootPath(BOOKS_FOLDER, currentFolder, clean);
     await ensureSubfolder(targetPath);
     setSyncStatus("已建");
     folderItemsCache.clear();
@@ -1242,6 +1265,9 @@ async function jumpscareRemote() {
 
 async function reconcileOnFocus() {
   if (!isAuthConfigured() || !isSignedIn()) return;
+  // constraint #5:用户可能在 OneDrive 网页改了 / 增删了文件,清掉本地 listing 缓存
+  // 下次打开书架重新列。renderDocList 内部 reconcileWithRemoteList 会更新 cache.meta。
+  folderItemsCache.clear();
   try {
     const changed = await checkRemoteChanged();
     if (changed) showUpdateToast("session", "云端有更新", "同步");

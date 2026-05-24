@@ -10,16 +10,20 @@ export const AUTHORITY = "https://login.microsoftonline.com/common";
 // AppFolder = approot 沙盒;offline_access = 拿 refresh token,纯 silent
 export const SCOPES = ["Files.ReadWrite.AppFolder", "offline_access"];
 
-// 内部布局 (相对 approot)。books 是树状,可以有子文件夹。
-//   approot/books/<可任意层级子文件夹>/<book.txt | book.pdf>
-//   approot/books/<可任意层级子文件夹>/<book>.cover.jpg   (optional sidecar 封面)
+// 内部布局 (相对 approot)。**书直接放在 approot 根**(不是 approot/books/),
+// 因为用户在 OneDrive 网页看到的就是 `Apps/JustReadBooks/<他的书>`,
+// 多包一层 `books/` 会让人莫名其妙地"找不到自己的书"。
+// 用户可以在根下任意建子文件夹分类。
+//   approot/<可任意层级子文件夹>/<book.txt | book.pdf>
 //   approot/session.json
-//   approot/library.json   (NEW: 章节切分 / encoding / 用户元数据)
-//   approot/trash/         (本地上传 → 移到 trash 用)
-export const BOOKS_FOLDER = "books";
-export const TRASH_FOLDER = "trash";
+//   approot/library.json   (章节切分 / encoding / 用户元数据)
+//   approot/.trash/        (软删除,. 前缀压低显示存在感)
+export const BOOKS_FOLDER = "";        // approot 根
+export const TRASH_FOLDER = ".trash";  // 移到 trash 时用
 export const SESSION_FILE = "session.json";
 export const LIBRARY_FILE = "library.json";
+// 列书架时跳过的内部文件/文件夹名(用户在 OneDrive 网页看到这些,但不该在书架里点开)
+export const RESERVED_NAMES = new Set([SESSION_FILE, LIBRARY_FILE, TRASH_FOLDER]);
 
 // 位置写盘节流(从 JustReadPapers 抄):
 //   non-trivial 滚动重置 debounce;一直滚也封顶 heartbeat。
