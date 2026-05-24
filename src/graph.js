@@ -171,13 +171,21 @@ export async function writeApprootJson(path, data, eTag = null) {
 
 // ── 文件上传 (本地上传的 TXT/PDF) ──────────────────────────────────────────
 // Graph 单次 PUT 限 4MB,边界(>4MB)走 createUploadSession。
+//
+// conflictBehavior 默认 "fail" —— sync-constraints #7:同名冲突要
+// **surface 给用户**(标 collision + 禁止上传 + 等用户本地改名),
+// 不能默默 rename 加后缀(那样云端会涌出 "foo 1.txt" "foo 2.txt" 一堆)。
 const SIMPLE_UPLOAD_LIMIT = 4 * 1024 * 1024;
 
-export async function uploadFileToApproot(path, blob, contentType = "application/octet-stream") {
+export async function uploadFileToApproot(
+  path, blob,
+  contentType = "application/octet-stream",
+  { conflictBehavior = "fail" } = {},
+) {
   if (blob.size <= SIMPLE_UPLOAD_LIMIT) {
     const r = await graphFetch(
       "PUT",
-      `/me/drive/special/approot:/${encodeApprootPath(path)}:/content?@microsoft.graph.conflictBehavior=rename`,
+      `/me/drive/special/approot:/${encodeApprootPath(path)}:/content?@microsoft.graph.conflictBehavior=${conflictBehavior}`,
       { headers: { "Content-Type": contentType }, body: blob },
     );
     return r.json();
@@ -189,7 +197,7 @@ export async function uploadFileToApproot(path, blob, contentType = "application
     {
       body: {
         item: {
-          "@microsoft.graph.conflictBehavior": "rename",
+          "@microsoft.graph.conflictBehavior": conflictBehavior,
           name: path.split("/").pop(),
         },
       },

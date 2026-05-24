@@ -529,12 +529,13 @@ async function renderDocList() {
     const cached = !!meta;
     const pinned = !!meta?.pinned;
     const isLocal = !!item._local;
-    const pendingUpload = !!item._pendingUpload || !!meta?.pendingUpload;
+    const isCollision = !!meta?.uploadCollision;
     const isGhost = meta?.remoteFound === false;
     if (cached) li.classList.add("cached");
     const dateText = fmtDate(item.lastModifiedDateTime);
 
-    // tag 优先级:
+    // tag 优先级 (高 → 低):
+    //   - source:"local" + uploadCollision → 重名,云端有同名,改名后才能传
     //   - source:"local" + 已登录 → 待上传 (登录后会自动 drain)
     //   - source:"local" + 未登录 → 本地 (没账号,无处可推)
     //   - ghost (云端找不到了但本地缓存还有) → 已不在云端
@@ -542,7 +543,11 @@ async function renderDocList() {
     let tag = kind.toUpperCase();
     let tagTitle = "";
     let tagCls = "";
-    if (isLocal && isSignedIn()) { tag = "待上传"; tagCls = "pending"; tagTitle = "本地副本,马上会自动推到 OneDrive"; }
+    if (isLocal && isCollision) {
+      tag = "重名";
+      tagCls = "collision";
+      tagTitle = "云端已有同名文件 —— 上传被阻止。请在书架里改名(点 ✎),改完会自动再试。";
+    } else if (isLocal && isSignedIn()) { tag = "待上传"; tagCls = "pending"; tagTitle = "本地副本,马上会自动推到 OneDrive"; }
     else if (isLocal) { tag = "本地"; tagTitle = "用户上传的本地文件(登录 OneDrive 后会自动同步)"; }
     else if (isGhost) { tag = "已不在云端"; tagCls = "ghost"; tagTitle = "云端找不到了(可能你在 OneDrive 网页删了),本地缓存还能看"; }
 
@@ -565,10 +570,10 @@ async function renderDocList() {
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>
             </button>
           ` }
+          <button data-act="rename" title="${isCollision ? '改名(改完才能上传)' : '改名'}" aria-label="改名">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          </button>
           ${ !isLocal ? `
-            <button data-act="rename" title="改名" aria-label="改名">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-            </button>
             <button data-act="trash" title="移到垃圾箱" aria-label="移到垃圾箱">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>
             </button>
@@ -642,12 +647,24 @@ function startRename(rowEl, item) {
     const newName = next + ext;
     try {
       setSyncStatus("改名中…");
-      const updated = await renameItem(item.id, newName, item.eTag);
-      item.name = updated.name; item.eTag = updated.eTag;
-      setSyncStatus("已同步");
-      if (currentDocId === item.id) currentTitle.textContent = nameToTitle(updated.name);
-      folderItemsCache.clear();
-      await renderDocList();
+      if (item._local) {
+        // 本地文件:只改 cache.meta.name,不动云端 (没云端副本)
+        // cache.renameLocal 内部会清 uploadCollision,下次 drain 重检
+        await cache.renameLocal(item.id, newName);
+        item.name = newName;
+        setSyncStatus("已改名");
+        if (currentDocId === item.id) currentTitle.textContent = nameToTitle(newName);
+        await renderDocList();
+        // 改完立刻试一次 drain (用户改名意图就是想让它能推上去)
+        drainPendingUploads().catch(() => {});
+      } else {
+        const updated = await renameItem(item.id, newName, item.eTag);
+        item.name = updated.name; item.eTag = updated.eTag;
+        setSyncStatus("已同步");
+        if (currentDocId === item.id) currentTitle.textContent = nameToTitle(updated.name);
+        folderItemsCache.clear();
+        await renderDocList();
+      }
     } catch (e) {
       console.warn("rename failed", e);
       setSyncStatus(`改名失败: ${e.message}`, { error: true });
@@ -867,6 +884,18 @@ async function openBook(item) {
       return;
     }
     showProgress(null);
+
+    // 自动缓存当前在读的书 (pinned:false,LRU 自然淘汰):
+    //   - constraint #3 离线读;切回上一本也能秒开
+    //   - pinned:false 让显式钉住的 / 本地唯一副本永远不被它挤掉
+    //   - 失败 (容量满 + 全 pinned) 静默,本次还有内存 blob 不影响阅读
+    cache.set(item.id, blob, {
+      name: item.name,
+      folderPath: currentFolder,
+      eTag: item.eTag,
+      source: "onedrive",
+      pinned: false,
+    }).catch(() => {});
   }
 
   // 3) 进 viewer
@@ -1095,29 +1124,49 @@ async function uploadFiles(files) {
 
     // 3) 试推云端 (constraint #4)
     if (isSignedIn() && currentFolder !== "__local__") {
+      const safeName = sanitizeFilename(f.name);
+      // 预检 collision (constraint #7):同名不上传,标记让用户本地改名
+      let hasCollision = false;
       try {
-        setSyncStatus(`上传到云端 ${f.name}…`);
-        const item = await uploadFileToApproot(
-          joinApprootPath(BOOKS_FOLDER, currentFolder, sanitizeFilename(f.name)),
-          storedBlob,
-          contentType,
-        );
-        // 推成功 → 把本地 cache 项 rekey 成云端 itemId
-        await cache.rekeyLocalToOnedrive(localId, item.id, {
-          name: item.name,
-          folderPath: currentFolder,
-          eTag: item.eTag,
-        });
-        // session.docs 也搬:旧的 localId 还在,新的 item.id 用同样 position
-        await migrateSessionDocId(localId, item.id);
-        ensureDoc(item.id, { addedAt: Date.now(), kind });
-        currentItemId = item.id;
-        currentItemName = item.name;
-        folderItemsCache.clear();
-      } catch (e) {
-        // 推失败 → 留 pendingUpload,下次 drain
-        console.warn("upload to cloud failed (will retry later):", e?.message);
-        setSyncStatus(`${f.name} 暂存本地,稍后重试上传`, { error: true });
+        const existing = await listChildren(joinApprootPath(BOOKS_FOLDER, currentFolder));
+        if (existing.some((it) => it.name === safeName)) hasCollision = true;
+      } catch (_) { /* 列表失败就跳过预检,靠 server 409 兜 */ }
+
+      if (hasCollision) {
+        await cache.setUploadCollision(localId, true);
+        setSyncStatus(`${f.name} 重名冲突,在书架里改名后再上传`, { error: true });
+      } else {
+        try {
+          setSyncStatus(`上传到云端 ${f.name}…`);
+          const item = await uploadFileToApproot(
+            joinApprootPath(BOOKS_FOLDER, currentFolder, safeName),
+            storedBlob,
+            contentType,
+            { conflictBehavior: "fail" },
+          );
+          // 推成功 → 把本地 cache 项 rekey 成云端 itemId
+          await cache.rekeyLocalToOnedrive(localId, item.id, {
+            name: item.name,
+            folderPath: currentFolder,
+            eTag: item.eTag,
+          });
+          // session.docs 也搬:旧的 localId 还在,新的 item.id 用同样 position
+          await migrateSessionDocId(localId, item.id);
+          ensureDoc(item.id, { addedAt: Date.now(), kind });
+          currentItemId = item.id;
+          currentItemName = item.name;
+          folderItemsCache.clear();
+        } catch (e) {
+          if (e.status === 409) {
+            // race: 列表后到 PUT 之间云端新增了同名 → 标 collision
+            await cache.setUploadCollision(localId, true);
+            setSyncStatus(`${f.name} 重名冲突,在书架里改名后再上传`, { error: true });
+          } else {
+            // 推失败 (网错 / 5xx) → 留 pendingUpload,下次 drain
+            console.warn("upload to cloud failed (will retry later):", e?.message);
+            setSyncStatus(`${f.name} 暂存本地,稍后重试上传`, { error: true });
+          }
+        }
       }
     }
 
@@ -1153,30 +1202,56 @@ async function migrateSessionDocId(oldId, newId) {
   forgetDoc(oldId);
 }
 
-// 排干所有 pendingUpload 的本地文件 → 推云端 → rekey。
-// 触发点:initAuth 成功 / online event / 用户手动点"立即同步"
-// (constraint #4 + constraint #7 的简版:这里 collision 直接 OneDrive conflictBehavior=rename
-//  自动加后缀,不主动 surface 给用户。等以后做约束 #7 时再改成"surface + 用户决定")
+// 排干所有 pendingUpload (= source:"local") 文件 → 推云端 → rekey。
+// 触发点:initAuth 成功 / online event / 本地 rename 改完
+//
+// constraint #7 collision 处理:
+//   - 一次性 list approot 根,做名字集
+//   - 每个 pending file 比对:命中 → 标 uploadCollision,跳过 (不上传)
+//   - 未命中 → conflictBehavior=fail 推;race 时 409 也标 collision
+//   - 之前标过 collision 现在不冲突了 (云端那个被改/删了) → 清 flag,允许推
 async function drainPendingUploads() {
   if (!isSignedIn() || pendingUploadDraining) return;
   pendingUploadDraining = true;
   try {
     const pending = await cache.listPendingUploads();
     if (pending.length === 0) return;
-    setSyncStatus(`补推 ${pending.length} 个本地文件到云端…`, { sticky: true });
+    setSyncStatus(`检查 ${pending.length} 个本地文件…`, { sticky: true });
+
+    // 先列云端根,准备名字集
+    let existingNames = null;
+    try {
+      const remoteRoot = await listChildren(BOOKS_FOLDER);
+      existingNames = new Set(remoteRoot.map((it) => it.name));
+    } catch (e) {
+      console.warn("list during drain failed, skip pre-check:", e?.message);
+    }
+
     let okCount = 0;
+    let collisionCount = 0;
     for (const m of pending) {
+      const safeName = sanitizeFilename(m.name);
+      // 预检 collision
+      if (existingNames && existingNames.has(safeName)) {
+        if (!m.uploadCollision) await cache.setUploadCollision(m.itemId, true);
+        collisionCount++;
+        continue;
+      }
+      // 之前标过 collision 但现在不冲突了 → 清 flag
+      if (m.uploadCollision) {
+        await cache.setUploadCollision(m.itemId, false);
+      }
+
       const blob = await cache.getBlob(m.itemId);
       if (!blob) continue;
       const kind = detectKindByName(m.name);
       const contentType = kind === "pdf" ? "application/pdf" : "text/plain; charset=utf-8";
       try {
-        // 默认推到 approot 根 (本地上传时的 currentFolder 信息没保留,简化:都进根)
-        // 之后 v2 可以记录 originalFolder
         const item = await uploadFileToApproot(
-          joinApprootPath(BOOKS_FOLDER, sanitizeFilename(m.name)),
+          joinApprootPath(BOOKS_FOLDER, safeName),
           blob,
           contentType,
+          { conflictBehavior: "fail" },
         );
         await cache.rekeyLocalToOnedrive(m.itemId, item.id, {
           name: item.name,
@@ -1186,16 +1261,26 @@ async function drainPendingUploads() {
         await migrateSessionDocId(m.itemId, item.id);
         okCount++;
       } catch (e) {
-        console.warn("drain upload failed:", m.name, e?.message);
-        // 保留 pendingUpload,下次再试
+        if (e.status === 409) {
+          // race: 列表后云端被加了同名 → 标 collision
+          await cache.setUploadCollision(m.itemId, true);
+          collisionCount++;
+        } else {
+          console.warn("drain upload failed:", m.name, e?.message);
+        }
       }
     }
+
     if (okCount > 0) {
       folderItemsCache.clear();
-      setSyncStatus(`已补推 ${okCount}/${pending.length}`);
+      const msg = collisionCount > 0
+        ? `已补推 ${okCount},${collisionCount} 个重名待改名`
+        : `已补推 ${okCount}/${pending.length}`;
+      setSyncStatus(msg);
       if (openPanel === "books") renderDocList().catch(() => {});
-    } else {
-      setSyncStatus("补推失败,稍后重试", { error: true });
+    } else if (collisionCount > 0) {
+      setSyncStatus(`${collisionCount} 个本地文件跟云端重名,请在书架里改名`, { error: true });
+      if (openPanel === "books") renderDocList().catch(() => {});
     }
   } finally {
     pendingUploadDraining = false;
