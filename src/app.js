@@ -130,6 +130,14 @@ const themeSelect = $("themeSelect");
 const SORT_KEY = "jrb.sort";
 const THEME_KEY = "jrb.theme";
 const VIEW_KEY = "jrb.view";       // "books" | "trash"
+// constraint #1 (零账户一等公民):登过一次以后才会自动 silent。从没登过就不挡屏。
+const EVER_SIGNED_IN_KEY = "jrb.everSignedIn";
+function rememberEverSignedIn() {
+  try { localStorage.setItem(EVER_SIGNED_IN_KEY, "1"); } catch (_) {}
+}
+function hasEverSignedIn() {
+  try { return localStorage.getItem(EVER_SIGNED_IN_KEY) === "1"; } catch (_) { return false; }
+}
 
 let sortMode = localStorage.getItem(SORT_KEY) || "modified";
 let drawerView = "books";
@@ -1481,11 +1489,16 @@ backFromTrashButton.addEventListener("click", async () => {
 emptyTrashButton.addEventListener("click", emptyAllTrash);
 
 loginButton.addEventListener("click", async () => {
-  try { await signIn(); }
-  catch (e) { alert(`登录失败: ${e.message}`); }
+  try {
+    // 记下"用户明确表达过登录意愿" → 下次启动会自动 silent
+    rememberEverSignedIn();
+    await signIn();
+  } catch (e) { alert(`登录失败: ${e.message}`); }
 });
 logoutButton.addEventListener("click", async () => {
   await signOut();
+  // 登出 = 用户表达"不想自动登录了" → 下次启动回到本地模式
+  try { localStorage.removeItem(EVER_SIGNED_IN_KEY); } catch (_) {}
   refreshAuthRow(null);
   await renderDocList();
 });
@@ -1571,20 +1584,34 @@ async function main() {
   // initSession 即使 Graph 失败也会 hydrate 备份
   await Promise.allSettled([initSession(), initLibrary()]);
 
+  // 申请持久化存储 (constraint #2 + #3 保险): 浏览器存储压力下不会清掉 IDB
+  if (navigator.storage?.persist) {
+    navigator.storage.persist().catch(() => {});
+  }
+
   // 1) 先试本地 jumpscare —— 不等 OneDrive 登录
   const localJumped = await jumpscareLocal();
+
+  // 决定是否尝试自动登录:
+  //   - Azure 没配 → 纯本地,不试
+  //   - 从没登过 → 纯本地,不试 (constraint #1)
+  //   - 登过且配了 → 后台 silent
+  const tryAuth = isAuthConfigured() && hasEverSignedIn();
+
   if (!localJumped) {
     showLanding({
-      title: isAuthConfigured() ? "正在准备…" : "本地模式",
-      hint: isAuthConfigured()
+      title: tryAuth ? "正在准备…" : "本地模式",
+      hint: tryAuth
         ? "正在尝试自动登录 OneDrive。"
-        : "上传 TXT/PDF 直接读,或拖拽到窗口。",
+        : (isAuthConfigured()
+            ? "上传 TXT/PDF 直接读;想要跨设备同步可以从书架登录 OneDrive。"
+            : "上传 TXT/PDF 直接读,或拖拽到窗口。"),
       showUpload: true,
     });
   }
 
-  // 没配 Azure → 跳过整个 auth + 远端 jumpscare,纯本地
-  if (!isAuthConfigured()) {
+  // 从没登过 / Azure 没配 → 直接结束 main,本地路径就够了
+  if (!tryAuth) {
     refreshAuthRow(null);
     setSyncStatus("本地模式", { sticky: true });
     resetIdle();
@@ -1607,6 +1634,7 @@ async function main() {
     return;
   }
   refreshAuthRow(authResult.account);
+  if (authResult.signedIn) rememberEverSignedIn();
 
   if (!authResult.signedIn) {
     if (!localJumped) {
