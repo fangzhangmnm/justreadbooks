@@ -222,10 +222,13 @@ export async function listLocalFiles() {
   return all.filter((m) => m.source === "local");
 }
 
-// 列出所有 pendingUpload (本地文件 + 网络好了要补推)
+// 列出所有等待推云的本地文件。
+// **简化语义** (constraint #4):source==="local" 就意味着"云端没有,等待推"。
+// 不需要额外的 pendingUpload flag — 推成功后会 rekeyLocalToOnedrive 改 source,
+// 自然就不再被列出。
 export async function listPendingUploads() {
   const all = await listMeta();
-  return all.filter((m) => m.pendingUpload && m.source === "local");
+  return all.filter((m) => m.source === "local");
 }
 
 // 一个 set 后把 source 改成 onedrive (上传成功后从本地文件晋级成云端缓存)
@@ -278,6 +281,32 @@ export async function markRemoteFound(itemId, patch = {}) {
   tx.objectStore(STORE_META).put(m);
   await awaitTx(tx);
   return true;
+}
+
+// 用 listChildren 结果同步 cache.meta —— constraint #5:用户在 OneDrive 网页
+// 改名 / 改文件夹 / 改 eTag 后,本地 cache 元数据要跟上,不然 UI 显示旧名字。
+// items: listChildren 返回的 driveItem[],folderPath: 它们所在的相对路径
+// 返回:更新条数
+export async function reconcileWithRemoteList(items, folderPath) {
+  let updated = 0;
+  for (const it of items) {
+    if (!it.id || !it.file) continue;
+    const m = await getMeta(it.id);
+    if (!m) continue;
+    let changed = false;
+    if (it.name && m.name !== it.name) { m.name = it.name; changed = true; }
+    if (m.folderPath !== folderPath) { m.folderPath = folderPath; changed = true; }
+    if (it.eTag && m.eTag !== it.eTag) { m.eTag = it.eTag; changed = true; }
+    if (m.remoteFound === false) { m.remoteFound = true; changed = true; }
+    if (changed) {
+      const db = await openDb();
+      const tx = db.transaction(STORE_META, "readwrite");
+      tx.objectStore(STORE_META).put(m);
+      await awaitTx(tx);
+      updated++;
+    }
+  }
+  return updated;
 }
 
 // 清空所有未钉住的云端缓存。**本地文件(source="local")永远不动**,constraint #2。

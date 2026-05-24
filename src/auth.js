@@ -34,15 +34,29 @@ function loadScript(url) {
   });
 }
 
+// GH Pages 冷启动偶尔会一次拉不下,加退避重试
+async function loadScriptWithRetry(url, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { await loadScript(url); return; }
+    catch (e) {
+      lastErr = e;
+      console.warn(`script ${url} 第 ${i + 1}/${attempts} 次加载失败`);
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+  throw new Error(`script 加载失败 ${url}: ${lastErr?.message}`);
+}
+
 function loadMsal() {
   if (window.msal) return Promise.resolve(window.msal);
   if (msalLoadPromise) return msalLoadPromise;
   msalLoadPromise = (async () => {
-    await loadScript(MSAL_URL);
+    await loadScriptWithRetry(MSAL_URL);
     if (window.msal) return window.msal;
     msalLoadPromise = null;
     throw new Error("MSAL 加载完但 window.msal 没出现");
-  })();
+  })().catch((e) => { msalLoadPromise = null; throw e; });
   return msalLoadPromise;
 }
 

@@ -117,10 +117,22 @@ export function zoomBy(factor) {
   viewer.currentScale = next;
 }
 
-async function loadModule(rel) {
+// dynamic import + 退避重试。GH Pages 冷启动 / 弱网 / 第一次缓存竞态偶尔会让
+// import() 一次性失败,重试 3 次几乎可以兜底所有 transient 问题。
+async function loadModule(rel, attempts = 3) {
   const u = `${PDFJS_BASE}${rel}`;
-  try { return await import(/* @vite-ignore */ u); }
-  catch (e) { throw new Error(`pdf.js 加载失败 (${rel}): ${e.message}`); }
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await import(/* @vite-ignore */ u); }
+    catch (e) {
+      lastErr = e;
+      console.warn(`pdf.js ${rel} 第 ${i + 1}/${attempts} 次加载失败:`, e?.message);
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+      }
+    }
+  }
+  throw new Error(`pdf.js 加载失败 (${rel}): ${lastErr?.message}`);
 }
 
 async function ensureLib() {
@@ -132,67 +144,16 @@ async function ensureLib() {
   pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}pdf.worker.mjs`;
 }
 
-export async function initPdfViewer({ containerEl, onPosition, onPagePeek: opp }) {
-  await ensureLib();
+// 同步初始化:只记下 container 引用 + callback + 挂 scrollHandler
+// (handler 内部 `if (!viewer) return` 自己保护)。**不加载** pdf.js,
+// 让只看 TXT 的用户永远不下 4MB 的 pdf.js + cmaps。
+export function initPdfViewer({ containerEl, onPosition, onPagePeek: opp }) {
   container = containerEl;
   onPositionChange = onPosition;
   onPagePeek = opp || null;
 
-  eventBus = new pdfViewerNs.EventBus();
-  linkService = new pdfViewerNs.PDFLinkService({ eventBus });
-  viewer = new pdfViewerNs.PDFViewer({ container, eventBus, linkService });
-  linkService.setViewer(viewer);
-
-  eventBus.on("pagesinit", () => {
-    applySavedZoomOrAutoFit();
-    if (pendingRestore) {
-      const p = pendingRestore;
-      pendingRestore = null;
-      restorePosition(p);
-    }
-  });
-  eventBus.on("pagesloaded", () => {
-    if (pendingRestore) {
-      const p = pendingRestore;
-      pendingRestore = null;
-      restorePosition(p);
-    }
-  });
-  eventBus.on("scalechanging", (evt) => {
-    if (programmaticScale) return;
-    const k = currentZoomFactorKey();
-    if (!k) return;
-    const cozy = computeCozyScale();
-    if (!cozy) return;
-    const factor = (evt.scale ?? viewer.currentScale) / cozy;
-    if (!Number.isFinite(factor) || factor <= 0) return;
-    try { localStorage.setItem(k, String(Math.max(0.1, Math.min(8, factor)))); } catch (_) {}
-  });
-
-  container.addEventListener("wheel", (e) => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    const dir = e.deltaY < 0 ? 1 : -1;
-    const factor = dir > 0 ? 1.1 : 1 / 1.1;
-    const cur = viewer.currentScale || 1;
-    const next = Math.max(0.2, Math.min(8, cur * factor));
-    viewer.currentScale = next;
-  }, { passive: false });
-
-  // resize → 重 fit (没手动 zoom 时)
-  let autoFitGuard = false;
-  const refit = () => {
-    if (!currentPdf || !currentDocId || autoFitGuard) return;
-    autoFitGuard = true;
-    try { applySavedZoomOrAutoFit(); } catch (_) {}
-    requestAnimationFrame(() => requestAnimationFrame(() => { autoFitGuard = false; }));
-  };
-  const ro = new ResizeObserver(refit);
-  ro.observe(container);
-  window.addEventListener("resize", refit);
-
   scrollHandler = () => {
-    if (isRestoring) return;
+    if (!viewer || isRestoring) return;
     if (onPagePeek && !pagePeekRaf) {
       pagePeekRaf = requestAnimationFrame(() => {
         pagePeekRaf = null;
@@ -210,8 +171,75 @@ export async function initPdfViewer({ containerEl, onPosition, onPagePeek: opp }
   container.addEventListener("scroll", scrollHandler, { passive: true });
 }
 
+// 第一次 loadPdf 时才真正构建 PDFViewer / 装 eventBus / resize 监听
+// (single-flight via pendingBuild,多次并发 loadPdf 也只构一次)
+let pendingBuild = null;
+async function ensureViewerBuilt() {
+  if (viewer) return;
+  if (pendingBuild) return pendingBuild;
+  pendingBuild = (async () => {
+    await ensureLib();
+    eventBus = new pdfViewerNs.EventBus();
+    linkService = new pdfViewerNs.PDFLinkService({ eventBus });
+    viewer = new pdfViewerNs.PDFViewer({ container, eventBus, linkService });
+    linkService.setViewer(viewer);
+
+    eventBus.on("pagesinit", () => {
+      applySavedZoomOrAutoFit();
+      if (pendingRestore) {
+        const p = pendingRestore;
+        pendingRestore = null;
+        restorePosition(p);
+      }
+    });
+    eventBus.on("pagesloaded", () => {
+      if (pendingRestore) {
+        const p = pendingRestore;
+        pendingRestore = null;
+        restorePosition(p);
+      }
+    });
+    eventBus.on("scalechanging", (evt) => {
+      if (programmaticScale) return;
+      const k = currentZoomFactorKey();
+      if (!k) return;
+      const cozy = computeCozyScale();
+      if (!cozy) return;
+      const factor = (evt.scale ?? viewer.currentScale) / cozy;
+      if (!Number.isFinite(factor) || factor <= 0) return;
+      try { localStorage.setItem(k, String(Math.max(0.1, Math.min(8, factor)))); } catch (_) {}
+    });
+
+    container.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const dir = e.deltaY < 0 ? 1 : -1;
+      const factor = dir > 0 ? 1.1 : 1 / 1.1;
+      const cur = viewer.currentScale || 1;
+      const next = Math.max(0.2, Math.min(8, cur * factor));
+      viewer.currentScale = next;
+    }, { passive: false });
+
+    // resize → 重 fit (没手动 zoom 时)
+    let autoFitGuard = false;
+    const refit = () => {
+      if (!currentPdf || !currentDocId || autoFitGuard) return;
+      autoFitGuard = true;
+      try { applySavedZoomOrAutoFit(); } catch (_) {}
+      requestAnimationFrame(() => requestAnimationFrame(() => { autoFitGuard = false; }));
+    };
+    const ro = new ResizeObserver(refit);
+    ro.observe(container);
+    window.addEventListener("resize", refit);
+  })().catch((e) => {
+    pendingBuild = null;   // 让下次 loadPdf 可以重试 build
+    throw e;
+  });
+  return pendingBuild;
+}
+
 export async function loadPdf({ docId, data, position }) {
-  if (!viewer) throw new Error("PDF viewer 未 init");
+  await ensureViewerBuilt();   // 真·懒加载入口
   currentDocId = docId;
   if (currentPdf) {
     try { currentPdf.destroy(); } catch (_) {}
