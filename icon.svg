@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景 (warm parchment) -->
+  <rect width="512" height="512" rx="96" fill="#d8c8a8"/>
+  <!-- 书脊 (左侧深色) -->
+  <rect x="88" y="92" width="48" height="328" rx="6" fill="#8a481e"/>
+  <!-- 书页(白纸) -->
+  <rect x="136" y="92" width="288" height="328" rx="6"
+        fill="#fbf3e1" stroke="#8a481e" stroke-width="6"/>
+  <!-- 章节标题(粗) -->
+  <line x1="172" y1="156" x2="320" y2="156" stroke="#8a481e" stroke-width="14" stroke-linecap="round"/>
+  <!-- 文本行 (代表正文) -->
+  <g stroke="#8a481e" stroke-width="9" stroke-linecap="round" opacity="0.55">
+    <line x1="172" y1="208" x2="380" y2="208"/>
+    <line x1="172" y1="244" x2="356" y2="244"/>
+    <line x1="172" y1="280" x2="380" y2="280"/>
+    <line x1="172" y1="316" x2="316" y2="316"/>
+    <line x1="172" y1="352" x2="372" y2="352"/>
+  </g>
+</svg>
