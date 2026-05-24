@@ -283,6 +283,38 @@ export async function markRemoteFound(itemId, patch = {}) {
   return true;
 }
 
+// 把鬼 (source:"onedrive" + remoteFound:false) 转成本地待上传 (source:"local")。
+// 用户在鬼态点 [再上传] 时调:意图 = "云端没了,把本地副本再传上去"。
+// 旧 itemId 没用了(那是云端的 ID),给个新 local: ID。drain 时会推到 folderPath
+// 指示的原位置(如果用户希望就近恢复)。
+export async function promoteGhostToLocal(oldId, newLocalId) {
+  const oldMeta = await getMeta(oldId);
+  if (!oldMeta || oldMeta.source !== "onedrive") return false;
+  const oldBlob = await getBlob(oldId);
+  if (!oldBlob) return false;
+
+  const newMeta = {
+    ...oldMeta,
+    itemId: newLocalId,
+    source: "local",
+    pinned: true,  // 用户主动操作,默认 pin
+  };
+  // 清掉 onedrive 专属字段
+  delete newMeta.remoteFound;
+  delete newMeta.eTag;
+  delete newMeta.accountId;
+  delete newMeta.uploadCollision; // 重新检查
+
+  const db = await openDb();
+  const tx = db.transaction([STORE_BLOBS, STORE_META], "readwrite");
+  tx.objectStore(STORE_BLOBS).put(oldBlob, newLocalId);
+  tx.objectStore(STORE_META).put(newMeta);
+  tx.objectStore(STORE_BLOBS).delete(oldId);
+  tx.objectStore(STORE_META).delete(oldId);
+  await awaitTx(tx);
+  return true;
+}
+
 // 标记 / 清除 "重名冲突" (sync-constraints #7:同名时禁止上传,要求用户本地改名)
 export async function setUploadCollision(itemId, collide) {
   const m = await getMeta(itemId);
@@ -295,12 +327,15 @@ export async function setUploadCollision(itemId, collide) {
   return true;
 }
 
-// 本地 (source:"local") 文件改名 —— 不动云端 (没云端副本),
-// 只改 meta.name + 清掉 uploadCollision(下次 drain 重新检查)
+// 只在本地 cache.meta 里改名,不动云端。适用于:
+//   - source:"local" (没云端副本可改)
+//   - source:"onedrive" + remoteFound:false (鬼态;云端那个 itemId 已经没了 / 不属于
+//     当前账号,改了也没意义。用户改名是为了 再上传 时避开冲突)
+// **不** 适用于:source:"onedrive" + remoteFound:true (活的云端项要走 graph.renameItem)
 export async function renameLocal(itemId, newName) {
   const m = await getMeta(itemId);
   if (!m) return false;
-  if (m.source !== "local") return false; // 云端的走 graph.renameItem
+  if (m.source === "onedrive" && m.remoteFound !== false) return false;
   m.name = newName;
   m.uploadCollision = false;  // 改名后让 drain 重新判
   const db = await openDb();
@@ -310,21 +345,43 @@ export async function renameLocal(itemId, newName) {
   return true;
 }
 
-// 用 listChildren 结果同步 cache.meta —— constraint #5:用户在 OneDrive 网页
-// 改名 / 改文件夹 / 改 eTag 后,本地 cache 元数据要跟上,不然 UI 显示旧名字。
-// items: listChildren 返回的 driveItem[],folderPath: 它们所在的相对路径
-// 返回:更新条数
-export async function reconcileWithRemoteList(items, folderPath) {
+// 用 listChildren 结果同步 cache.meta:
+//   1) constraint #5: 云端改名 / 改 eTag / 跨文件夹移动 → cache.meta 跟上
+//   2) ghost 检测:同 folderPath 的 onedrive 项在 list 里消失 → 标 ghost
+//   3) ghost 复活:如果 list 里又出现了某鬼的 itemId (用户在 OneDrive 网页
+//      把它放回了某个文件夹) → un-ghost + 更新 folderPath
+//
+// **空 list 安全网**:listChildren 抽风返回 [] 但 cache 里这文件夹本来有 N 项 →
+//   不标鬼。避免一次 list 异常把所有缓存全鬼了。
+//
+// items: listChildren 返回的 driveItem[];folderPath: 它们所在的相对路径
+// currentAccountId: MSAL homeAccountId,**只 stamp 老 entry 用** (新 entry 在 cache.set
+//   时由调用方传入);不用做 cross-account 鬼检测 — 不同账号的 entry 通过列表 hide 隔离
+// 返回 { updated, ghosted, unghosted }
+export async function reconcileWithRemoteList(items, folderPath, currentAccountId = null) {
   let updated = 0;
+  let unghosted = 0;
+
+  // 已知 items 的字段同步(改名 / 改 etag / 改 folderPath / un-ghost / stamp accountId)
+  const remoteIds = new Set();
   for (const it of items) {
-    if (!it.id || !it.file) continue;
+    if (!it.id) continue;
+    remoteIds.add(it.id);
+    if (!it.file) continue;
     const m = await getMeta(it.id);
     if (!m) continue;
     let changed = false;
     if (it.name && m.name !== it.name) { m.name = it.name; changed = true; }
     if (m.folderPath !== folderPath) { m.folderPath = folderPath; changed = true; }
     if (it.eTag && m.eTag !== it.eTag) { m.eTag = it.eTag; changed = true; }
-    if (m.remoteFound === false) { m.remoteFound = true; changed = true; }
+    // accountId 老 entry 没 stamp 过 → 乐观打上当前账号 (listChildren 拿到 = 一定是当前账号的)
+    if (currentAccountId && !m.accountId) { m.accountId = currentAccountId; changed = true; }
+    if (m.remoteFound === false) {
+      // 鬼复活:云端那东西又被 list 看到了 (用户挪回 / 换号换回 / 网页端恢复)
+      m.remoteFound = true;
+      changed = true;
+      unghosted++;
+    }
     if (changed) {
       const db = await openDb();
       const tx = db.transaction(STORE_META, "readwrite");
@@ -333,7 +390,31 @@ export async function reconcileWithRemoteList(items, folderPath) {
       updated++;
     }
   }
-  return updated;
+
+  // 鬼检测:cache 里 source:"onedrive" + 同 folderPath + **属于当前账号** 但不在 list 里
+  let ghosted = 0;
+  const all = await listMeta();
+  const cachedInFolder = all.filter((m) =>
+    m.source === "onedrive"
+    && m.folderPath === folderPath
+    && m.remoteFound !== false
+    && (!currentAccountId || !m.accountId || m.accountId === currentAccountId)
+  );
+  // 空 list 安全网
+  if (items.length === 0 && cachedInFolder.length > 0) {
+    return { updated, ghosted: 0, unghosted };
+  }
+  for (const m of cachedInFolder) {
+    if (remoteIds.has(m.itemId)) continue;
+    m.remoteFound = false;
+    const db = await openDb();
+    const tx = db.transaction(STORE_META, "readwrite");
+    tx.objectStore(STORE_META).put(m);
+    await awaitTx(tx);
+    ghosted++;
+  }
+
+  return { updated, ghosted, unghosted };
 }
 
 // 清空所有未钉住的云端缓存。**本地文件(source="local")永远不动**,constraint #2。

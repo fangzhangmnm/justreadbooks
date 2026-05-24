@@ -113,7 +113,7 @@ src/
 docs/                    工程笔记 (PWA 热更新、sync 约束等)
 ```
 
-详见 [docs/](docs/)。同家族 sibling apps 共享一份 [sync-constraints](../20260520%20RealHome/docs/sync-constraints.md) 设计准则。
+详见 [docs/](docs/)。同家族 sibling apps 共享一份 [sync-constraints](docs/00-sync-constraints.md) 设计准则。
 
 ### License
 
