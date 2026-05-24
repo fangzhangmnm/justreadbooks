@@ -241,6 +241,15 @@ body {
   background: var(--bg-1);
   border-bottom: 1px solid var(--line-strong);
   z-index: 5;
+  /* zen mode:阅读时整个顶栏淡一点,鼠标移上去再"实化"。
+     手机 / 触屏 hover 不可靠 → 用 opacity 0.6/1 微差,而不是完全隐藏,
+     方向键 / 手柄 / 拇指误触都还点得到。 */
+  opacity: 0.6;
+  transition: opacity 180ms ease;
+}
+.top-bar:hover,
+.top-bar:focus-within {
+  opacity: 1;
 }
 
 .icon-button {
