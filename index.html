@@ -127,12 +127,6 @@
         </button>
       </header>
 
-      <div class="auth-row" id="authRow">
-        <span class="who" id="authWho">未登录</span>
-        <button id="loginButton" type="button">登录</button>
-        <button id="logoutButton" type="button" hidden>登出</button>
-      </div>
-
       <!-- 当前路径 breadcrumb -->
       <nav class="breadcrumb" id="breadcrumb" aria-label="当前路径"></nav>
 
@@ -221,6 +215,16 @@
         </button>
       </header>
       <div class="settings-body">
+        <section class="settings-section">
+          <h3>OneDrive 账户</h3>
+          <div class="settings-row" style="gap:10px; align-items:center;">
+            <span id="authWho" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color: var(--ink-soft);">未登录</span>
+            <button class="drawer-action" id="loginButton" type="button" style="flex:0 0 auto;">登录</button>
+            <button class="drawer-action" id="logoutButton" type="button" hidden style="flex:0 0 auto;">登出</button>
+          </div>
+          <p class="hint">不登录也能用 —— 拖 TXT/PDF 进窗口直接看。登录后所有设备同步阅读位置 + 本地文件自动同步到 OneDrive。</p>
+        </section>
+
         <section class="settings-section">
           <h3>本地缓存</h3>
           <div class="cache-stats" id="cacheStatsDetail">缓存 0 B / 上限 500 MB</div>

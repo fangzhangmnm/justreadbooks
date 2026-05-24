@@ -85,7 +85,6 @@ const drawerCloseButton = $("drawerCloseButton");
 const drawerSortButton = $("drawerSortButton");
 const drawerRefreshButton = $("drawerRefreshButton");
 const drawerTitle = $("drawerTitle");
-const authRow = $("authRow");
 const authWho = $("authWho");
 const loginButton = $("loginButton");
 const logoutButton = $("logoutButton");
@@ -1344,6 +1343,133 @@ window.addEventListener("online", () => {
   drainPendingUploads().catch(() => {});
   if (openPanel === "books") renderDocList().catch(() => {});
 });
+
+// ── 键盘 + 手柄快捷键 ────────────────────────────────────────────────────
+// 输入框聚焦 / 抽屉打开 / 没在读书 → 不抢
+//
+// 键盘:
+//   B           切换书库 (books drawer)
+//   O           切换目录 (outline,本书章节列表)
+//   S           切换设置
+//   Escape      关任何打开的 panel
+//   ←/→/[/]    上/下一章 (TXT) — viewer-txt 自己处理
+//   ↑/↓/PgUp/PgDn/Space — 浏览器原生 / viewer-txt 自己处理
+//
+// 手柄 (Xbox / Quest / DualShock standard mapping):
+//   D-pad ↑ (12)    持续滚动当前 viewer 向上
+//   D-pad ↓ (13)    持续滚动当前 viewer 向下
+//   D-pad ← (14)    上一章 (TXT) / 上一屏 (PDF)
+//   D-pad → (15)    下一章 (TXT) / 下一屏 (PDF)
+//   Select / View (8)   切换目录
+//   Start / Menu (9)    切换书库
+//   Home / Guide (16)   切换书库 (备用)
+
+function isReadingInputFocused() {
+  const a = document.activeElement;
+  if (!a) return false;
+  const tag = a.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || a.isContentEditable;
+}
+
+function getActiveViewerContainer() {
+  if (currentDocKind === "pdf") return pdfViewerContainer;
+  if (currentDocKind === "txt") return txtViewerContainer;
+  return null;
+}
+
+// 在 capture 阶段绑,优先级在 viewer-txt 的 doc-level handler 之前
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (isReadingInputFocused()) return;
+  // 单字符快捷键
+  switch (e.key) {
+    case "b":
+    case "B":
+      e.preventDefault(); togglePanel("books"); return;
+    case "o":
+    case "O":
+      e.preventDefault(); togglePanel("outline"); return;
+    case "s":
+    case "S":
+      e.preventDefault(); togglePanel("settings"); return;
+  }
+});
+
+// 手柄
+const gamepadState = { rafId: null, prevPressed: new Set() };
+
+window.addEventListener("gamepadconnected", (e) => {
+  console.log("[gamepad] connected:", e.gamepad?.id);
+  if (gamepadState.rafId == null) {
+    gamepadState.rafId = requestAnimationFrame(pollGamepad);
+  }
+});
+window.addEventListener("gamepaddisconnected", (e) => {
+  console.log("[gamepad] disconnected:", e.gamepad?.id);
+  // 不停 polling —— 别的手柄可能还插着
+});
+
+function pollGamepad() {
+  gamepadState.rafId = requestAnimationFrame(pollGamepad);
+
+  const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+  let active = null;
+  for (const gp of gps) { if (gp) { active = gp; break; } }
+  if (!active) return;
+
+  const inputFocused = isReadingInputFocused();
+  const container = getActiveViewerContainer();
+  const viewerOk = !!container && !container.classList.contains("hidden");
+
+  // 持续滚动:D-pad up/down (仅当有 viewer 显示 + 没 panel 在前)
+  if (viewerOk && !openPanel && !inputFocused) {
+    const SCROLL_PX = 16;
+    if (active.buttons[12]?.pressed) container.scrollTop -= SCROLL_PX;
+    if (active.buttons[13]?.pressed) container.scrollTop += SCROLL_PX;
+  }
+
+  // 边沿触发(按下一次才触发,不连发)
+  const wasPressed = (i) => gamepadState.prevPressed.has(i);
+  const isPressed = (i) => !!active.buttons[i]?.pressed;
+  const edge = (i) => isPressed(i) && !wasPressed(i);
+
+  // D-pad 左右:章节 / 页跳。只在 viewer 显示 + 没 panel 时
+  if (viewerOk && !openPanel && !inputFocused) {
+    if (edge(14)) gamepadNavBack();
+    if (edge(15)) gamepadNavForward();
+  }
+
+  // Select (8) → 目录 toggle (要求至少有 viewer,否则没目录可看)
+  if (viewerOk && edge(8)) togglePanel("outline");
+  // Start (9) → 书库 toggle
+  if (edge(9)) togglePanel("books");
+  // Home/Guide (16) → 书库 toggle (备用,有些控制器才有)
+  if (edge(16)) togglePanel("books");
+
+  // 更新 prev pressed
+  gamepadState.prevPressed.clear();
+  for (let i = 0; i < active.buttons.length; i++) {
+    if (active.buttons[i]?.pressed) gamepadState.prevPressed.add(i);
+  }
+}
+
+function gamepadNavBack() {
+  if (currentDocKind === "txt") {
+    const ch = txtGetCurrentChapter();
+    if (ch > 0) txtGoToChapter(ch - 1);
+  } else if (currentDocKind === "pdf") {
+    pdfViewerContainer.scrollBy({ top: -pdfViewerContainer.clientHeight * 0.9 });
+  }
+}
+function gamepadNavForward() {
+  if (currentDocKind === "txt") {
+    const ch = txtGetCurrentChapter();
+    const total = txtGetChapters().length;
+    if (ch < total - 1) txtGoToChapter(ch + 1);
+  } else if (currentDocKind === "pdf") {
+    pdfViewerContainer.scrollBy({ top: pdfViewerContainer.clientHeight * 0.9 });
+  }
+}
 
 // ── Settings panel ──────────────────────────────────────────────────────
 
