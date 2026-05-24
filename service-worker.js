@@ -7,7 +7,7 @@
 // 也就没有 Edge "Tracking Prevention" 拦截问题。
 // 唯一跨源 = Graph + MSAL login,passthrough 不缓存。
 
-const CACHE_VERSION = "v5-2026-05-24";
+const CACHE_VERSION = "v6-2026-05-24";
 const CACHE_NAME = `jrb-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
