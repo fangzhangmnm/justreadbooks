@@ -312,7 +312,7 @@ body {
   top: 0;
   left: 0;
   height: 100dvh;
-  width: min(380px, 92vw);
+  width: min(360px, 90vw);    /* 跟 JustReadPapers 同款 */
   background: var(--bg-1);
   border-right: 1px solid var(--line-strong);
   box-shadow: 4px 0 16px rgba(0, 0, 0, 0.08);
@@ -560,23 +560,24 @@ body {
 .drawer-foot-button:hover { color: var(--ink); background: var(--bg-2); }
 .drawer-foot-button svg { width: 14px; height: 14px; }
 
-/* settings 面板(章节正则 / 字体 / 缓存上限)做成全屏抽屉 */
+/* settings 面板:也是左边滑出的抽屉,跟书架 / 目录同侧同宽,
+   三者 mutex (openPanel state),所以同侧不冲突。 */
 .settings-panel {
   position: fixed;
-  top: 0; right: 0; height: 100dvh;
-  width: min(420px, 92vw);
+  top: 0; left: 0; height: 100dvh;
+  width: min(360px, 90vw);
   background: var(--bg-1);
-  border-left: 1px solid var(--line-strong);
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+  border-right: 1px solid var(--line-strong);
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.08);
   z-index: 30;
   display: flex; flex-direction: column;
   transform: translateX(0);
   transition: transform 200ms ease;
   padding-top: env(safe-area-inset-top, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-.settings-panel.hidden { transform: translateX(100%); }
+.settings-panel.hidden { transform: translateX(-100%); }
 .settings-body {
   flex: 1 1 auto;
   overflow-y: auto;

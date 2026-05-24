@@ -1421,20 +1421,18 @@ function pollGamepad() {
   const container = getActiveViewerContainer();
   const viewerOk = !!container && !container.classList.contains("hidden");
 
-  // 持续滚动:D-pad up/down (仅当有 viewer 显示 + 没 panel 在前)
-  if (viewerOk && !openPanel && !inputFocused) {
-    const SCROLL_PX = 16;
-    if (active.buttons[12]?.pressed) container.scrollTop -= SCROLL_PX;
-    if (active.buttons[13]?.pressed) container.scrollTop += SCROLL_PX;
-  }
-
-  // 边沿触发(按下一次才触发,不连发)
+  // 边沿触发(按下一次才触发,持按不连发,避免"按一下就过头")
   const wasPressed = (i) => gamepadState.prevPressed.has(i);
   const isPressed = (i) => !!active.buttons[i]?.pressed;
   const edge = (i) => isPressed(i) && !wasPressed(i);
 
-  // D-pad 左右:章节 / 页跳。只在 viewer 显示 + 没 panel 时
   if (viewerOk && !openPanel && !inputFocused) {
+    // D-pad ↑/↓:每按一次 4 行 (TXT) / 1/3 屏 (PDF fallback)。边沿触发,
+    // 不连发。TXT 还会 snap 到行边界,避免每帧顶上切半行。
+    if (edge(12)) dpadStep(container, -1);
+    if (edge(13)) dpadStep(container, +1);
+
+    // D-pad ←/→:章节 (TXT) / 一屏 (PDF)
     if (edge(14)) gamepadNavBack();
     if (edge(15)) gamepadNavForward();
   }
@@ -1468,6 +1466,28 @@ function gamepadNavForward() {
     if (ch < total - 1) txtGoToChapter(ch + 1);
   } else if (currentDocKind === "pdf") {
     pdfViewerContainer.scrollBy({ top: pdfViewerContainer.clientHeight * 0.9 });
+  }
+}
+
+// D-pad ↑/↓ 单步。dir = -1 (上) 或 +1 (下)。
+//   TXT: 4 行 = 4 × (font-size × line-height),滚完 snap 到 body 内部行边界,
+//        避免下一次滚动顶上切半行。多次按累计也不漂移。
+//   PDF: 1/3 屏 (PDF 没行概念,做不了量化)。
+function dpadStep(container, dir) {
+  const cs = getComputedStyle(container);
+  const fs = parseFloat(cs.getPropertyValue("--txt-font-size"));
+  const lhRatio = parseFloat(cs.getPropertyValue("--txt-line-height"));
+  const lineHeight = (Number.isFinite(fs) && Number.isFinite(lhRatio) && fs > 0)
+    ? fs * lhRatio : null;
+  if (lineHeight) {
+    const body = container.querySelector(".txt-body");
+    const anchor = body ? body.offsetTop : 0;
+    const targetRaw = container.scrollTop + dir * lineHeight * 4;
+    // snap 到 (anchor + N × lineHeight),从 anchor 起的行格子
+    const N = Math.round((targetRaw - anchor) / lineHeight);
+    container.scrollTop = Math.max(0, anchor + N * lineHeight);
+  } else {
+    container.scrollBy({ top: dir * container.clientHeight / 3 });
   }
 }
 
