@@ -498,6 +498,12 @@ body {
   border: 1px dashed var(--line-strong);
   padding: 0 4px;
 }
+/* 本地文件重名冲突,禁止上传,必须本地改名 */
+.doc-row .ext-tag.collision {
+  color: var(--on-accent);
+  background: var(--danger);
+  font-weight: 700;
+}
 .doc-row .cache-dot {
   width: 6px;
   height: 6px;

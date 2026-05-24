@@ -283,6 +283,33 @@ export async function markRemoteFound(itemId, patch = {}) {
   return true;
 }
 
+// 标记 / 清除 "重名冲突" (sync-constraints #7:同名时禁止上传,要求用户本地改名)
+export async function setUploadCollision(itemId, collide) {
+  const m = await getMeta(itemId);
+  if (!m) return false;
+  m.uploadCollision = !!collide;
+  const db = await openDb();
+  const tx = db.transaction(STORE_META, "readwrite");
+  tx.objectStore(STORE_META).put(m);
+  await awaitTx(tx);
+  return true;
+}
+
+// 本地 (source:"local") 文件改名 —— 不动云端 (没云端副本),
+// 只改 meta.name + 清掉 uploadCollision(下次 drain 重新检查)
+export async function renameLocal(itemId, newName) {
+  const m = await getMeta(itemId);
+  if (!m) return false;
+  if (m.source !== "local") return false; // 云端的走 graph.renameItem
+  m.name = newName;
+  m.uploadCollision = false;  // 改名后让 drain 重新判
+  const db = await openDb();
+  const tx = db.transaction(STORE_META, "readwrite");
+  tx.objectStore(STORE_META).put(m);
+  await awaitTx(tx);
+  return true;
+}
+
 // 用 listChildren 结果同步 cache.meta —— constraint #5:用户在 OneDrive 网页
 // 改名 / 改文件夹 / 改 eTag 后,本地 cache 元数据要跟上,不然 UI 显示旧名字。
 // items: listChildren 返回的 driveItem[],folderPath: 它们所在的相对路径
