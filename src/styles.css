@@ -451,6 +451,27 @@ body {
   border-left: 3px solid transparent;
 }
 .doc-row:hover { background: var(--bg-2); }
+
+/* 异步操作进行中:整行半透明,所有按钮禁用,右上角 "处理中…" 指示。
+   pointer-events: none 阻止重复点击,但不影响外层 docList 的滚动 (滚轮事件会冒泡到父) */
+.doc-row.busy {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.doc-row.busy::after {
+  content: "处理中…";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--accent-strong);
+  background: var(--bg-1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
 .doc-row.active { border-left-color: var(--accent); background: var(--bg-2); }
 .doc-row .icon {
   flex: 0 0 18px;
