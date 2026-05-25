@@ -392,13 +392,14 @@ async function loadCurrentFolderItems() {
   }
 
   // 根目录:append 一个虚拟"本地"文件夹。
-  // 已登录时,所有 source:"local" 文件都是"待上传";未登录时它们是"纯本地"
+  // (constraint #4 新语义) 不是所有 source:"local" 都自动上传 —— 看 pendingUpload
   if (currentFolder === "" && drawerView === "books") {
     const local = await cache.listLocalFiles();
     if (local.length > 0) {
-      const label = isSignedIn()
-        ? `本地文件 (${local.length} 待上传)`
-        : "本地文件";
+      const pending = local.filter((m) => m.pendingUpload === true).length;
+      const label = (isSignedIn() && pending > 0)
+        ? `本地文件 (${pending} 待上传 / ${local.length} 项)`
+        : `本地文件 (${local.length} 项)`;
       items = [
         {
           id: "__local__",
@@ -557,24 +558,35 @@ async function renderDocList() {
     const pinned = !!meta?.pinned;
     const isLocal = !!item._local;
     const isCollision = !!meta?.uploadCollision;
+    const isPendingUpload = !!meta?.pendingUpload;
+    const isDeferred = !!meta?.uploadDeferred;
     const isGhost = !!item._ghost || meta?.remoteFound === false;
     if (cached) li.classList.add("cached");
     const dateText = fmtDate(item.lastModifiedDateTime);
 
-    // tag 优先级 (高 → 低)
+    // tag 优先级 (高 → 低)。constraint #4 区分 pendingUpload 与否
     let tag = kind.toUpperCase();
     let tagTitle = "";
     let tagCls = "";
     if (isGhost) {
       tag = "云端找不到";
       tagCls = "ghost";
-      tagTitle = "当前账号的 OneDrive 没看到这个文件(被删 / 挪了 / 属于别的账号)。本地缓存还能看。要么再上传(把本地推回当前账号云端),要么改名再上传(避冲突),要么也从本地删。";
-    } else if (isLocal && isCollision) {
-      tag = "重名";
-      tagCls = "collision";
-      tagTitle = "云端已有同名文件 —— 上传被阻止。请在书架里改名(点 ✎),改完会自动再试。";
-    } else if (isLocal && isSignedIn()) { tag = "待上传"; tagCls = "pending"; tagTitle = "本地副本,马上会自动推到 OneDrive"; }
-    else if (isLocal) { tag = "本地"; tagTitle = "用户上传的本地文件(登录 OneDrive 后会自动同步)"; }
+      tagTitle = "当前账号的 OneDrive 没看到这个文件(被删 / 挪了 / 属于别的账号)。本地缓存还能看。要么再上传,要么改名再上传,要么也从本地删。";
+    } else if (isLocal && isPendingUpload && isCollision) {
+      tag = "重名"; tagCls = "collision";
+      tagTitle = "云端已有同名文件 —— 上传被阻止。改名后再试,或点 [暂不上传] 先放着。";
+    } else if (isLocal && isPendingUpload) {
+      tag = "待上传"; tagCls = "pending";
+      tagTitle = "本地副本,马上会推到 OneDrive。要取消可以点 [暂不上传]。";
+    } else if (isLocal && isSignedIn()) {
+      tag = isDeferred ? "本地(已暂缓)" : "本地(未上传)";
+      tagTitle = isDeferred
+        ? "你之前选择 [暂不上传]。点 [上传到云端] 可重新尝试。"
+        : "拖文件时未登录 —— 默认只保留在本地。点 [上传到云端] 才推到当前账号 OneDrive。";
+    } else if (isLocal) {
+      tag = "本地";
+      tagTitle = "用户上传的本地文件(登录 OneDrive 后自己决定是否上传)";
+    }
 
     li.innerHTML = `
       <span class="cache-dot" title="${cached ? '已缓存' : '未缓存'}"></span>
@@ -605,6 +617,16 @@ async function renderDocList() {
           <button data-act="rename" title="${isCollision ? '改名(改完才能上传)' : '改名'}" aria-label="改名">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
           </button>
+          ${ isLocal && isSignedIn() && !isPendingUpload ? `
+            <button data-act="uploadNow" title="上传到云端(当前账号)" aria-label="上传到云端">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </button>
+          ` : ""}
+          ${ isLocal && isPendingUpload ? `
+            <button data-act="deferUpload" title="暂不上传:取消推云意图,留在本地" aria-label="暂不上传">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            </button>
+          ` : ""}
           ${ !isLocal ? `
             <button data-act="trash" title="移到垃圾箱" aria-label="移到垃圾箱">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path></svg>
@@ -644,6 +666,8 @@ async function renderDocList() {
       else if (act === "purge") purgeBook(item);
       else if (act === "ghostReupload") reuploadGhost(item);
       else if (act === "ghostDelete") deleteGhost(item);
+      else if (act === "uploadNow") uploadNow(item);
+      else if (act === "deferUpload") deferUpload(item);
     });
     docList.appendChild(li);
   }
@@ -885,6 +909,27 @@ async function syncAllCachedItems() {
   } finally {
     pendingFullSync = false;
   }
+}
+
+// constraint #4:用户在本地行点 [上传到云端] —— 显式 opt-in 推云
+async function uploadNow(item) {
+  if (!isSignedIn()) {
+    alert("请先登录 OneDrive");
+    return;
+  }
+  const ok = await cache.setPendingUpload(item.id, true);
+  if (!ok) return;
+  setSyncStatus(`${nameToTitle(item.name)} 排队上传中…`);
+  drainPendingUploads().catch(() => {});
+  await renderDocList();
+}
+
+// constraint #4:用户在 collision (或 pending) 行点 [暂不上传] —— 显式 defer
+// 不会再自动重试,除非用户后续显式 [上传到云端]
+async function deferUpload(item) {
+  await cache.setUploadDeferred(item.id);
+  setSyncStatus(`${nameToTitle(item.name)} 已暂缓上传`);
+  await renderDocList();
 }
 
 // 鬼 → 也从本地删。云端已经没了,本地副本也清掉。**真删** (不像 trash 那样进垃圾箱)
@@ -1290,9 +1335,15 @@ async function uploadFiles(files) {
       } catch (e) { console.warn("decode failed:", e); }
     }
 
-    // 2) 先入本地 cache (source:"local" + pinned:true)
-    //    constraint #2:即使后续推云失败,本地副本也不会丢
-    //    source:"local" 本身就是"待推云"标记;一旦 rekeyLocalToOnedrive 改成 onedrive 就不再待推
+    // 2) 先入本地 cache (source:"local" + pinned:true) (constraint #2)
+    //
+    // **constraint #4 新语义**:pendingUpload 是不是 true 取决于拖文件**那一刻**
+    // 的登录状态(consent scope principle):
+    //   - 登录时拖 → pendingUpload:true (隐式 consent 包含推到当前账号)
+    //   - 未登录拖 → pendingUpload:false (consent 仅"在 app 里用", 不含推到未来才连的 cloud)
+    //                 → 永远本地除非用户后续显式点 [上传到云端]
+    // 第一次登录时 (hasEverSignedIn=false 翻 true 的那一刻) auto-promote 所有
+    // 现有 source:"local" 为 pendingUpload:true,只此一次,后续登录不再 auto。
     const localId = `local:${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
     setSyncStatus(`保存本地 ${f.name}…`);
     const ok = await cache.set(localId, storedBlob, {
@@ -1300,6 +1351,7 @@ async function uploadFiles(files) {
       folderPath: "__local__",
       source: "local",
       pinned: true,
+      pendingUpload: isSignedIn(),  // 登录时 = 隐式 consent 推云;未登录 = 永远本地
     });
     if (!ok) {
       alert(`本地存储空间不够 (${f.name}),先去设置里调大缓存上限或清掉一些缓存。`);
@@ -2085,7 +2137,16 @@ async function main() {
   }
   refreshAuthRow(authResult.account);
   if (authResult.signedIn) {
+    // **第一次登录** auto-promote (constraint #4 一次性 cross-state exception):
+    // hasEverSignedIn 翻 false→true 这一刻,把所有 source:"local" pendingUpload 都打开。
+    // 之后再登录(包括换号)不再 auto-promote;用户必须显式点行的 [上传到云端]。
+    const wasFirstTimeSignIn = !hasEverSignedIn();
     rememberEverSignedIn();
+    if (wasFirstTimeSignIn) {
+      cache.markAllLocalAsPending().then((n) => {
+        if (n > 0) console.log(`[first-signin] ${n} 本地文件 → pendingUpload`);
+      }).catch(() => {});
+    }
     // 换号检测:cache 里 source:"onedrive" + accountId 跟当前不一样 → 标鬼。
     // 一直没登过 → accountId 未 stamp,留着等下次 reconcile stamp 上当前账号(乐观)。
     // 这一步必须在任何 cache 读之前先做(否则用户会看到别账号的 alive 项)
