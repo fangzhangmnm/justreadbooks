@@ -222,13 +222,66 @@ export async function listLocalFiles() {
   return all.filter((m) => m.source === "local");
 }
 
-// 列出所有等待推云的本地文件。
-// **简化语义** (constraint #4):source==="local" 就意味着"云端没有,等待推"。
-// 不需要额外的 pendingUpload flag — 推成功后会 rekeyLocalToOnedrive 改 source,
-// 自然就不再被列出。
+// 列出等待推云的本地文件 (constraint #4 新语义)。
+// 跟"source === local" 不一样:
+//   - drag-drop 登录时 → pendingUpload:true (隐式 consent,网失败时保留意图)
+//   - drag-drop 未登录 → pendingUpload:false (consent 没覆盖未来登录的 cloud)
+//   - 第一次登录 auto-promote → 整批 pendingUpload:true
+//   - 用户在 collision 里点 [暂不上传] → pendingUpload:false + uploadDeferred:true
+//                                          (won't auto-retry until 显式 [上传] 按钮)
+// drain 只动 pendingUpload:true 的项。
 export async function listPendingUploads() {
   const all = await listMeta();
-  return all.filter((m) => m.source === "local");
+  return all.filter((m) => m.source === "local" && m.pendingUpload === true);
+}
+
+// (`listLocalFiles` 上面定义,展示所有 source:"local",不区分 pending 状态)
+
+// 设置 pendingUpload flag。用户在 UI 点 [上传到云端] 会调这个。
+export async function setPendingUpload(itemId, pendingUpload) {
+  const m = await getMeta(itemId);
+  if (!m || m.source !== "local") return false;
+  m.pendingUpload = !!pendingUpload;
+  // 用户主动 opt-in → 清掉之前的 defer
+  if (pendingUpload) m.uploadDeferred = false;
+  const db = await openDb();
+  const tx = db.transaction(STORE_META, "readwrite");
+  tx.objectStore(STORE_META).put(m);
+  await awaitTx(tx);
+  return true;
+}
+
+// 用户在 collision 里点了 [暂不上传] —— 标 deferred 且清 pending
+export async function setUploadDeferred(itemId) {
+  const m = await getMeta(itemId);
+  if (!m || m.source !== "local") return false;
+  m.uploadDeferred = true;
+  m.pendingUpload = false;
+  m.uploadCollision = false;  // 用户已经知道了冲突,不再标 collision
+  const db = await openDb();
+  const tx = db.transaction(STORE_META, "readwrite");
+  tx.objectStore(STORE_META).put(m);
+  await awaitTx(tx);
+  return true;
+}
+
+// 第一次登录的 auto-promote:所有 source:"local" 整批 pendingUpload:true
+// **only-once 性** 由 caller 保证(`hasEverSignedIn` 标志)
+export async function markAllLocalAsPending() {
+  const all = await listMeta();
+  let n = 0;
+  for (const m of all) {
+    if (m.source !== "local") continue;
+    if (m.pendingUpload === true) continue;
+    m.pendingUpload = true;
+    m.uploadDeferred = false; // 第一次登录清掉历史 defer
+    const db = await openDb();
+    const tx = db.transaction(STORE_META, "readwrite");
+    tx.objectStore(STORE_META).put(m);
+    await awaitTx(tx);
+    n++;
+  }
+  return n;
 }
 
 // 一个 set 后把 source 改成 onedrive (上传成功后从本地文件晋级成云端缓存)
@@ -298,6 +351,8 @@ export async function promoteGhostToLocal(oldId, newLocalId) {
     itemId: newLocalId,
     source: "local",
     pinned: true,  // 用户主动操作,默认 pin
+    pendingUpload: true,  // [再上传] 是显式 opt-in → 立刻入 drain 队列
+    uploadDeferred: false,
   };
   // 清掉 onedrive 专属字段
   delete newMeta.remoteFound;
