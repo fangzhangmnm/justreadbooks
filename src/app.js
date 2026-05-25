@@ -160,6 +160,23 @@ let trashFolderIdCache = null;
 let idleTimer = null;
 let pendingUploadDraining = false;
 
+// 标记 / 解标某一行 doc-row 为 "处理中" 状态。整行 pointer-events:none + 半透明,
+// 防止用户在 async 操作期间重复点同一行(或同一行的其它按钮)。
+// 操作结束如果 renderDocList 重建了 DOM,class 自然没了,不需要手动 clear。
+function setRowBusy(itemId, busy) {
+  if (!docList) return;
+  const row = docList.querySelector(`[data-item-id="${CSS.escape(itemId)}"]`);
+  if (row) row.classList.toggle("busy", !!busy);
+}
+
+// 包一层 try/finally,把 row 的 busy class 自动管起来。
+// fn 同步抛 / Promise reject 都不会把 row 卡死在 busy 状态。
+async function withRowBusy(itemId, fn) {
+  setRowBusy(itemId, true);
+  try { return await fn(); }
+  finally { setRowBusy(itemId, false); }
+}
+
 // 当前 MSAL 账号的稳定标识(homeAccountId = "<oid>.<tid>")。
 // 用来:1) cache.meta 上 stamp 这条 onedrive entry 属于哪个账号
 //       2) 列表里 hide 别账号的 entry,避免换号一片鬼态
@@ -742,41 +759,47 @@ function startRename(rowEl, item) {
 
 async function downloadAndCache(item) {
   if (!isSignedIn()) return;
-  try {
-    setSyncStatus("缓存中…");
-    showProgress(0);
-    const { blob } = await downloadItemBlob(item.id, { onProgress: (p) => showProgress(p) });
-    const folderPath = currentFolder;
-    const ok = await cache.set(item.id, blob, {
-      name: item.name, folderPath, eTag: item.eTag,
-      source: "onedrive", pinned: true,
-      accountId: getCurrentAccountId(),
-    });
-    showProgress(null);
-    if (!ok) {
-      setSyncStatus("缓存失败:容量不够(钉住的太多)", { error: true });
-      return;
+  await withRowBusy(item.id, async () => {
+    try {
+      setSyncStatus("缓存中…");
+      showProgress(0);
+      const { blob } = await downloadItemBlob(item.id, { onProgress: (p) => showProgress(p) });
+      const folderPath = currentFolder;
+      const ok = await cache.set(item.id, blob, {
+        name: item.name, folderPath, eTag: item.eTag,
+        source: "onedrive", pinned: true,
+        accountId: getCurrentAccountId(),
+      });
+      showProgress(null);
+      if (!ok) {
+        setSyncStatus("缓存失败:容量不够(钉住的太多)", { error: true });
+        return;
+      }
+      setSyncStatus("已缓存");
+      await renderDocList();
+    } catch (e) {
+      console.warn("cache failed", e);
+      setSyncStatus(`缓存失败: ${e.message}`, { error: true });
+      showProgress(null);
     }
-    setSyncStatus("已缓存");
-    await renderDocList();
-  } catch (e) {
-    console.warn("cache failed", e);
-    setSyncStatus(`缓存失败: ${e.message}`, { error: true });
-    showProgress(null);
-  }
+  });
 }
 
 async function togglePinned(item) {
-  const meta = await cache.getMeta(item.id);
-  if (!meta) return;
-  await cache.setPinned(item.id, !meta.pinned);
-  await renderDocList();
+  await withRowBusy(item.id, async () => {
+    const meta = await cache.getMeta(item.id);
+    if (!meta) return;
+    await cache.setPinned(item.id, !meta.pinned);
+    await renderDocList();
+  });
 }
 
 async function uncacheItem(item) {
   if (!confirm(`从本地缓存删除「${nameToTitle(item.name)}」?(云端不动)`)) return;
-  await cache.del(item.id);
-  await renderDocList();
+  await withRowBusy(item.id, async () => {
+    await cache.del(item.id);
+    await renderDocList();
+  });
 }
 
 // 登录后:cache 里 source:"onedrive" 但 accountId 跟当前账号不一样的 → 标鬼。
@@ -808,18 +831,18 @@ async function reuploadGhost(item) {
     alert("请先登录 OneDrive,才能把鬼态文件再上传");
     return;
   }
-  const newLocalId = `local:${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
-  const ok = await cache.promoteGhostToLocal(item.id, newLocalId);
-  if (!ok) {
-    setSyncStatus("无法再上传 (本地副本可能已丢)", { error: true });
-    return;
-  }
-  // session.docs 里的位置也搬过去
-  await migrateSessionDocId(item.id, newLocalId);
-  setSyncStatus("已转成待上传");
-  // 立刻触发 drain
-  drainPendingUploads().catch(() => {});
-  await renderDocList();
+  await withRowBusy(item.id, async () => {
+    const newLocalId = `local:${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
+    const ok = await cache.promoteGhostToLocal(item.id, newLocalId);
+    if (!ok) {
+      setSyncStatus("无法再上传 (本地副本可能已丢)", { error: true });
+      return;
+    }
+    await migrateSessionDocId(item.id, newLocalId);
+    setSyncStatus("已转成待上传");
+    await renderDocList();
+    drainPendingUploads().catch(() => {});
+  });
 }
 
 // constraint #6:某个 cache 项 (source:"onedrive") 跟云端 etag 一致 = fresh,
@@ -917,31 +940,37 @@ async function uploadNow(item) {
     alert("请先登录 OneDrive");
     return;
   }
-  const ok = await cache.setPendingUpload(item.id, true);
-  if (!ok) return;
-  setSyncStatus(`${nameToTitle(item.name)} 排队上传中…`);
-  drainPendingUploads().catch(() => {});
-  await renderDocList();
+  await withRowBusy(item.id, async () => {
+    const ok = await cache.setPendingUpload(item.id, true);
+    if (!ok) return;
+    setSyncStatus(`${nameToTitle(item.name)} 排队上传中…`);
+    await renderDocList();
+    // drainPendingUploads 在 row 重建之后跑;此时这行的 busy class 已没,不影响
+    drainPendingUploads().catch(() => {});
+  });
 }
 
 // constraint #4:用户在 collision (或 pending) 行点 [暂不上传] —— 显式 defer
-// 不会再自动重试,除非用户后续显式 [上传到云端]
 async function deferUpload(item) {
-  await cache.setUploadDeferred(item.id);
-  setSyncStatus(`${nameToTitle(item.name)} 已暂缓上传`);
-  await renderDocList();
+  await withRowBusy(item.id, async () => {
+    await cache.setUploadDeferred(item.id);
+    setSyncStatus(`${nameToTitle(item.name)} 已暂缓上传`);
+    await renderDocList();
+  });
 }
 
-// 鬼 → 也从本地删。云端已经没了,本地副本也清掉。**真删** (不像 trash 那样进垃圾箱)
+// 鬼 → 也从本地删。云端已经没了,本地副本也清掉。**真删**
 async function deleteGhost(item) {
   if (!confirm(
     `也从本地删「${nameToTitle(item.name)}」?\n\n` +
     `这文件云端已经没了,本地副本也会一并清掉。`
   )) return;
-  await cache.del(item.id);
-  if (currentDocId === item.id) closeCurrentBook();
-  forgetDoc(item.id);
-  await renderDocList();
+  await withRowBusy(item.id, async () => {
+    await cache.del(item.id);
+    if (currentDocId === item.id) closeCurrentBook();
+    forgetDoc(item.id);
+    await renderDocList();
+  });
 }
 
 // ── Trash actions ────────────────────────────────────────────────────────
@@ -955,59 +984,67 @@ async function getTrashFolderId() {
 async function trashBook(item) {
   if (!isSignedIn()) return;
   if (!confirm(`把「${nameToTitle(item.name)}」移到垃圾箱?`)) return;
-  try {
-    setSyncStatus("移动中…");
-    const trashId = await getTrashFolderId();
-    await moveItemToFolder(item.id, trashId);
-    await cache.del(item.id).catch(() => {});
-    if (currentDocId === item.id) closeCurrentBook();
-    forgetDoc(item.id);
-    setSyncStatus("已同步");
-    folderItemsCache.clear();
-    await renderDocList();
-  } catch (e) {
-    console.warn("trash failed", e);
-    setSyncStatus(`移动失败: ${e.message}`, { error: true });
-  }
+  await withRowBusy(item.id, async () => {
+    try {
+      setSyncStatus("移动中…");
+      const trashId = await getTrashFolderId();
+      await moveItemToFolder(item.id, trashId);
+      await cache.del(item.id).catch(() => {});
+      if (currentDocId === item.id) closeCurrentBook();
+      forgetDoc(item.id);
+      setSyncStatus("已同步");
+      folderItemsCache.clear();
+      await renderDocList();
+    } catch (e) {
+      console.warn("trash failed", e);
+      setSyncStatus(`移动失败: ${e.message}`, { error: true });
+    }
+  });
 }
 
 async function restoreBook(item) {
   if (!isSignedIn()) return;
-  try {
-    setSyncStatus("还原中…");
-    // BOOKS_FOLDER 为空时,"还原"的目标 = approot 根本身
-    const targetId = BOOKS_FOLDER
-      ? await ensureSubfolder(BOOKS_FOLDER)
-      : await getApprootId();
-    await moveItemToFolder(item.id, targetId);
-    setSyncStatus("已同步");
-    folderItemsCache.clear();
-    await renderDocList();
-  } catch (e) {
-    console.warn("restore failed", e);
-    setSyncStatus(`还原失败: ${e.message}`, { error: true });
-  }
+  await withRowBusy(item.id, async () => {
+    try {
+      setSyncStatus("还原中…");
+      const targetId = BOOKS_FOLDER
+        ? await ensureSubfolder(BOOKS_FOLDER)
+        : await getApprootId();
+      await moveItemToFolder(item.id, targetId);
+      setSyncStatus("已同步");
+      folderItemsCache.clear();
+      await renderDocList();
+    } catch (e) {
+      console.warn("restore failed", e);
+      setSyncStatus(`还原失败: ${e.message}`, { error: true });
+    }
+  });
 }
 
 async function purgeBook(item) {
   if (!isSignedIn()) return;
   if (!confirm(`永久删除「${nameToTitle(item.name)}」?不可撤销。`)) return;
-  try {
-    setSyncStatus("删除中…");
-    await deleteItem(item.id);
-    await cache.del(item.id).catch(() => {});
-    forgetDoc(item.id);
-    setSyncStatus("已同步");
-    await renderDocList();
-  } catch (e) {
-    console.warn("purge failed", e);
-    setSyncStatus(`删除失败: ${e.message}`, { error: true });
-  }
+  await withRowBusy(item.id, async () => {
+    try {
+      setSyncStatus("删除中…");
+      await deleteItem(item.id);
+      await cache.del(item.id).catch(() => {});
+      forgetDoc(item.id);
+      setSyncStatus("已同步");
+      await renderDocList();
+    } catch (e) {
+      console.warn("purge failed", e);
+      setSyncStatus(`删除失败: ${e.message}`, { error: true });
+    }
+  });
 }
 
 async function emptyAllTrash() {
   if (!isSignedIn()) return;
   if (!confirm("清空垃圾箱,所有文件永久删除?")) return;
+  if (emptyTrashButton.disabled) return;
+  emptyTrashButton.disabled = true;
+  emptyTrashButton.textContent = "清空中…";
   setSyncStatus("清空中…");
   try {
     const items = await listChildren(TRASH_FOLDER);
@@ -1021,6 +1058,9 @@ async function emptyAllTrash() {
   } catch (e) {
     console.warn("empty trash failed", e);
     setSyncStatus(`失败: ${e.message}`, { error: true });
+  } finally {
+    emptyTrashButton.disabled = false;
+    emptyTrashButton.textContent = "清空垃圾箱";
   }
 }
 
@@ -1030,10 +1070,12 @@ async function deleteLocalBook(item) {
     `永久删除「${nameToTitle(item.name)}」?\n\n` +
     `这是本地副本,删除后无法恢复(没在云端备份过)。`
   )) return;
-  await cache.del(item.id).catch(() => {});
-  if (currentDocId === item.id) closeCurrentBook();
-  forgetDoc(item.id);
-  await renderDocList();
+  await withRowBusy(item.id, async () => {
+    await cache.del(item.id).catch(() => {});
+    if (currentDocId === item.id) closeCurrentBook();
+    forgetDoc(item.id);
+    await renderDocList();
+  });
 }
 
 // ── 打开 (open) 一本书 ──────────────────────────────────────────────────
@@ -1309,8 +1351,16 @@ async function refreshOutline() {
 // 推成功 → rekey 成 onedrive itemId,pendingUpload 清零。
 // 推失败 / 未登录 → 留 source:"local", pendingUpload:true,以后 drain。
 // 这样 constraint #4(默认推云)+ #2(本地副本永远在)同时满足。
+// single-flight: 防止用户 panel 关掉前快速双击 upload 按钮触发并发
+let uploadInFlight = false;
 async function uploadFiles(files) {
   if (!files || !files.length) return;
+  if (uploadInFlight) {
+    setSyncStatus("上一批还在传,等一下", { error: true });
+    return;
+  }
+  uploadInFlight = true;
+  uploadButton.disabled = true;
   closeAllPanels();
   showProgress(0);
 
@@ -1422,6 +1472,8 @@ async function uploadFiles(files) {
   }
   showProgress(null);
   setSyncStatus("上传完成");
+  uploadInFlight = false;
+  uploadButton.disabled = false;
   if (lastItem) await openBook(lastItem);
   else await renderDocList();
 }
@@ -1530,10 +1582,12 @@ async function drainPendingUploads() {
 
 async function createNewFolder() {
   if (!isSignedIn()) return;
+  if (newFolderButton.disabled) return;
   const name = prompt("新建文件夹名:");
   if (!name) return;
   const clean = sanitizeFilename(name);
   if (!clean) return;
+  newFolderButton.disabled = true;
   try {
     setSyncStatus("新建文件夹…");
     const targetPath = joinApprootPath(BOOKS_FOLDER, currentFolder, clean);
@@ -1543,6 +1597,8 @@ async function createNewFolder() {
     await renderDocList();
   } catch (e) {
     setSyncStatus(`失败: ${e.message}`, { error: true });
+  } finally {
+    newFolderButton.disabled = false;
   }
 }
 
