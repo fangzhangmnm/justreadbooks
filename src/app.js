@@ -1268,26 +1268,29 @@ function renderOutline(nodes, { kind } = {}) {
   }
   outlineEmpty.classList.add("hidden");
   if (kind === "txt") {
-    // 看是否所有 node 都没 level → 整体不缩进。
-    // 有 level 的 → 用 max(1, level) - 1 当 depth(level=1 顶,level=2 缩一格,...)
     const anyLeveled = nodes.some((n) => Number.isFinite(n.level));
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
-      const li = document.createElement("li");
-      const row = document.createElement("div");
-      row.className = "outline-item";
-      const depth = anyLeveled && Number.isFinite(node.level) ? (node.level - 1) : 0;
-      row.style.paddingLeft = `${12 + depth * 14}px`;
-      row.innerHTML = `<span class="twisty"></span><span class="label">${escapeHtml(node.title || `第 ${i + 1} 章`)}</span>`;
-      row.addEventListener("click", () => {
-        for (const el of outlineList.querySelectorAll(".outline-item.active")) el.classList.remove("active");
-        row.classList.add("active");
-        txtGoToChapter(i);
-        flush().catch(() => {});
-        closeAllPanels();
-      });
-      li.appendChild(row);
-      outlineList.appendChild(li);
+    if (anyLeveled) {
+      // 多级:建树,可折叠,默认折叠(只显示 root level)
+      const tree = buildChapterTree(nodes);
+      for (const t of tree) outlineList.appendChild(buildTxtOutlineItem(t, 0));
+    } else {
+      // 平铺:无 level,不折叠
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        const li = document.createElement("li");
+        const row = document.createElement("div");
+        row.className = "outline-item";
+        row.innerHTML = `<span class="twisty"></span><span class="label">${escapeHtml(node.title || `第 ${i + 1} 章`)}</span>`;
+        row.addEventListener("click", () => {
+          for (const el of outlineList.querySelectorAll(".outline-item.active")) el.classList.remove("active");
+          row.classList.add("active");
+          txtGoToChapter(i);
+          flush().catch(() => {});
+          closeAllPanels();
+        });
+        li.appendChild(row);
+        outlineList.appendChild(li);
+      }
     }
     return;
   }
@@ -1332,6 +1335,63 @@ function buildPdfOutlineItem(node, depth) {
     const kids = document.createElement("ul");
     kids.className = "outline-children";
     for (const c of node.items) kids.appendChild(buildPdfOutlineItem(c, depth + 1));
+    li.appendChild(kids);
+  }
+  return li;
+}
+
+// TXT 章节树:把扁平 nodes (带 level) 折成嵌套树。算法 = 经典栈式 build。
+// 没 level 的 node 当 level=1。
+function buildChapterTree(flatNodes) {
+  const root = [];
+  const stack = [];
+  for (const n of flatNodes) {
+    const lvl = n.level || 1;
+    const treeNode = { ...n, children: [] };
+    while (stack.length > 0 && (stack[stack.length - 1].level || 1) >= lvl) stack.pop();
+    if (stack.length === 0) root.push(treeNode);
+    else stack[stack.length - 1].children.push(treeNode);
+    stack.push(treeNode);
+  }
+  return root;
+}
+
+// 跟 buildPdfOutlineItem 同款,但跳章用 txtGoToChapter(chapterIndex)。
+// 默认折叠 (kids.classList.add("collapsed")) —— 多级目录默认只看顶层。
+function buildTxtOutlineItem(node, depth) {
+  const li = document.createElement("li");
+  const row = document.createElement("div");
+  row.className = "outline-item";
+  row.style.paddingLeft = `${12 + depth * 14}px`;
+  const hasChildren = node.children && node.children.length > 0;
+  const twisty = document.createElement("span");
+  twisty.className = "twisty";
+  twisty.textContent = hasChildren ? "▸" : "";   // 默认折叠 = ▸
+  const label = document.createElement("span");
+  label.className = "label";
+  label.textContent = node.title || `第 ${node.chapterIndex + 1} 章`;
+  row.append(twisty, label);
+  row.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (e.target === twisty && hasChildren) {
+      const kidsEl = li.querySelector(".outline-children");
+      if (kidsEl) {
+        const collapsed = kidsEl.classList.toggle("collapsed");
+        twisty.textContent = collapsed ? "▸" : "▾";
+      }
+      return;
+    }
+    for (const el of outlineList.querySelectorAll(".outline-item.active")) el.classList.remove("active");
+    row.classList.add("active");
+    txtGoToChapter(node.chapterIndex);
+    flush().catch(() => {});
+    closeAllPanels();
+  });
+  li.appendChild(row);
+  if (hasChildren) {
+    const kids = document.createElement("ul");
+    kids.className = "outline-children collapsed";  // 默认折叠
+    for (const c of node.children) kids.appendChild(buildTxtOutlineItem(c, depth + 1));
     li.appendChild(kids);
   }
   return li;
@@ -1652,11 +1712,16 @@ async function jumpscareRemote() {
 async function reconcileOnFocus() {
   if (!isAuthConfigured() || !isSignedIn()) return;
   // constraint #5:用户可能在 OneDrive 网页改了 / 增删了文件,清掉本地 listing 缓存
-  // 下次打开书架重新列。renderDocList 内部 reconcileWithRemoteList 会更新 cache.meta。
   folderItemsCache.clear();
   try {
     const changed = await checkRemoteChanged();
-    if (changed) showUpdateToast("session", "云端有更新", "同步");
+    if (changed) {
+      // session.json 远端变了 (大概率是另一台设备开了新的书)。
+      // 我们这边只读,session.json 没"本地修改"要保护 → 静默 apply。
+      // 不弹 toast 让用户手动 "同步":本地 lastActive 是上次的旧状态,
+      // 用户开旧设备看到旧书很 distracting。直接切到云端最新的书。
+      await applyRemoteUpdate();
+    }
   } catch (_) {}
   // constraint #6: 所有 cached onedrive 项的 etag 检查
   syncAllCachedItems().catch(() => {});
@@ -1681,11 +1746,24 @@ async function applyRemoteUpdate() {
     await reloadFromRemote();
     const st = getState();
     if (st.lastActive && st.lastActive !== currentDocId) {
-      try {
-        const item = await getItemMeta(st.lastActive);
-        await openBook(item);
-      } catch (_) {}
+      // 跨设备开了别的书 → 静默切。优先用 cache,降级 Graph
+      let item = null;
+      const m = await cache.getMeta(st.lastActive).catch(() => null);
+      if (m) {
+        item = {
+          id: st.lastActive,
+          name: m.name || st.lastActive,
+          file: { mimeType: m.type || "application/octet-stream" },
+          _local: m.source === "local",
+          _ghost: m.remoteFound === false,
+        };
+      } else if (!st.lastActive.startsWith("local:")) {
+        try { item = await getItemMeta(st.lastActive); }
+        catch (_) { /* 404 / 401 → 忽略,留在当前书 */ }
+      }
+      if (item) await openBook(item);
     } else if (currentDocId) {
+      // 同书,只是位置变了 → 静默 restore
       const pos = getPosition(currentDocId);
       if (pos) {
         if (currentDocKind === "pdf") restorePdfPosition(pos);
