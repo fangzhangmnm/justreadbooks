@@ -117,7 +117,19 @@ src/
 docs/                    工程笔记 (PWA 热更新、sync 约束等)
 ```
 
-详见 [docs/](docs/)。同家族 sibling apps 共享一份 [sync-constraints](docs/00-sync-constraints.md) 设计准则。
+### 工程笔记 docs/
+
+按话题分:
+
+- [00-sync-constraints.md](docs/00-sync-constraints.md) — cross-project 设计准则 (4 级数据保护 / consent scope / 8 条 priority)
+- [01-pwa-hot-update.md](docs/01-pwa-hot-update.md) — SW 热更新 toast,3 条检测路径,bump CACHE_VERSION 仪式
+- [02-cloud-conflict-policy.md](docs/02-cloud-conflict-policy.md) — etag freshness + ghost + accountId 隔离 + accountless 审计
+- [03-cross-device-sync.md](docs/03-cross-device-sync.md) — session.json 跨设备同步,debounce+ceiling,412 merge,jumpscare 启动,focus 静默 pull
+- [04-txt-chapter-splitting.md](docs/04-txt-chapter-splitting.md) — TXT 章节切分,内建正则,2-group level 约定,GB18030 编码,目录树折叠
+- [05-cache-strategy.md](docs/05-cache-strategy.md) — IDB 缓存,4 级保护落地,LRU + pin,auto-cache,freshness 触发点
+- [06-local-upload-flow.md](docs/06-local-upload-flow.md) — constraint #4 落地,pendingUpload/uploadDeferred 状态机,drain,collision
+- [07-ui-patterns.md](docs/07-ui-patterns.md) — zen 顶栏,drawer 互斥,行级 busy 锁,键盘 + 手柄,主题
+- [08-viewer-architecture.md](docs/08-viewer-architecture.md) — PDF 懒加载 + 重试,TXT 一章一屏渲染,position 协议
 
 ### License
 
