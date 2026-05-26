@@ -52,10 +52,14 @@ export const READING_LINE_ANCHOR = 0.25;
 // 用户可以加自己的(library.json 里 per-book 存)。空 → 不切章,整本一章。
 // 顺序很重要:先 markdown,再网文常见模式。第一个有 ≥3 个 match 的胜出。
 export const BUILTIN_CHAPTER_REGEXES = [
-  { id: "md1", label: "Markdown #",     re: "^# (.+)$"             },
-  { id: "md2", label: "Markdown ##",    re: "^## (.+)$"            },
-  { id: "md3", label: "Markdown ###",   re: "^### (.+)$"           },
-  { id: "md4", label: "Markdown ####",  re: "^#### (.+)$"          },
+  // Markdown 多级:`#` 几个就是哪一级,outline 按 level 缩进。
+  // group 1 = "#"+,group 2 = 标题文字。tryRegex 看到 2 个 capture 就把 group1 长度当 level。
+  { id: "md",  label: "Markdown 多级 (# / ## / ###)", re: "^(#+)[ \\t]+(.+)$" },
+  // 各别只匹配某一级,**很少需要**,留着兼容老 library.json + 给用户极端 case
+  { id: "md1", label: "Markdown 只 #",   re: "^# (.+)$"   },
+  { id: "md2", label: "Markdown 只 ##",  re: "^## (.+)$"  },
+  { id: "md3", label: "Markdown 只 ###", re: "^### (.+)$" },
+  { id: "md4", label: "Markdown 只 ####", re: "^#### (.+)$" },
   // 网络小说:第N章/回/节/卷/篇,后面可有可无 "标题"
   // \s 在多行 mode 也匹配中文空格么? 用 [ \t 　] 显式
   { id: "zh-chap",  label: "第N章",  re: "^[ \\t\\u00A0\\u3000]*第[零一二三四五六七八九十百千万0-9]+章.*$" },

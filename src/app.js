@@ -896,7 +896,7 @@ async function silentRefreshIfStale(itemId) {
         const { chapters, chosen } = splitByPreference(text, pref);
         currentDocChapters = chapters;
         loadTxt({ docId: itemId, text, chapters, position: pos });
-        renderOutline(chapters.map((c, i) => ({ title: c.title, chapterIndex: i })), { kind: "txt" });
+        renderOutline(chapters.map((c, i) => ({ title: c.title, chapterIndex: i, level: c.level })), { kind: "txt" });
         outlineButton.hidden = chapters.length <= 1;
         outlineTitle.textContent = `目录 · ${chapters.length} 章`;
         updateChapterSettingsForCurrentBook(chosen);
@@ -1188,7 +1188,7 @@ async function openBook(item) {
       currentDocChapters = chapters;
       loadTxt({ docId: item.id, text, chapters, position: pos });
       if (pos) pageStatus.textContent = `第 ${pos.pageIndex + 1} 章`;
-      renderOutline(chapters.map((c, i) => ({ title: c.title, chapterIndex: i })), { kind: "txt" });
+      renderOutline(chapters.map((c, i) => ({ title: c.title, chapterIndex: i, level: c.level })), { kind: "txt" });
       outlineButton.hidden = chapters.length <= 1;
       outlineTitle.textContent = `目录 · ${chapters.length} 章`;
       txtChapterSection.hidden = false;
@@ -1268,11 +1268,16 @@ function renderOutline(nodes, { kind } = {}) {
   }
   outlineEmpty.classList.add("hidden");
   if (kind === "txt") {
+    // 看是否所有 node 都没 level → 整体不缩进。
+    // 有 level 的 → 用 max(1, level) - 1 当 depth(level=1 顶,level=2 缩一格,...)
+    const anyLeveled = nodes.some((n) => Number.isFinite(n.level));
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const li = document.createElement("li");
       const row = document.createElement("div");
       row.className = "outline-item";
+      const depth = anyLeveled && Number.isFinite(node.level) ? (node.level - 1) : 0;
+      row.style.paddingLeft = `${12 + depth * 14}px`;
       row.innerHTML = `<span class="twisty"></span><span class="label">${escapeHtml(node.title || `第 ${i + 1} 章`)}</span>`;
       row.addEventListener("click", () => {
         for (const el of outlineList.querySelectorAll(".outline-item.active")) el.classList.remove("active");
@@ -1995,7 +2000,7 @@ reapplyChaptersButton.addEventListener("click", async () => {
   const anchor = txtCurrentCharOffset();
   currentDocChapters = res.chapters;
   txtReapplyChapters(res.chapters, anchor);
-  renderOutline(res.chapters.map((c, i) => ({ title: c.title, chapterIndex: i })), { kind: "txt" });
+  renderOutline(res.chapters.map((c, i) => ({ title: c.title, chapterIndex: i, level: c.level })), { kind: "txt" });
   outlineButton.hidden = res.chapters.length <= 1;
   outlineTitle.textContent = `目录 · ${res.chapters.length} 章`;
   updateChapterSettingsForCurrentBook(res.chosen);
