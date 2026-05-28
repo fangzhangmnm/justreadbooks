@@ -511,18 +511,25 @@ function navigateTo(path) {
   renderDocList();
 }
 
-// 渲染"最近阅读"section 到 docList 开头 —— 仅在书架根 + books 视图。
-// 取 session.docs 里有 lastReadAt 的 top N (默认 6),按 lastReadAt 倒序。
-// 没缓存的项跳过(不能直接打开,排序无意义)。
-// 当前正在读的书也会出现(它的 lastReadAt 是刚 openBook 时打的戳)。
+// "最近阅读" section:仅在书架根 + books 视图显示。
+// 取 session.docs 里有 lastReadAt 的项,按 lastReadAt 倒序。默认 6,可展开到 30。
+// 没缓存的项跳过(打不开)。"展开/收起"状态用模块变量保持。
+const RECENT_DEFAULT_LIMIT = 6;
+const RECENT_EXPANDED_LIMIT = 30;
+let recentExpanded = false;
+
 async function appendRecentReadingSection() {
   if (currentFolder !== "" || drawerView !== "books") return;
   const docs = getState().docs || {};
-  const entries = Object.entries(docs)
+  const allSorted = Object.entries(docs)
     .filter(([id, d]) => d?.lastReadAt)
-    .sort(([, a], [, b]) => (b.lastReadAt || 0) - (a.lastReadAt || 0))
-    .slice(0, 6);
-  if (entries.length === 0) return;
+    .sort(([, a], [, b]) => (b.lastReadAt || 0) - (a.lastReadAt || 0));
+  if (allSorted.length === 0) return;
+
+  const limit = recentExpanded ? RECENT_EXPANDED_LIMIT : RECENT_DEFAULT_LIMIT;
+  const entries = allSorted.slice(0, limit);
+  const hasMore = allSorted.length > entries.length;
+  const canCollapse = recentExpanded && allSorted.length > RECENT_DEFAULT_LIMIT;
 
   // header
   const header = document.createElement("li");
@@ -555,10 +562,27 @@ async function appendRecentReadingSection() {
     rendered++;
   }
   if (rendered === 0) {
-    // header 撤掉
     docList.removeChild(header);
     return;
   }
+
+  // 展开 / 收起 切换 (只在有更多项的时候显示)
+  if (hasMore || canCollapse) {
+    const toggle = document.createElement("li");
+    toggle.className = "doc-section-toggle";
+    if (hasMore) {
+      const remaining = allSorted.length - entries.length;
+      toggle.textContent = `展开更多 (还有 ${remaining})  ▾`;
+    } else {
+      toggle.textContent = "收起  ▴";
+    }
+    toggle.addEventListener("click", () => {
+      recentExpanded = !recentExpanded;
+      renderDocList();
+    });
+    docList.appendChild(toggle);
+  }
+
   // 分隔线
   const sep = document.createElement("li");
   sep.className = "doc-section-divider";

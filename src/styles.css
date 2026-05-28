@@ -468,6 +468,19 @@ body {
   margin: 8px 12px;
 }
 .doc-row-recent .meta { color: var(--accent-strong); font-size: 10px; }
+
+/* 最近阅读 展开/收起 toggle 行 */
+.doc-section-toggle {
+  list-style: none;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--accent-strong);
+  cursor: pointer;
+  text-align: center;
+  letter-spacing: 0.05em;
+  transition: background 120ms ease;
+}
+.doc-section-toggle:hover { background: var(--bg-2); color: var(--accent); }
 .doc-row:hover { background: var(--bg-2); }
 
 /* 异步操作进行中:整行半透明,所有按钮禁用,右上角 "处理中…" 指示。
