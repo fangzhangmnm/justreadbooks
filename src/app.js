@@ -1339,10 +1339,16 @@ function closeCurrentBook() {
 
 // ── viewer 回调 ──────────────────────────────────────────────────────────
 
+// **Bug B 修复**:启动期 (reconcilePending) user 滚动不打 positionAt 时间戳。
+// 否则用户在等远端拉取期间瞄一眼随手 scroll → 生成 fresh positionAt → merge 时
+// 反过来打赢云端的"旧但正确"的进度。等 reconcile 拉取/merge 完了再正常写。
+let reconcilePending = false;
+
 function onPdfPositionFromViewer(pos) {
   if (!currentDocId || !pos) return;
-  setPosition(currentDocId, pos, "pdf");
   pageStatus.textContent = `第 ${pos.pageIndex + 1} 页`;
+  if (reconcilePending) return;   // 启动期 reconcile gap → 不写 session
+  setPosition(currentDocId, pos, "pdf");
 }
 
 function onPdfPagePeek(pageIndex) {
@@ -1353,9 +1359,10 @@ function onPdfPagePeek(pageIndex) {
 
 function onTxtPositionFromViewer(pos) {
   if (!currentDocId || !pos) return;
-  setPosition(currentDocId, pos, "txt");
   const total = currentDocChapters?.length ?? 0;
   pageStatus.textContent = total ? `第 ${pos.pageIndex + 1}/${total} 章` : `第 ${pos.pageIndex + 1} 章`;
+  if (reconcilePending) return;
+  setPosition(currentDocId, pos, "txt");
 }
 
 function onTxtChapterPeek(idx, title) {
@@ -2446,7 +2453,13 @@ async function main() {
     }
   } else {
     // 已经从本地 jumpscare 开了书,但仍可后台 reconcile session (检测远端有没有更新)
-    setTimeout(() => reconcileOnFocus(), 1000);
+    // **Bug B 守护期**:reconcile 完成前 user 滚动不要打 fresh positionAt 时间戳
+    // (否则会反过来覆盖云端 "旧时间戳但正确" 的进度)
+    reconcilePending = true;
+    setTimeout(async () => {
+      try { await reconcileOnFocus(); }
+      finally { reconcilePending = false; }
+    }, 1000);
   }
 
   // 登录成功 → 试 drain 之前堆的本地文件 (constraint #4)

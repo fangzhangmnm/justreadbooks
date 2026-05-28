@@ -323,6 +323,28 @@ export async function flush() {
   }
   if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
 
+  // **安全网 (Bug A)**:knownETag 还是 null = 不知道云端状态 = 不能盲推
+  // 否则 writeApprootJson 用 conflictBehavior=replace + 无 If-Match → **无条件覆盖**
+  // → 把别设备推上去的新进度盖掉(这是 user 报的"旧设备覆盖新进度"的根因之一)
+  // 先 fetch remote 拿 eTag + mergeByTimestamp,再 push
+  if (knownETag === null) {
+    try {
+      const { data, eTag } = await readApprootJson(SESSION_FILE);
+      if (data) {
+        const remoteState = normalize(data);
+        state = mergeByTimestamp(state, remoteState);
+        knownETag = eTag;
+        notify();
+      }
+      // 没拿到 data (云端没 session.json) → 留 knownETag=null,后面 PUT 等于创建
+    } catch (e) {
+      // 拉不到云端 (离线 / 网慢 / 限流) → 不推,保留 dirty,等下次重试
+      console.warn("flush: 无法 fetch remote 来安全写入,deferring", e?.message);
+      lastError = e?.message || String(e);
+      return;
+    }
+  }
+
   dirty = false;
   const ceilingMarkAtSnapshot = firstDirtyAt;
   firstDirtyAt = 0;
@@ -389,7 +411,10 @@ function capturePushedPositions(snap) {
 
 export async function checkRemoteChanged() {
   if (!isAuthConfigured()) return false;
-  if (!knownETag) return false;
+  // **Bug A 修复**:knownETag 是 null = initSession 没拉到远端 → 我们对云端状态一无所知
+  // 应该当作"有变化",触发 applyRemoteUpdate 去 fetch + merge。否则一直停在
+  // backup-only 状态,user 看不到云端进度。
+  if (!knownETag) return true;
   try {
     const token = await getToken();
     const r = await fetch(
