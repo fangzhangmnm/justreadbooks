@@ -33,7 +33,7 @@ import {
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 
-function emptyState() { return { lastActive: null, docs: {} }; }
+function emptyState() { return { lastActive: null, lastActiveAt: 0, docs: {} }; }
 
 const LOCAL_BACKUP_KEY = "jrb.session.backup";
 function writeLocalBackup() {
@@ -76,25 +76,51 @@ export function getSyncSnapshot() {
 
 export async function initSession() {
   const backup = readLocalBackup();
-  if (backup) state = normalize(backup);
+  const backupState = backup ? normalize(backup) : null;
+  if (backupState) state = backupState;
 
   // 没配 Azure → 纯本地,localStorage backup 就是 SSOT,别去碰 Graph
   if (!isAuthConfigured()) {
-    if (!backup) state = emptyState();
+    if (!backupState) state = emptyState();
     capturePushedPositions(state);
     writeLocalBackup();
     notify();
     return state;
   }
 
+  // 关键改动 (修"登录前本地进度丢失" + "老设备覆盖新进度"):
+  //   不再"remote 有就 overwrite local",而是 backup ⨁ remote 按时间戳 merge。
+  //   - backup 比 remote 新的字段 → 用 backup,推回云端
+  //   - remote 比 backup 新的字段 → 用 remote
+  //   - 双边都没时间戳 (老 schema) → 都算 0,任一胜出,但相同时偏向 remote(更稳)
   try {
     const { data, eTag } = await readApprootJson(SESSION_FILE);
     if (data) {
-      state = normalize(data);
+      const remoteState = normalize(data);
       knownETag = eTag;
-    } else if (!backup) {
+      if (backupState) {
+        const merged = mergeByTimestamp(backupState, remoteState);
+        state = merged;
+        // 如果 merged 跟 remote 不一样,说明 backup 有新东西 → 标 dirty 推回云端
+        if (!sameState(merged, remoteState)) {
+          dirty = true;
+          if (firstDirtyAt === 0) firstDirtyAt = Date.now();
+          scheduleWrite(0);  // 立刻推,别等用户操作触发
+        }
+      } else {
+        state = remoteState;
+      }
+    } else if (!backupState) {
+      // 双边都没 → 写空 session.json
       state = emptyState();
       knownETag = null;
+      try {
+        const item = await writeApprootJson(SESSION_FILE, state, null);
+        knownETag = item.eTag;
+      } catch (_) {}
+    } else {
+      // remote 空,backup 有 → backup 就是 SSOT,推上去
+      // (典型场景:用户本地模式读了一阵,第一次登录,云端没 session.json)
       try {
         const item = await writeApprootJson(SESSION_FILE, state, null);
         knownETag = item.eTag;
@@ -113,6 +139,7 @@ function normalize(raw) {
   const s = emptyState();
   if (raw && typeof raw === "object") {
     if (typeof raw.lastActive === "string") s.lastActive = raw.lastActive;
+    if (Number.isFinite(raw.lastActiveAt)) s.lastActiveAt = raw.lastActiveAt;
     if (raw.docs && typeof raw.docs === "object") {
       for (const [id, d] of Object.entries(raw.docs)) {
         if (!d || typeof d !== "object") continue;
@@ -125,6 +152,9 @@ function normalize(raw) {
         }
         if (typeof d.kind === "string") entry.kind = d.kind;
         if (Number.isFinite(d.addedAt)) entry.addedAt = d.addedAt;
+        // 新增时间戳 (老数据没有 = undefined,merge 时算 0)
+        if (Number.isFinite(d.positionAt)) entry.positionAt = d.positionAt;
+        if (Number.isFinite(d.lastReadAt)) entry.lastReadAt = d.lastReadAt;
         s.docs[id] = entry;
       }
     }
@@ -132,9 +162,61 @@ function normalize(raw) {
   return s;
 }
 
+// 安全 merge:remote 跟 local 按 per-doc 时间戳分别取胜者。
+// **不再**用"local 活跃 doc 一律赢"那种 LWW —— 那会让老设备覆盖新进度。
+//
+// 规则:
+//   - 单边有 → 用那边
+//   - 双边都有 → 用 positionAt 大的(更新的赢)
+//   - positionAt 缺失 → 算 0(老 schema 一律输给有时间戳的新写入)
+//   - lastActive 同样按 lastActiveAt 比
+function mergeByTimestamp(local, remote) {
+  const out = { lastActive: null, lastActiveAt: 0, docs: {} };
+  const ids = new Set([
+    ...Object.keys(local.docs || {}),
+    ...Object.keys(remote.docs || {}),
+  ]);
+  for (const id of ids) {
+    const l = local.docs?.[id];
+    const r = remote.docs?.[id];
+    if (!l) { out.docs[id] = r; continue; }
+    if (!r) { out.docs[id] = l; continue; }
+    // 双边都有 — 按 positionAt 选 position,addedAt 取 min,kind 取存在的
+    const lAt = l.positionAt || 0;
+    const rAt = r.positionAt || 0;
+    const winner = lAt >= rAt ? l : r;
+    const loser = lAt >= rAt ? r : l;
+    const m = { ...loser, ...winner };
+    // addedAt 取最小(谁先加的)
+    if (l.addedAt && r.addedAt) m.addedAt = Math.min(l.addedAt, r.addedAt);
+    // lastReadAt 取大的(最近读的)
+    const lRead = l.lastReadAt || 0;
+    const rRead = r.lastReadAt || 0;
+    if (lRead || rRead) m.lastReadAt = Math.max(lRead, rRead);
+    out.docs[id] = m;
+  }
+  const lAct = local.lastActiveAt || 0;
+  const rAct = remote.lastActiveAt || 0;
+  if (lAct >= rAct) {
+    out.lastActive = local.lastActive;
+    out.lastActiveAt = lAct;
+  } else {
+    out.lastActive = remote.lastActive;
+    out.lastActiveAt = rAct;
+  }
+  return out;
+}
+
 function clamp01(x) {
   if (!Number.isFinite(x)) return 0;
   return Math.min(1, Math.max(0, x));
+}
+
+// 浅深 hybrid 等价比较 —— 只用来判 initSession 后是否需要推回云。
+// session state 是固定形状,JSON.stringify 比对够用。
+function sameState(a, b) {
+  try { return JSON.stringify(a) === JSON.stringify(b); }
+  catch (_) { return false; }
 }
 
 // ── mutations ────────────────────────────────────────────────────────────
@@ -147,6 +229,7 @@ export function setPosition(itemId, position, kind) {
   };
   if (!state.docs[itemId]) state.docs[itemId] = {};
   state.docs[itemId].position = newPos;
+  state.docs[itemId].positionAt = Date.now();   // 时间戳:merge 时分胜负用
   if (kind) state.docs[itemId].kind = kind;
 
   const ref = lastPushedPositions[itemId];
@@ -165,10 +248,23 @@ export function setPosition(itemId, position, kind) {
 export function setLastActive(itemId) {
   if (state.lastActive === itemId) return;
   state.lastActive = itemId;
+  state.lastActiveAt = Date.now();   // 时间戳:跨设备 merge 选最近 active
   if (itemId && !state.docs[itemId]) {
     state.docs[itemId] = { addedAt: Date.now() };
   }
   scheduleWrite(0);
+}
+
+// 标记某书"刚被打开过" (lastReadAt)。app.js 在 openBook 时调,
+// 跟 setLastActive 类似但语义不同:
+//   - lastActive: 当前正在读的(全局只有一个)
+//   - lastReadAt: 这本书最后一次被打开 (每本书一个)
+// 用于"最近阅读" list 排序。
+export function markDocRead(itemId) {
+  if (!itemId) return;
+  if (!state.docs[itemId]) state.docs[itemId] = { addedAt: Date.now() };
+  state.docs[itemId].lastReadAt = Date.now();
+  scheduleWrite();   // 不用 0,跟着别的 mutation 走 debounce
 }
 
 export function ensureDoc(itemId, { addedAt, kind } = {}) {
@@ -261,15 +357,9 @@ async function mergeRemoteAndRetry(localSnapshot) {
   const { data: remote, eTag: remoteETag } = await readApprootJson(SESSION_FILE);
   const remoteState = remote ? normalize(remote) : emptyState();
 
-  // remote base + 本地"活跃 doc"的位置和 lastActive 盖上
-  const merged = JSON.parse(JSON.stringify(remoteState));
-  if (localSnapshot.lastActive) merged.lastActive = localSnapshot.lastActive;
-  for (const [id, d] of Object.entries(localSnapshot.docs)) {
-    if (!merged.docs[id]) merged.docs[id] = {};
-    if (d.position) merged.docs[id].position = d.position;
-    if (d.kind && !merged.docs[id].kind) merged.docs[id].kind = d.kind;
-    if (d.addedAt && !merged.docs[id].addedAt) merged.docs[id].addedAt = d.addedAt;
-  }
+  // 按时间戳合并 —— 老设备 long-offline 后过来不会用陈旧 position 覆盖新的。
+  // 详见 mergeByTimestamp 注释 + docs/03-cross-device-sync.md。
+  const merged = mergeByTimestamp(localSnapshot, remoteState);
 
   try {
     const item = await writeApprootJson(SESSION_FILE, merged, remoteETag);

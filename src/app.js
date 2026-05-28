@@ -25,7 +25,7 @@ import {
   ensureSubfolder, getApprootId, encodeApprootPath,
 } from "./graph.js";
 import {
-  initSession, initLibrary, getState, setPosition, setLastActive, ensureDoc,
+  initSession, initLibrary, getState, setPosition, setLastActive, ensureDoc, markDocRead,
   forgetDoc, getPosition, getDocKind, flush, flushKeepalive,
   checkRemoteChanged, reloadFromRemote, getSyncSnapshot,
   getBookMeta, setBookMeta, flushLibrary,
@@ -203,6 +203,20 @@ function fmtDate(ts) {
   return `${y}-${m}-${dd}`;
 }
 
+function fmtRelative(ts) {
+  if (!ts) return "";
+  const diff = Date.now() - ts;
+  if (diff < 0) return fmtHM(ts);
+  const m = Math.floor(diff / 60000);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  if (m < 1) return "刚刚";
+  if (m < 60) return `${m} 分钟前`;
+  if (h < 24) return `${h} 小时前`;
+  if (d < 7) return `${d} 天前`;
+  return fmtDate(ts);
+}
+
 function fmtHM(ts) {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -242,14 +256,18 @@ function setSyncStatus(text, opts = {}) {
 }
 
 function computeSyncStatus() {
-  if (!isSignedIn()) return { text: "离线" };  // 本地模式不焦虑
-  if (!currentDocId) return { text: "就绪" };
+  if (!isSignedIn()) return { text: "本地模式" };
   const s = getSyncSnapshot();
-  if (s.lastError && s.dirty) return { text: "同步失败 · 重试中", error: true };
   if (s.writeInFlight) return { text: "同步中…", syncing: true };
-  if (s.dirty) return { text: "未同步", unsynced: true };
-  if (s.lastSyncedAt > 0) return { text: `已同步 ${fmtHM(s.lastSyncedAt)}` };
-  return { text: "已同步" };
+  if (s.lastError && s.dirty) return { text: "同步失败 · 点击重试", error: true };
+  if (s.lastSyncedAt > 0) {
+    const rel = fmtRelative(s.lastSyncedAt);
+    if (s.dirty) return { text: `${rel} · 待推`, unsynced: true };
+    return { text: rel };
+  }
+  // 还没同步过
+  if (s.dirty) return { text: "等待同步…", unsynced: true };
+  return { text: "等待同步…" };
 }
 
 function tickSyncStatus() {
@@ -493,6 +511,60 @@ function navigateTo(path) {
   renderDocList();
 }
 
+// 渲染"最近阅读"section 到 docList 开头 —— 仅在书架根 + books 视图。
+// 取 session.docs 里有 lastReadAt 的 top N (默认 6),按 lastReadAt 倒序。
+// 没缓存的项跳过(不能直接打开,排序无意义)。
+// 当前正在读的书也会出现(它的 lastReadAt 是刚 openBook 时打的戳)。
+async function appendRecentReadingSection() {
+  if (currentFolder !== "" || drawerView !== "books") return;
+  const docs = getState().docs || {};
+  const entries = Object.entries(docs)
+    .filter(([id, d]) => d?.lastReadAt)
+    .sort(([, a], [, b]) => (b.lastReadAt || 0) - (a.lastReadAt || 0))
+    .slice(0, 6);
+  if (entries.length === 0) return;
+
+  // header
+  const header = document.createElement("li");
+  header.className = "doc-section-header";
+  header.textContent = "最近阅读";
+  docList.appendChild(header);
+
+  let rendered = 0;
+  for (const [id, doc] of entries) {
+    const meta = await cache.getMeta(id).catch(() => null);
+    if (!meta) continue;
+    const kind = detectKindByName(meta.name) || "?";
+    const li = document.createElement("li");
+    li.className = "doc-row doc-row-recent";
+    li.dataset.itemId = id;
+    if (id === currentDocId) li.classList.add("active");
+    li.innerHTML = `
+      <span class="cache-dot cached" title="已缓存"></span>
+      <span class="ext-tag">${kind.toUpperCase()}</span>
+      <span class="name">${escapeHtml(nameToTitle(meta.name || id))}</span>
+      <span class="meta">${escapeHtml(fmtRelative(doc.lastReadAt))}</span>
+    `;
+    li.addEventListener("click", () => openBook({
+      id, name: meta.name || id,
+      file: { mimeType: meta.type || "application/octet-stream" },
+      _local: meta.source === "local",
+      _ghost: meta.remoteFound === false,
+    }));
+    docList.appendChild(li);
+    rendered++;
+  }
+  if (rendered === 0) {
+    // header 撤掉
+    docList.removeChild(header);
+    return;
+  }
+  // 分隔线
+  const sep = document.createElement("li");
+  sep.className = "doc-section-divider";
+  docList.appendChild(sep);
+}
+
 async function renderDocList() {
   renderBreadcrumb();
   // 在本地模式 / trash 模式下隐藏 / 显示对应 actions
@@ -521,6 +593,9 @@ async function renderDocList() {
     return;
   }
   items = sortItems(items);
+
+  // 最近阅读 section:只在书架根 + books 视图显示。Top N 按 session.docs[id].lastReadAt 排
+  await appendRecentReadingSection();
 
   if (items.length === 0) {
     docListEmpty.classList.remove("hidden");
@@ -1091,6 +1166,7 @@ async function openBook(item) {
   setSyncStatus("加载中…");
 
   setLastActive(item.id);
+  markDocRead(item.id);   // 用于"最近阅读" list 排序
   ensureDoc(item.id, {
     addedAt: Date.parse(item.createdDateTime || "") || Date.now(),
     kind,
@@ -2093,6 +2169,25 @@ themeSelect.addEventListener("change", () => {
 
 menuButton.addEventListener("click", () => togglePanel("books"));
 outlineButton.addEventListener("click", () => togglePanel("outline"));
+
+// 顶栏同步状态点击 = 手动 sync。本地模式时点 → 开设置面板让用户登录
+syncStatus.style.cursor = "pointer";
+syncStatus.title = "点击立即同步";
+syncStatus.addEventListener("click", async () => {
+  if (!isSignedIn()) {
+    togglePanel("settings");
+    return;
+  }
+  setSyncStatus("同步中…", { syncing: true, sticky: true });
+  try {
+    await flush();             // 先推本地 dirty
+    await reconcileOnFocus();  // 拉远端 + apply
+    syncAllCachedItems().catch(() => {});
+    setSyncStatus("同步完成");
+  } catch (e) {
+    setSyncStatus(`同步失败: ${e.message}`, { error: true });
+  }
+});
 settingsButton.addEventListener("click", () => togglePanel("settings"));
 drawerCloseButton.addEventListener("click", closeAllPanels);
 outlineCloseButton.addEventListener("click", closeAllPanels);
