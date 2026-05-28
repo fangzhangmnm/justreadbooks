@@ -450,6 +450,24 @@ body {
   cursor: pointer;
   border-left: 3px solid transparent;
 }
+
+/* "最近阅读" section header */
+.doc-section-header {
+  list-style: none;
+  padding: 12px 12px 4px;
+  font-size: 11px;
+  color: var(--ink-muted);
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  text-transform: none;
+}
+.doc-section-divider {
+  list-style: none;
+  height: 1px;
+  background: var(--line);
+  margin: 8px 12px;
+}
+.doc-row-recent .meta { color: var(--accent-strong); font-size: 10px; }
 .doc-row:hover { background: var(--bg-2); }
 
 /* 异步操作进行中:整行半透明,所有按钮禁用,右上角 "处理中…" 指示。
