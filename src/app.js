@@ -518,29 +518,41 @@ const RECENT_DEFAULT_LIMIT = 6;
 const RECENT_EXPANDED_LIMIT = 30;
 let recentExpanded = false;
 
+// 渲染最近阅读 section。
+// **不去重**:一本书既在 recent 又在根目录列表里同时出现是预期行为
+// (recent 是"按时间快速取",folder list 是"按位置浏览",两个视角)。
+// 返回已渲染的 itemId Set 不被使用,留着是给未来如果想做 dedup 时用。
 async function appendRecentReadingSection() {
-  if (currentFolder !== "" || drawerView !== "books") return;
+  const renderedIds = new Set();
+  if (currentFolder !== "" || drawerView !== "books") return renderedIds;
   const docs = getState().docs || {};
-  const allSorted = Object.entries(docs)
+
+  // 先 pre-fetch 所有候选的 meta,顺便过滤 ghost / 无 cache 的
+  // session.docs 是 itemId-keyed,本身不会有"同一本书多条"
+  const candidates = Object.entries(docs)
     .filter(([id, d]) => d?.lastReadAt)
     .sort(([, a], [, b]) => (b.lastReadAt || 0) - (a.lastReadAt || 0));
-  if (allSorted.length === 0) return;
+
+  const viable = [];  // [id, doc, meta]
+  for (const [id, doc] of candidates) {
+    const meta = await cache.getMeta(id).catch(() => null);
+    if (!meta) continue;                          // 没缓存 → 打不开,不显示
+    if (meta.remoteFound === false) continue;     // ghost (云端被删 / 别账号) → 隐藏,但 cache + session 留着 (constraint #2 + 防云端 glitch)
+    viable.push([id, doc, meta]);
+  }
+  if (viable.length === 0) return renderedIds;
 
   const limit = recentExpanded ? RECENT_EXPANDED_LIMIT : RECENT_DEFAULT_LIMIT;
-  const entries = allSorted.slice(0, limit);
-  const hasMore = allSorted.length > entries.length;
-  const canCollapse = recentExpanded && allSorted.length > RECENT_DEFAULT_LIMIT;
+  const entries = viable.slice(0, limit);
+  const hasMore = viable.length > entries.length;
+  const canCollapse = recentExpanded && viable.length > RECENT_DEFAULT_LIMIT;
 
-  // header
   const header = document.createElement("li");
   header.className = "doc-section-header";
   header.textContent = "最近阅读";
   docList.appendChild(header);
 
-  let rendered = 0;
-  for (const [id, doc] of entries) {
-    const meta = await cache.getMeta(id).catch(() => null);
-    if (!meta) continue;
+  for (const [id, doc, meta] of entries) {
     const kind = detectKindByName(meta.name) || "?";
     const li = document.createElement("li");
     li.className = "doc-row doc-row-recent";
@@ -556,22 +568,16 @@ async function appendRecentReadingSection() {
       id, name: meta.name || id,
       file: { mimeType: meta.type || "application/octet-stream" },
       _local: meta.source === "local",
-      _ghost: meta.remoteFound === false,
     }));
     docList.appendChild(li);
-    rendered++;
-  }
-  if (rendered === 0) {
-    docList.removeChild(header);
-    return;
+    renderedIds.add(id);
   }
 
-  // 展开 / 收起 切换 (只在有更多项的时候显示)
   if (hasMore || canCollapse) {
     const toggle = document.createElement("li");
     toggle.className = "doc-section-toggle";
     if (hasMore) {
-      const remaining = allSorted.length - entries.length;
+      const remaining = viable.length - entries.length;
       toggle.textContent = `展开更多 (还有 ${remaining})  ▾`;
     } else {
       toggle.textContent = "收起  ▴";
@@ -583,10 +589,11 @@ async function appendRecentReadingSection() {
     docList.appendChild(toggle);
   }
 
-  // 分隔线
   const sep = document.createElement("li");
   sep.className = "doc-section-divider";
   docList.appendChild(sep);
+
+  return renderedIds;
 }
 
 async function renderDocList() {
