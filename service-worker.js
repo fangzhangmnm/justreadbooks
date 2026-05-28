@@ -7,7 +7,9 @@
 // 也就没有 Edge "Tracking Prevention" 拦截问题。
 // 唯一跨源 = Graph + MSAL login,passthrough 不缓存。
 
-const CACHE_VERSION = "v18-2026-05-25";
+// 版本号 SSoT 在 src/version.js;改了字节会被浏览器算作 SW 变化 → 触发 install
+importScripts("./src/version.js");
+const CACHE_VERSION = self.JRB_VERSION || "v?";
 const CACHE_NAME = `jrb-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -26,6 +28,7 @@ const PRECACHE_URLS = [
   "./src/viewer-pdf.js",
   "./src/viewer-txt.js",
   "./src/config.js",
+  "./src/version.js",
   "./src/vendor/pdfjs/pdf.mjs",
   "./src/vendor/pdfjs/pdf.worker.mjs",
   "./src/vendor/pdfjs/web/pdf_viewer.mjs",

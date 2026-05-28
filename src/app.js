@@ -2300,14 +2300,25 @@ updateToastReload.addEventListener("click", async () => {
   if (updateMode === "site") {
     hideUpdateToast();
     flushKeepalive();
-    try { navigator.serviceWorker.controller?.postMessage({ type: "skip-waiting" }); } catch (_) {}
-    location.reload();
+    // **关键**:postMessage 要推 reg.waiting,不是 navigator.serviceWorker.controller。
+    // controller = 旧 SW (已 active),它的 skipWaiting 无意义,新 SW 永远卡在 waiting。
+    // 推 reg.waiting → 新 SW skipWaiting → activate → controllerchange → 再 reload
+    const reg = _swRegistration || await navigator.serviceWorker?.getRegistration();
+    if (!reg || !reg.waiting) { location.reload(); return; }
+    let reloaded = false;
+    const doReload = () => { if (reloaded) return; reloaded = true; location.reload(); };
+    navigator.serviceWorker.addEventListener("controllerchange", doReload, { once: true });
+    try { reg.waiting.postMessage({ type: "skip-waiting" }); } catch (_) {}
+    setTimeout(doReload, 5000);  // iOS 偶发不 fire controllerchange,5s 兜底
     return;
   }
   if (updateMode === "session") await applyRemoteUpdate();
   else hideUpdateToast();
 });
-updateToastDismiss.addEventListener("click", hideUpdateToast);
+updateToastDismiss.addEventListener("click", () => {
+  updateDismissed = true;  // 同 session 里不再弹同一条 toast
+  hideUpdateToast();
+});
 
 // 拖拽上传 (整个 window;dragenter counter 防抖)
 let dragDepth = 0;
@@ -2477,31 +2488,101 @@ main().catch((e) => {
   setSyncStatus(`启动失败: ${e.message}`, { error: true });
 });
 
-// ── Service worker ───────────────────────────────────────────────────────
+// ── Service worker + 4 条 update 检测 ────────────────────────────────────
+// 详见 docs/01-pwa-hot-update.md。WebPaint 的 doc 也讲得很细。
+//
+// 关键点:
+// 1. 模块顶层 register —— 不能放进 window.load。dynamic import 是异步,
+//    模块跑起来时 load 经常已 fire,addEventListener 永远不触发 → SW 没注册
+// 2. _swRegistration 存模块级变量 —— iPad save-to-home-screen 下
+//    getRegistration() 偶尔返 undefined,启动时存的 reg 更稳
+// 3. 四条检测路径全挂(waiting / updatefound / postMessage / poll)。
+//    iPad PWA standalone 模式默认不主动 check SW,第 4 条(主动 poll)是命门
+// 4. 刷新按钮 postMessage 推 **reg.waiting**(不是 controller)。
+//    推给 controller(旧 SW)它已 active,skipWaiting 无意义,新 SW 永卡 waiting
 
 const LOCAL_DEV_HOSTS = new Set(["localhost", "127.0.0.1", "::1", ""]);
+let _swRegistration = null;
+let updateDismissed = false;
+
+function showSiteUpdateToast() {
+  if (updateDismissed) return;
+  showUpdateToast("site", "本站有新版本", "刷新");
+}
 
 if ("serviceWorker" in navigator && !LOCAL_DEV_HOSTS.has(location.hostname)) {
+  // 路径 3: SW 通过 fetch handler ETag 比对发现 asset 变了 → postMessage
   navigator.serviceWorker.addEventListener("message", (event) => {
-    if (event.data?.type === "asset-updated") {
-      showUpdateToast("site", "本站有新版本", "刷新");
-    }
+    if (event.data?.type === "asset-updated") showSiteUpdateToast();
   });
-  window.addEventListener("load", async () => {
-    let reg;
-    try { reg = await navigator.serviceWorker.register("./service-worker.js"); }
-    catch (e) { console.warn("SW register failed", e); return; }
-    if (reg.waiting && navigator.serviceWorker.controller) {
-      showUpdateToast("site", "本站有新版本", "刷新");
-    }
+
+  // **模块顶层 register**,不要 window.load
+  navigator.serviceWorker.register("./service-worker.js").then((reg) => {
+    _swRegistration = reg;
+
+    // 路径 1: 开机时检查 waiting 的新 SW
+    if (reg.waiting && navigator.serviceWorker.controller) showSiteUpdateToast();
+
+    // 路径 2: 本 session 装到新 SW 时
     reg.addEventListener("updatefound", () => {
       const nw = reg.installing;
       if (!nw) return;
       nw.addEventListener("statechange", () => {
         if (nw.state === "installed" && navigator.serviceWorker.controller) {
-          showUpdateToast("site", "本站有新版本", "刷新");
+          showSiteUpdateToast();
         }
       });
     });
-  });
+
+    // 路径 4: 主动 poke 浏览器 check SW —— 反 iPad PWA "不主动" 的解药
+    const pokeUpdate = () => { reg.update().catch(() => {}); };
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") pokeUpdate();
+    });
+    window.addEventListener("focus", pokeUpdate);
+    setInterval(pokeUpdate, 10 * 60 * 1000);
+  }).catch((err) => console.warn("SW register failed", err));
 }
+
+// 版本号显示 (HUD + 设置面板)
+(function applyVersionLabel() {
+  const v = window.JRB_VERSION || "v?";
+  const hud = document.getElementById("versionLabel");
+  if (hud) hud.textContent = v;
+  const settings = document.getElementById("versionLabelSettings");
+  if (settings) settings.textContent = v;
+})();
+
+// 手动 "检测更新" 按钮 (设置面板)
+const checkUpdateButton = document.getElementById("checkUpdateButton");
+const checkUpdateStatus = document.getElementById("checkUpdateStatus");
+checkUpdateButton?.addEventListener("click", async () => {
+  if (!("serviceWorker" in navigator)) {
+    checkUpdateStatus.textContent = "浏览器不支持 Service Worker";
+    return;
+  }
+  if (LOCAL_DEV_HOSTS.has(location.hostname)) {
+    checkUpdateStatus.textContent = "本地开发环境不注册 SW(直接刷新 F5 即可)";
+    return;
+  }
+  checkUpdateStatus.textContent = "检测更新中…";
+  try {
+    // 模块级 _swRegistration 比 getRegistration() 稳 (iPad save-to-home 模式下偶尔后者返 undefined)
+    const reg = _swRegistration || await navigator.serviceWorker?.getRegistration();
+    if (!reg) {
+      checkUpdateStatus.textContent = "Service Worker 未注册(刷新页面试试)";
+      return;
+    }
+    await reg.update();
+    setTimeout(() => {
+      if (reg.waiting) {
+        checkUpdateStatus.textContent = "有新版本,刷新页面应用";
+        showSiteUpdateToast();
+      } else {
+        checkUpdateStatus.textContent = `已是最新 (${window.JRB_VERSION || "v?"})`;
+      }
+    }, 1500);
+  } catch (e) {
+    checkUpdateStatus.textContent = "检测失败:" + (e?.message || e);
+  }
+});

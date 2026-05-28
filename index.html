@@ -86,6 +86,8 @@
           <span id="pageStatus"></span>
           <span class="sep" aria-hidden="true">·</span>
           <span id="syncStatus">就绪</span>
+          <span class="sep" aria-hidden="true">·</span>
+          <span id="versionLabel" class="version" title="当前版本">v?</span>
         </span>
       </header>
     </main>
@@ -290,6 +292,18 @@
             </select>
           </div>
         </section>
+
+        <section class="settings-section">
+          <h3>应用更新</h3>
+          <div class="settings-row">
+            <label>当前版本</label>
+            <span id="versionLabelSettings" style="font-family: ui-monospace, monospace; color: var(--ink-soft);">v?</span>
+          </div>
+          <div class="settings-row" style="margin-top: 8px;">
+            <button class="drawer-action" id="checkUpdateButton" type="button">检测更新</button>
+          </div>
+          <p class="hint" id="checkUpdateStatus" style="margin-top: 6px;"></p>
+        </section>
       </div>
     </aside>
 
@@ -308,6 +322,8 @@
       </div>
     </div>
 
+    <!-- 版本号 SSoT。必须早于 app.js,这样 app.js 能读 window.JRB_VERSION -->
+    <script src="./src/version.js"></script>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

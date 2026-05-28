@@ -295,6 +295,13 @@ body {
 #syncStatus.unsynced { color: var(--accent-strong); }
 #syncStatus.syncing  { color: var(--accent); }
 
+/* 版本号 (zen 设计:低调显示,user 一眼能看到 update 装上没) */
+.top-bar .status .version {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  opacity: 0.55;
+}
+
 /* ── Drawer ──────────────────────────────────────────────── */
 
 .backdrop {
