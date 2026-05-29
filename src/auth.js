@@ -114,6 +114,24 @@ export async function initAuth() {
   return initPromise;
 }
 
+// WebPaint §7.1.1 抄过来:boot 时离线 → MSAL silent 抛错 → activeAccount 永远 null
+// → 后面 wifi 回来 isSignedIn() 还是 false → 用户点同步 / 拉书架都"未登录"。
+// 修法:暴露这个函数,在 (a) online 事件 (b) 用户点 manual sync 时调一次。
+export async function retrySilentSignIn() {
+  if (activeAccount) return true;
+  if (!isAuthConfigured() || !pca) return false;
+  const cached = pca.getAllAccounts();
+  if (cached.length === 0) return false;
+  try {
+    await pca.acquireTokenSilent({ scopes: SCOPES, account: cached[0] });
+    pca.setActiveAccount(cached[0]);
+    activeAccount = cached[0];
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 export async function signIn() {
   if (!pca) await initAuth();
   return pca.loginRedirect({ scopes: SCOPES });

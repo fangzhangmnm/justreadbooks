@@ -188,7 +188,41 @@ initSession():
 
 实现:[session.js:initSession + writeLocalBackup](../src/session.js)
 
-## 启动序列 ("jumpscare"):立刻回到上次的书
+## block-screen 同步 overlay (v22 加)
+
+### 设计选择:auto-pull,**但等待是可见的**
+
+跟兄弟项目 WebPaint 的 sync 哲学讨论后,决定:
+- 仍然 **auto-pull** (跨设备体验"无感切书"的承诺不破)
+- 但 boot 期间的 reconcile **用一个 block-screen overlay 显式呈现**
+
+理由:
+- WebPaint 是编辑 app,自动 pull = 悄悄覆盖用户半小时的画作 → 它选 "只 push 不 pull"
+- 我们是纯读,数据丢失风险更小(已知 race 已修)。auto-pull 切设备体验远超手动
+- 但 silent auto-pull 让 user **不知道为什么 viewer 反应慢** → "卡了?"
+- 显式 overlay 让 user **看到"正在同步"** → 自然等 → 不会乱滑触发 race
+
+实现:
+
+```
+启动:
+  jumpscareLocal 立刻开本地缓存的书 (viewer 出来)
+  runBootSync():
+    show overlay "正在同步云端…"
+    Promise.race([
+      reconcileTask: 1s 延迟 → reconcileOnFocus,
+      timeoutTask: 10s,
+    ])
+    hide overlay
+```
+
+overlay 上有 `[跳过 · 继续离线]` 按钮:user 不想等可以立刻跳过(标 `bootSyncCancelled=true`)。`reconcileOnFocus` 仍在后台跑,只是 UI 不再等它;完成后正常 apply。
+
+10s 超时:网很慢 / 死了的兜底。user 不会被无限挂住。constraint #1 "zero-account-first" 的精神 —— 任何情况下 app 都能用本地缓存继续。
+
+实现:[app.js:runBootSync / showBootSyncOverlay](../src/app.js)
+
+
 
 抄自 JustReadPapers 的"扼杀选择困难症"模式。**核心**:打开 app = 直接看上次那一页。**不**让用户先挑书。
 

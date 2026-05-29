@@ -17,6 +17,7 @@
 
 import {
   initAuth, signIn, signOut, isSignedIn, getActiveAccount, isAuthConfigured,
+  retrySilentSignIn,
 } from "./auth.js";
 import {
   listChildren, listChildrenOfFolderId, getItemMeta,
@@ -106,6 +107,10 @@ const updateToast = $("updateToast");
 const updateToastReload = $("updateToastReload");
 const updateToastDismiss = $("updateToastDismiss");
 const idleOverlay = $("idleOverlay");
+const bootSyncOverlay = $("bootSyncOverlay");
+const bootSyncSkipButton = $("bootSyncSkipButton");
+const idbErrorBanner = $("idbErrorBanner");
+const idbErrorDismiss = $("idbErrorDismiss");
 const dropOverlay = $("dropOverlay");
 const outlineDrawer = $("outlineDrawer");
 const outlineCloseButton = $("outlineCloseButton");
@@ -1843,6 +1848,64 @@ async function jumpscareRemote() {
 
 // ── reconcile / idle ─────────────────────────────────────────────────────
 
+// 启动 reconcile,带 block-screen overlay + 跳过按钮 + 10s 超时。
+// 调用者 (main) 不 await,fire-and-forget。
+const BOOT_SYNC_TIMEOUT_MS = 10_000;
+let bootSyncCancelled = false;
+async function runBootSync() {
+  reconcilePending = true;
+  bootSyncCancelled = false;
+  showBootSyncOverlay();
+  // 包成 race:reconcile 完成 / 用户跳过 / 10s 超时,任一胜出
+  const reconcileTask = (async () => {
+    // 先 1s 让 UI 稳一下(viewer 渲染 / IDB 写完 backup 等),再发网络请求
+    await new Promise((r) => setTimeout(r, 1000));
+    if (bootSyncCancelled) return;
+    try { await reconcileOnFocus(); }
+    catch (e) { console.warn("[boot sync] reconcile error", e?.message); }
+  })();
+  const timeoutTask = new Promise((r) => setTimeout(r, BOOT_SYNC_TIMEOUT_MS));
+  await Promise.race([reconcileTask, timeoutTask]);
+  if (reconcilePending) {  // reconcile 还没 finally
+    reconcilePending = false;
+    console.log("[boot sync] timeout 10s,继续离线 (reconcile 仍在后台跑)");
+  }
+  hideBootSyncOverlay();
+}
+
+function showBootSyncOverlay() {
+  if (bootSyncOverlay) bootSyncOverlay.classList.remove("hidden");
+}
+function hideBootSyncOverlay() {
+  if (bootSyncOverlay) bootSyncOverlay.classList.add("hidden");
+}
+
+bootSyncSkipButton?.addEventListener("click", () => {
+  bootSyncCancelled = true;
+  reconcilePending = false;
+  hideBootSyncOverlay();
+  setSyncStatus("已跳过同步,继续离线");
+});
+
+idbErrorDismiss?.addEventListener("click", () => {
+  idbErrorBanner?.classList.add("hidden");
+});
+
+// IDB 健康探针 (WebPaint §8 教训):隐私窗口 / Safari 老版本 / 配额耗尽 IDB 静默死
+// → renderDocList / openBook 静默失败 → user 看到空白以为"app 坏了"
+// boot 时探一下,失败立刻显著提示
+async function probeIdbHealth() {
+  try {
+    // 任何一个 IDB 读操作:listMeta 最便宜,不写
+    await cache.listMeta();
+    return true;
+  } catch (e) {
+    console.warn("[idb probe] failed:", e?.name, e?.message);
+    idbErrorBanner?.classList.remove("hidden");
+    return false;
+  }
+}
+
 async function reconcileOnFocus() {
   if (!isAuthConfigured() || !isSignedIn()) return;
   // constraint #5:用户可能在 OneDrive 网页改了 / 增删了文件,清掉本地 listing 缓存
@@ -1938,7 +2001,16 @@ window.addEventListener("pagehide", () => {
   flushKeepalive();
 });
 window.addEventListener("focus", reconcileOnFocus);
-window.addEventListener("online", () => {
+window.addEventListener("online", async () => {
+  // WebPaint §7.1.1:boot 时离线 → MSAL silent 失败 → activeAccount=null →
+  // 即使 wifi 回来,signed-in 仍 false。online 时调一次 retrySilentSignIn 救活。
+  if (isAuthConfigured() && !isSignedIn() && hasEverSignedIn()) {
+    const ok = await retrySilentSignIn().catch(() => false);
+    if (ok) {
+      refreshAuthRow(getActiveAccount());
+      setSyncStatus("已重新登录");
+    }
+  }
   flush().catch(() => {});
   // constraint #4:online 后试着 drain 之前堆的本地文件
   drainPendingUploads().catch(() => {});
@@ -2233,8 +2305,20 @@ syncStatus.style.cursor = "pointer";
 syncStatus.title = "点击立即同步";
 syncStatus.addEventListener("click", async () => {
   if (!isSignedIn()) {
-    togglePanel("settings");
-    return;
+    // WebPaint §7.1.1:可能是 silent auth 在 boot 时失败 (那时没网),先 retry 一次
+    if (isAuthConfigured() && hasEverSignedIn()) {
+      const ok = await retrySilentSignIn();
+      if (ok) {
+        refreshAuthRow(getActiveAccount());
+        setSyncStatus("已重新登录,同步中…", { syncing: true, sticky: true });
+      } else {
+        togglePanel("settings");
+        return;
+      }
+    } else {
+      togglePanel("settings");
+      return;
+    }
   }
   setSyncStatus("同步中…", { syncing: true, sticky: true });
   try {
@@ -2385,6 +2469,11 @@ async function main() {
     onChapterPeek: onTxtChapterPeek,
   });
 
+  // IDB 健康探针 (WebPaint §8):隐私窗口 / Safari 老版本 / 配额耗尽 IDB 静默死
+  //   → renderDocList / openBook 静默失败 → user 看到空白以为"app 坏了"
+  //   失败立刻显著 banner,但不挂 boot — IDB 不可用时还能用 OneDrive 看(在线模式)
+  await probeIdbHealth();
+
   // 立刻 hydrate session backup (无网也有 lastActive)
   // initSession 即使 Graph 失败也会 hydrate 备份
   await Promise.allSettled([initSession(), initLibrary()]);
@@ -2483,14 +2572,13 @@ async function main() {
       });
     }
   } else {
-    // 已经从本地 jumpscare 开了书,但仍可后台 reconcile session (检测远端有没有更新)
-    // **Bug B 守护期**:reconcile 完成前 user 滚动不要打 fresh positionAt 时间戳
-    // (否则会反过来覆盖云端 "旧时间戳但正确" 的进度)
-    reconcilePending = true;
-    setTimeout(async () => {
-      try { await reconcileOnFocus(); }
-      finally { reconcilePending = false; }
-    }, 1000);
+    // 已经从本地 jumpscare 开了书,后台 reconcile 拉远端 + merge 修正进度。
+    // **block-screen overlay + [跳过] + 10s 超时**:
+    //   - block 期间 user 看到 spinner + "正在同步云端" 知道为什么不能动 (constraint #3
+    //     '本地能用'的 visible 解释,不是傻等)
+    //   - [跳过] 让用户主动放弃等远端 → 继续用本地 (constraint #1 zero-account-first 的精神)
+    //   - 10s 超时自动 fall back (网很慢 / 死了不可能让 user 等无限久)
+    runBootSync().catch(() => {});
   }
 
   // 登录成功 → 试 drain 之前堆的本地文件 (constraint #4)

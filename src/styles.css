@@ -752,6 +752,94 @@ body {
   cursor: pointer;
 }
 .idle-overlay.hidden { display: none; }
+
+/* 启动同步 block-screen overlay */
+.boot-sync-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.boot-sync-overlay.hidden { display: none; }
+.boot-sync-card {
+  background: var(--bg-1);
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: 320px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.boot-sync-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin-bottom: 6px;
+  animation: boot-sync-spin 1s linear infinite;
+}
+@keyframes boot-sync-spin { to { transform: rotate(360deg); } }
+.boot-sync-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--ink);
+}
+.boot-sync-hint {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+}
+#bootSyncSkipButton {
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-soft);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+#bootSyncSkipButton:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+/* IDB 不可用 banner (隐私窗口检测) */
+.idb-error-banner {
+  position: fixed;
+  top: calc(36px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  z-index: 40;
+  font-size: 12px;
+  max-width: calc(100vw - 32px);
+}
+.idb-error-banner.hidden { display: none; }
+.idb-error-banner .dismiss {
+  background: transparent;
+  border: 0;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
 .idle-card {
   background: var(--bg-1);
   border-radius: 12px;
