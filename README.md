@@ -130,6 +130,7 @@ docs/                    工程笔记 (PWA 热更新、sync 约束等)
 - [06-local-upload-flow.md](docs/06-local-upload-flow.md) — constraint #4 落地,pendingUpload/uploadDeferred 状态机,drain,collision
 - [07-ui-patterns.md](docs/07-ui-patterns.md) — zen 顶栏,drawer 互斥,行级 busy 锁,键盘 + 手柄,主题
 - [08-viewer-architecture.md](docs/08-viewer-architecture.md) — PDF 懒加载 + 重试,TXT 一章一屏渲染,position 协议
+- [09-defensive-patterns.md](docs/09-defensive-patterns.md) — IDB 隐私窗口探针,retrySilentSignIn,navigator.onLine 不可信,系统对话框替换 TODO
 
 ### License
 

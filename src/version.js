@@ -7,4 +7,4 @@
 //
 // 每次发应该 bump 这里(约定 vN-YYYY-MM-DD)。SW 通过 importScripts 检测到字节变化触发
 // install → 旧 cache 在 activate 时清。
-self.JRB_VERSION = "v21-2026-05-25";
+self.JRB_VERSION = "v22-2026-05-25";

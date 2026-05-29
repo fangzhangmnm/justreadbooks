@@ -322,6 +322,22 @@
       </div>
     </div>
 
+    <!-- 启动同步蒙层(本地 jumpscare 后,等远端 reconcile;让 user 知道为什么不能动) -->
+    <div id="bootSyncOverlay" class="boot-sync-overlay hidden" role="status" aria-live="polite">
+      <div class="boot-sync-card">
+        <div class="boot-sync-spinner"></div>
+        <p class="boot-sync-title">正在同步云端进度…</p>
+        <p class="boot-sync-hint">已用本地缓存先显示;同步完会跳到最新位置</p>
+        <button id="bootSyncSkipButton" type="button">跳过 · 继续离线</button>
+      </div>
+    </div>
+
+    <!-- IDB 不可用警示 (隐私窗口 / Safari 老版本 → 没法持久化) -->
+    <div id="idbErrorBanner" class="idb-error-banner hidden" role="status" aria-live="polite">
+      <span>本地存储不可用 — 可能是隐私窗口或浏览器配额耗尽。阅读进度无法保存。</span>
+      <button id="idbErrorDismiss" type="button" class="dismiss" aria-label="忽略">×</button>
+    </div>
+
     <!-- 版本号 SSoT。必须早于 app.js,这样 app.js 能读 window.JRB_VERSION -->
     <script src="./src/version.js"></script>
     <script type="module" src="./src/app.js"></script>
