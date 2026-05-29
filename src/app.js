@@ -1189,6 +1189,22 @@ async function deleteLocalBook(item) {
 async function openBook(item) {
   hideLanding();
   closeAllPanels();
+  // **锁 viewer 输入** —— 加载过程中 user 滑动会触发 scrollHandler / setPosition,
+  // 数据是脏的(还没真正 load 完新书)。pointer-events:none 阻一切交互。
+  // 整个 openBook 期间都锁,finally 解锁。
+  viewerLoading = true;
+  pdfViewerContainer.classList.add("loading");
+  txtViewerContainer.classList.add("loading");
+  try {
+    return await openBookInner(item);
+  } finally {
+    viewerLoading = false;
+    pdfViewerContainer.classList.remove("loading");
+    txtViewerContainer.classList.remove("loading");
+  }
+}
+
+async function openBookInner(item) {
   currentDocId = item.id;
   const kind = detectKindByName(item.name);
   currentDocKind = kind;
@@ -1197,7 +1213,7 @@ async function openBook(item) {
   setSyncStatus("加载中…");
 
   setLastActive(item.id);
-  markDocRead(item.id);   // 用于"最近阅读" list 排序
+  markDocRead(item.id);
   ensureDoc(item.id, {
     addedAt: Date.parse(item.createdDateTime || "") || Date.now(),
     kind,
@@ -1339,15 +1355,19 @@ function closeCurrentBook() {
 
 // ── viewer 回调 ──────────────────────────────────────────────────────────
 
-// **Bug B 修复**:启动期 (reconcilePending) user 滚动不打 positionAt 时间戳。
-// 否则用户在等远端拉取期间瞄一眼随手 scroll → 生成 fresh positionAt → merge 时
-// 反过来打赢云端的"旧但正确"的进度。等 reconcile 拉取/merge 完了再正常写。
+// 两个独立的 "暂不写 session position" gate:
+//   reconcilePending: 启动期间 reconcile 还没完,user 乱滑产生的 fresh positionAt
+//     会覆盖云端"旧时间戳但正确"的进度。详见 Bug B 修复 (docs/03)
+//   viewerLoading: 切书 (openBook) 期间,viewer 内部状态正在搬,
+//     scrollHandler 触发的 setPosition 数据是脏的。简化 ——
+//     直接 pointer-events:none 把 viewer 锁了,且 setPosition 也 gate
 let reconcilePending = false;
+let viewerLoading = false;
 
 function onPdfPositionFromViewer(pos) {
   if (!currentDocId || !pos) return;
   pageStatus.textContent = `第 ${pos.pageIndex + 1} 页`;
-  if (reconcilePending) return;   // 启动期 reconcile gap → 不写 session
+  if (reconcilePending || viewerLoading) return;
   setPosition(currentDocId, pos, "pdf");
 }
 
@@ -1361,7 +1381,7 @@ function onTxtPositionFromViewer(pos) {
   if (!currentDocId || !pos) return;
   const total = currentDocChapters?.length ?? 0;
   pageStatus.textContent = total ? `第 ${pos.pageIndex + 1}/${total} 章` : `第 ${pos.pageIndex + 1} 章`;
-  if (reconcilePending) return;
+  if (reconcilePending || viewerLoading) return;
   setPosition(currentDocId, pos, "txt");
 }
 
