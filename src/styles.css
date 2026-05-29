@@ -121,6 +121,11 @@ body {
 
 .viewer-container.hidden { display: none; }
 
+/* 加载新书期间:锁住 viewer 输入,防止 user 乱滑乱点把进度搞坏。
+   不动 opacity,user 还能继续读上一页(刚 jumpscare 出来的内容)。
+   progress bar 仍然显示在顶部表示在加载。 */
+.viewer-container.loading { pointer-events: none; }
+
 /* PDF viewer 内部 */
 #viewer.pdfViewer { padding: 8px 0 80px; }
 #viewer.pdfViewer .page {
@@ -877,14 +882,22 @@ body {
 }
 .outline-item:hover { background: var(--bg-2); }
 .outline-item.active { border-left-color: var(--accent); background: var(--bg-2); }
+/* twisty 触屏可点:hit area 撑大到 32×32,视觉字号保持小 */
 .outline-item .twisty {
-  flex: 0 0 14px;
-  width: 14px;
-  text-align: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--ink-muted);
-  font-size: 10px;
+  font-size: 14px;
   user-select: none;
+  margin: -4px 0;        /* 不撑高行高 */
+  border-radius: 4px;
+  transition: background 120ms ease;
 }
+.outline-item .twisty:hover { background: var(--bg-2); color: var(--ink); }
 .outline-item .label {
   flex: 1 1 auto;
   min-width: 0;
