@@ -1,6 +1,6 @@
 # Sync constraints — product-level priorities
 
-> Cross-project 设计准则; 源版本住在 [RealHome/docs/sync-constraints.md](../../20260520%20RealHome/docs/sync-constraints.md).
+> Cross-project 设计准则; 源版本住在 [RealHome/docs/20260524-sync-constraints.md](../../20260520%20RealHome/docs/20260524-sync-constraints.md).
 > 这里 inline 一份是因为 repo 单独 clone 时外链会断; 两边内容应保持一致,
 > RealHome 那边是 source of truth, 改了同步过来.
 
@@ -316,10 +316,10 @@ doesn't paint into a corner.
   tombstone semantics) — derived from these constraints; will live
   alongside the schema doc.
 - **App-specific conflict policy** — see
-  [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md) for
+  [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md) for
   JustReadBooks's specific choices.
 - **Per-provider quirks** (Graph API patterns, MSAL traps) — see
-  sibling RealHome's `msal-onedrive-patterns.md`.
+  sibling RealHome's `20260521-msal-onedrive-patterns.md`.
 
 ## One-sentence summary
 

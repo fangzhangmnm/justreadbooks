@@ -1,6 +1,6 @@
 # 本地上传 + 推云 + 冲突处理
 
-> [00-sync-constraints.md](00-sync-constraints.md) #4 (upload semantics) + #7 (collision) 的代码落地。
+> [20260524-sync-constraints.md](20260524-sync-constraints.md) #4 (upload semantics) + #7 (collision) 的代码落地。
 > 核心:**consent 不外推** — 用户拖文件时的登录状态决定后续行为。
 
 ## 状态字段(cache.meta 子集)
@@ -41,7 +41,7 @@ const ok = await cache.set(localId, storedBlob, {
 - 登录时拖 → 立刻试推 → 成功就 rekey 成 source:"onedrive";网失败留 pendingUpload:true,下次 drain 重试
 - 未登录时拖 → 静默留本地 → 后续登录**不会**自动推。用户想推必须在行里点 [上传到云端]
 
-理由:[00-sync-constraints.md](00-sync-constraints.md) 的 Consent scope principle —— consent 不外推。
+理由:[20260524-sync-constraints.md](20260524-sync-constraints.md) 的 Consent scope principle —— consent 不外推。
 
 ### 第一次登录的 cross-state exception
 
@@ -129,7 +129,7 @@ UI tag = "重名"  + 行 actions = [改名 ✎] [暂不上传 ⊖] [删除 ✕]
   C. 删除 → cache.del + forgetDoc → 没了
 ```
 
-cache.renameLocal 也支持 ghost (source:"onedrive" + remoteFound:false),那是 promoteGhostToLocal 之前的"先改名,再 promote"路径,见 [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md)。
+cache.renameLocal 也支持 ghost (source:"onedrive" + remoteFound:false),那是 promoteGhostToLocal 之前的"先改名,再 promote"路径,见 [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md)。
 
 实现:[cache.js:renameLocal / setUploadDeferred / setPendingUpload](../src/cache.js)
 
@@ -179,7 +179,7 @@ await cache.rekeyLocalToOnedrive(localId, item.id, {
 | pendingUpload + collision | [改名 ✎] [暂不上传 ⊖] [删除 ✕] (同上,但 tag 不同) |
 | 未登录 (任何情况) | [改名 ✎] [删除 ✕] (没账号可推) |
 
-行级 busy 锁:see [07-ui-patterns.md](07-ui-patterns.md)。
+行级 busy 锁:see [20260526-ui-patterns.md](20260526-ui-patterns.md)。
 
 ## 边界 / 踩坑
 
@@ -231,6 +231,6 @@ main() 里:
 
 ## 相关
 
-- [00-sync-constraints.md](00-sync-constraints.md) #4 + Consent scope principle + #7 collision
-- [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md) — 鬼可以经 promoteGhostToLocal 进入本流程
-- [05-cache-strategy.md](05-cache-strategy.md) — pinned:true 让本地副本永不被 LRU 淘汰
+- [20260524-sync-constraints.md](20260524-sync-constraints.md) #4 + Consent scope principle + #7 collision
+- [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md) — 鬼可以经 promoteGhostToLocal 进入本流程
+- [20260526-cache-strategy.md](20260526-cache-strategy.md) — pinned:true 让本地副本永不被 LRU 淘汰

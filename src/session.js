@@ -380,7 +380,7 @@ async function mergeRemoteAndRetry(localSnapshot) {
   const remoteState = remote ? normalize(remote) : emptyState();
 
   // 按时间戳合并 —— 老设备 long-offline 后过来不会用陈旧 position 覆盖新的。
-  // 详见 mergeByTimestamp 注释 + docs/03-cross-device-sync.md。
+  // 详见 mergeByTimestamp 注释 + docs/20260526-cross-device-sync.md。
   const merged = mergeByTimestamp(localSnapshot, remoteState);
 
   try {

@@ -20,7 +20,7 @@ position 含义:
 - **PDF**: pageIndex = 0-based 页号, yFraction = 该页内纵向比例
 - **TXT**: pageIndex = 章节序号, yFraction = 该章 DOM 内纵向比例
 
-reading-line anchor = 25% (viewport 高度 1/4 处)。位置 = "anchor 穿过的内容"。see [03-cross-device-sync.md](03-cross-device-sync.md)。
+reading-line anchor = 25% (viewport 高度 1/4 处)。位置 = "anchor 穿过的内容"。see [20260526-cross-device-sync.md](20260526-cross-device-sync.md)。
 
 回调:
 - `onPosition`: scroll debounce 500ms 后报完整 position(用于 session.json 写盘)
@@ -106,7 +106,7 @@ PDF 自带 outline (pdf.js `getOutline()`) 返树状结构。`jumpToDest(dest)` 
 
 ### 一章一次渲染,不是无限滚
 
-详见 [04-txt-chapter-splitting.md](04-txt-chapter-splitting.md)。理由:网文几百万字,无限滚 DOM 爆;一章一屏符合用户心智 (起点 / 番茄)。
+详见 [20260526-txt-chapter-splitting.md](20260526-txt-chapter-splitting.md)。理由:网文几百万字,无限滚 DOM 爆;一章一屏符合用户心智 (起点 / 番茄)。
 
 `loadTxt({docId, text, chapters, position})`:
 - 存 text + chapters 到模块内
@@ -253,6 +253,6 @@ PDF 里数学公式只存 glyph 不存源,提取出来是 "α+β" 不是 `\alpha
 
 ## 相关
 
-- [03-cross-device-sync.md](03-cross-device-sync.md) — position 协议跨设备同步细节
-- [04-txt-chapter-splitting.md](04-txt-chapter-splitting.md) — TXT chapter 数据是怎么来的
-- [07-ui-patterns.md](07-ui-patterns.md) — viewer 上层的快捷键 / 手柄 / drawer 交互
+- [20260526-cross-device-sync.md](20260526-cross-device-sync.md) — position 协议跨设备同步细节
+- [20260526-txt-chapter-splitting.md](20260526-txt-chapter-splitting.md) — TXT chapter 数据是怎么来的
+- [20260526-ui-patterns.md](20260526-ui-patterns.md) — viewer 上层的快捷键 / 手柄 / drawer 交互

@@ -1,6 +1,6 @@
 # 缓存策略 + 4 级数据保护落地
 
-> [00-sync-constraints.md](00-sync-constraints.md) 定义了 4 级数据保护(Top/High/Medium/Low),
+> [20260524-sync-constraints.md](20260524-sync-constraints.md) 定义了 4 级数据保护(Top/High/Medium/Low),
 > 本 doc 讲它们在代码里怎么映射 + 实际 LRU / pin / freshness / ghost 怎么协同。
 
 ## 4 级保护 → cache.meta 字段映射
@@ -64,7 +64,7 @@ LRU=N 而不是 LRU=1(N 由容量决定),实际体验:看过的 5-10 本都能�
 
 ## ghost (constraint #5 落地)
 
-详见 [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md)。这里只记 cache 角色:
+详见 [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md)。这里只记 cache 角色:
 
 - `remoteFound: false` 是 ghost 标记,**不删 cache**(constraint #2)
 - ghost 在书架显形,有 [再上传] [改名] [也从本地删] 三个动作
@@ -108,7 +108,7 @@ label 反映状态:
 - 已登录 + pendingUpload>0 → "本地文件 (3 待上传 / 5 项)"
 - 未登录 / 全部不 pending → "本地文件 (5 项)"
 
-点进去看到所有 source:"local",每个行的状态 (待上传 / 本地未上传 / 本地暂缓 / 重名) 由 tag 区分,见 [06-local-upload-flow.md](06-local-upload-flow.md)。
+点进去看到所有 source:"local",每个行的状态 (待上传 / 本地未上传 / 本地暂缓 / 重名) 由 tag 区分,见 [20260526-local-upload-flow.md](20260526-local-upload-flow.md)。
 
 ## 清缓存 UI (constraint #2 子条款落地)
 
@@ -150,6 +150,6 @@ cache.set 不知道是谁在调,默认 `pinned: true`。caller(uploadFiles / dow
 
 ## 相关
 
-- [00-sync-constraints.md](00-sync-constraints.md) #2 4 级保护原则
-- [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md) — ghost / freshness 完整流程
-- [06-local-upload-flow.md](06-local-upload-flow.md) — 本地 upload 进 Top 级的写入路径
+- [20260524-sync-constraints.md](20260524-sync-constraints.md) #2 4 级保护原则
+- [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md) — ghost / freshness 完整流程
+- [20260526-local-upload-flow.md](20260526-local-upload-flow.md) — 本地 upload 进 Top 级的写入路径

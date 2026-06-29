@@ -1,6 +1,6 @@
 # PWA 热更新检测 + 版本号水印 + 手动检测
 
-> 蓝本是 [WebPaint docs/pwa-update-detection.md](../../20260524%20WebPaint/WebPaint/docs/pwa-update-detection.md)。
+> 蓝本是 [WebPaint docs/20260526-pwa-update-detection.md](../../20260524%20WebPaint/WebPaint/docs/20260526-pwa-update-detection.md)。
 > 本 repo 在 v20 重写时全套照搬,并加 sync-related 的踩坑。
 
 ## TL;DR(少一件都会有 user 抱怨)
@@ -201,7 +201,7 @@ page 端额外:`updateDismissed` —— user 关过 toast 同 session 不再弹�
 
 toast 文案虽然只有"有新版本",但底层 reason 不同:
 - **site**:SW 检测到本站 asset 变 → reload 整页(本 doc)
-- **session**:OneDrive session.json 远端 eTag 变 → 现在自动静默 pull,不弹 toast (see [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md))
+- **session**:OneDrive session.json 远端 eTag 变 → 现在自动静默 pull,不弹 toast (see [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md))
 - **content**:某本书云端版本变 → silentRefresh,viewer 在原位置 re-load,不弹 toast
 
 reload 按钮根据 updateMode 分流。混在一起会双触发或语义乱。

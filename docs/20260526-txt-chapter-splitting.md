@@ -179,7 +179,7 @@ position 上报:`scroll` 事件 debounce 500ms → 算当前 yFraction → 调 `
 defaults:
 - fontSize: 19px
 - lineHeight: 1.9
-- maxWidth: 440px (约 22 字 / 行,起点 / 番茄 风格,见 [07-ui-patterns.md](07-ui-patterns.md))
+- maxWidth: 440px (约 22 字 / 行,起点 / 番茄 风格,见 [20260526-ui-patterns.md](20260526-ui-patterns.md))
 - fontFamily: sans (PingFang / 微软雅黑 / 思源黑体, 不是楷体)
 
 [viewer-txt.js:DEFAULTS](../src/viewer-txt.js)
@@ -195,5 +195,5 @@ defaults:
 
 ## 相关
 
-- [03-cross-device-sync.md](03-cross-device-sync.md) — pageIndex (= chapter index) 是跨设备稳定可比量
-- [07-ui-patterns.md](07-ui-patterns.md) — 22 字 / 行的视觉理由
+- [20260526-cross-device-sync.md](20260526-cross-device-sync.md) — pageIndex (= chapter index) 是跨设备稳定可比量
+- [20260526-ui-patterns.md](20260526-ui-patterns.md) — 22 字 / 行的视觉理由

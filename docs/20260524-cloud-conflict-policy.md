@@ -1,6 +1,6 @@
 # 云端冲突策略 + cache.meta 状态机
 
-> [00-sync-constraints.md](00-sync-constraints.md) 的约束 1-8 是跨项目共通的;
+> [20260524-sync-constraints.md](20260524-sync-constraints.md) 的约束 1-8 是跨项目共通的;
 > **冲突解决策略**因每个 app "用户是否在 app 内编辑内容" 不同而不同。
 > 本文档记本 app 的选择,以及为什么和 sibling 不一样。
 

@@ -1,6 +1,6 @@
 # 防御性写法 + 静默失败陷阱
 
-> 抄自 [WebPaint sync-and-ui-shareback.md §7-8](../../20260524%20WebPaint/WebPaint/docs/sync-and-ui-shareback.md)。
+> 抄自 [WebPaint 20260528-sync-and-ui-shareback.md §7-8](../../20260524%20WebPaint/WebPaint/docs/20260528-sync-and-ui-shareback.md)。
 > 记几个 sibling apps 都踩过的坑,以及怎么防。
 
 ## 1. IDB 可能被静默禁(隐私窗口 / Safari 老版本)
@@ -66,7 +66,7 @@ WebPaint §7.1.1:
 
 ## 4. PWA SW 注册必须模块顶层
 
-详见 [01-pwa-hot-update.md](01-pwa-hot-update.md)。坑要点:
+详见 [20260524-pwa-hot-update.md](20260524-pwa-hot-update.md)。坑要点:
 
 - `window.load` listener 挂晚了不触发 — dynamic `import()` 异步,load 经常已 fire
 - 模块顶层直接 `navigator.serviceWorker.register(...)` — 不 await 不卡 boot
@@ -74,7 +74,7 @@ WebPaint §7.1.1:
 
 ## 5. SW 刷新按钮推 `reg.waiting`,不是 `controller`
 
-详见 [01-pwa-hot-update.md](01-pwa-hot-update.md)。错的话 toast 死循环:推给旧 SW (= controller) 它自己已 active → `skipWaiting()` 无意义 → 新 SW 永卡 waiting → reload 仍用旧 cache → 又弹 toast。
+详见 [20260524-pwa-hot-update.md](20260524-pwa-hot-update.md)。错的话 toast 死循环:推给旧 SW (= controller) 它自己已 active → `skipWaiting()` 无意义 → 新 SW 永卡 waiting → reload 仍用旧 cache → 又弹 toast。
 
 ## 6. 不要用系统对话框 (alert / confirm / prompt)
 

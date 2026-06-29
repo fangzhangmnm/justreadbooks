@@ -231,6 +231,6 @@ OneDrive 子文件夹导航:`书架 › 小说 › 网游`。每段是 button,�
 
 ## 相关
 
-- [04-txt-chapter-splitting.md](04-txt-chapter-splitting.md) — 22 字 / 行的源头
-- [08-viewer-architecture.md](08-viewer-architecture.md) — viewer 内的滚动 / 章节切换实现
-- [01-pwa-hot-update.md](01-pwa-hot-update.md) — toast 更新提示 UI
+- [20260526-txt-chapter-splitting.md](20260526-txt-chapter-splitting.md) — 22 字 / 行的源头
+- [20260526-viewer-architecture.md](20260526-viewer-architecture.md) — viewer 内的滚动 / 章节切换实现
+- [20260524-pwa-hot-update.md](20260524-pwa-hot-update.md) — toast 更新提示 UI

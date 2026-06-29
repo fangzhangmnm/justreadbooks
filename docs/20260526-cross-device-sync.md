@@ -27,7 +27,7 @@
 
 为什么这么选:
 - PDF 同一篇文档在不同设备 (手机 vs 桌面) zoom 不同,viewport 像素不可比。文档坐标对所有 zoom 都成立。
-- TXT 在不同设备字号、行高、屏幕宽度都不同,但**章节序号是稳定的** (前提是章节切分规则没变,见 [04-txt-chapter-splitting.md](04-txt-chapter-splitting.md))。yFraction 是 DOM 内的比例,字号差异不大时近似可比。
+- TXT 在不同设备字号、行高、屏幕宽度都不同,但**章节序号是稳定的** (前提是章节切分规则没变,见 [20260526-txt-chapter-splitting.md](20260526-txt-chapter-splitting.md))。yFraction 是 DOM 内的比例,字号差异不大时近似可比。
 
 **阅读线锚点 (reading-line anchor)**:viewport 高度的 25% 处。位置 = "这条线穿过的内容"。恢复时把那一行内容滚到 25% 处。25% 而不是 0 (顶部) 因为顶部内容用户已经读过,25% 落在"用户当前的眼睛"上。
 
@@ -53,7 +53,7 @@
 设计选择:
 - **不**存文件名、文件路径 → 用户改名 / 挪目录不需要同步 session
 - **不**存阅读偏好(字号等) → 设备属性
-- doc key = itemId(云端) 或 `local:xxx`(本地,见 [06-local-upload-flow.md](06-local-upload-flow.md))
+- doc key = itemId(云端) 或 `local:xxx`(本地,见 [20260526-local-upload-flow.md](20260526-local-upload-flow.md))
 
 ## 写盘节流:debounce + ceiling + trivial-skip
 
@@ -269,7 +269,7 @@ applyRemoteUpdate():
 ```
 
 为什么**静默**而不弹 toast:
-- 我们这边只读(constraint #4 + [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md))。本地没"用户编辑"要保护。
+- 我们这边只读(constraint #4 + [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md))。本地没"用户编辑"要保护。
 - 弹 toast 说 "云端有更新 [同步]" → 用户必须主动点 → **同时显示着旧书 1 秒+**。用户的本能反应"我打开的是旧的吗?"。distracting。
 - 直接切到云端最新 → 0 干扰,符合用户预期"我刚在另一台看的应该出现"。
 
@@ -305,7 +305,7 @@ A 在云端 library.json 改了 `chapterRegexId`(从"第N章"换"###")→ B 同�
 
 老的 `pageIndex` 落在新切分下可能指错章。yFraction 还相对正确(章节内比例)。
 
-接受这个代价。constraint #6 在 [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md) 有说明。极端情况下用户跳一下重新定位,人机协同。
+接受这个代价。constraint #6 在 [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md) 有说明。极端情况下用户跳一下重新定位,人机协同。
 
 ### 3. 同时双开
 
@@ -368,7 +368,7 @@ position 反而赢。
 
 ## 相关
 
-- [00-sync-constraints.md](00-sync-constraints.md) — cross-project 设计准则
-- [02-cloud-conflict-policy.md](02-cloud-conflict-policy.md) — 为什么静默 pull,不弹 toast
-- [05-cache-strategy.md](05-cache-strategy.md) — IDB 缓存,纯设备本地不同步
-- [06-local-upload-flow.md](06-local-upload-flow.md) — `local:xxx` ID 是什么,push 后 rekey
+- [20260524-sync-constraints.md](20260524-sync-constraints.md) — cross-project 设计准则
+- [20260524-cloud-conflict-policy.md](20260524-cloud-conflict-policy.md) — 为什么静默 pull,不弹 toast
+- [20260526-cache-strategy.md](20260526-cache-strategy.md) — IDB 缓存,纯设备本地不同步
+- [20260526-local-upload-flow.md](20260526-local-upload-flow.md) — `local:xxx` ID 是什么,push 后 rekey
