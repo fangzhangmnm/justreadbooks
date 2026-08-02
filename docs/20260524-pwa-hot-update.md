@@ -1,6 +1,6 @@
 # PWA 热更新检测 + 版本号水印 + 手动检测
 
-> 蓝本是 [WebPaint docs/20260526-pwa-update-detection.md](../../20260524%20WebPaint/WebPaint/docs/20260526-pwa-update-detection.md)。
+> 蓝本是 [WebPaint docs/20260526-pwa-update-detection.md](../../20260524%20WebPaint/WebPaint/ai-docs/20260526-pwa-update-detection.md)。
 > 本 repo 在 v20 重写时全套照搬,并加 sync-related 的踩坑。
 
 ## TL;DR(少一件都会有 user 抱怨)

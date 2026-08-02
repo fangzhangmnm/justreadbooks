@@ -1,6 +1,6 @@
 # 防御性写法 + 静默失败陷阱
 
-> 抄自 [WebPaint 20260528-sync-and-ui-shareback.md §7-8](../../20260524%20WebPaint/WebPaint/docs/20260528-sync-and-ui-shareback.md)。
+> 抄自 [WebPaint 20260528-sync-and-ui-shareback.md §7-8](../../20260524%20WebPaint/WebPaint/ai-docs/20260528-sync-and-ui-shareback.md)。
 > 记几个 sibling apps 都踩过的坑,以及怎么防。
 
 ## 1. IDB 可能被静默禁(隐私窗口 / Safari 老版本)
