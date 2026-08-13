@@ -5,3 +5,5 @@ Thumbs.db
 .claude/
 *.log
 node_modules/
+journal/
+journals/
