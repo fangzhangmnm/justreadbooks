@@ -5,7 +5,7 @@
 export const CLIENT_ID = "691bf41b-349a-46e1-8296-f0a644005421";
 
 // common = 个人 + 组织账号都能登
-export const AUTHORITY = "https://login.microsoftonline.com/common";
+export const AUTHORITY = "https://login.microsoftonline.com/consumers";
 
 // AppFolder = approot 沙盒;offline_access = 拿 refresh token,纯 silent
 export const SCOPES = ["Files.ReadWrite.AppFolder", "offline_access"];
