@@ -958,7 +958,7 @@ async function reuploadGhost(item) {
 
 // constraint #6:某个 cache 项 (source:"onedrive") 跟云端 etag 一致 = fresh,
 // 否则静默 pull 新内容覆盖。404 → markGhost。我们这边只读,云端版本永远是 ground truth。
-// 详见 docs/20260524-cloud-conflict-policy.md
+// 详见 ai-docs/20260524-cloud-conflict-policy.md
 //
 // 跟换号 ghost 不重不冲:换号鬼是 accountId mismatch,这里只摸属于当前账号的项。
 async function silentRefreshIfStale(itemId) {
@@ -2597,7 +2597,7 @@ main().catch((e) => {
 });
 
 // ── Service worker + 4 条 update 检测 ────────────────────────────────────
-// 详见 docs/20260524-pwa-hot-update.md。WebPaint 的 doc 也讲得很细。
+// 详见 ai-docs/20260524-pwa-hot-update.md。WebPaint 的 doc 也讲得很细。
 //
 // 关键点:
 // 1. 模块顶层 register —— 不能放进 window.load。dynamic import 是异步,

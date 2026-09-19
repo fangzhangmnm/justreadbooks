@@ -114,23 +114,23 @@ src/
   app.js                 orchestrator
   styles.css             象牙白金 / 黑金 主题
   vendor/                pdf.js + MSAL (整包 vendor)
-docs/                    工程笔记 (PWA 热更新、sync 约束等)
+ai-docs/                 工程笔记 (PWA 热更新、sync 约束等)
 ```
 
 ### 工程笔记 docs/
 
 按话题分:
 
-- [20260524-sync-constraints.md](docs/20260524-sync-constraints.md) — cross-project 设计准则 (4 级数据保护 / consent scope / 8 条 priority)
-- [20260524-pwa-hot-update.md](docs/20260524-pwa-hot-update.md) — SW 热更新 toast,3 条检测路径,bump CACHE_VERSION 仪式
-- [20260524-cloud-conflict-policy.md](docs/20260524-cloud-conflict-policy.md) — etag freshness + ghost + accountId 隔离 + accountless 审计
-- [20260526-cross-device-sync.md](docs/20260526-cross-device-sync.md) — session.json 跨设备同步,debounce+ceiling,412 merge,jumpscare 启动,focus 静默 pull
-- [20260526-txt-chapter-splitting.md](docs/20260526-txt-chapter-splitting.md) — TXT 章节切分,内建正则,2-group level 约定,GB18030 编码,目录树折叠
-- [20260526-cache-strategy.md](docs/20260526-cache-strategy.md) — IDB 缓存,4 级保护落地,LRU + pin,auto-cache,freshness 触发点
-- [20260526-local-upload-flow.md](docs/20260526-local-upload-flow.md) — constraint #4 落地,pendingUpload/uploadDeferred 状态机,drain,collision
-- [20260526-ui-patterns.md](docs/20260526-ui-patterns.md) — zen 顶栏,drawer 互斥,行级 busy 锁,键盘 + 手柄,主题
-- [20260526-viewer-architecture.md](docs/20260526-viewer-architecture.md) — PDF 懒加载 + 重试,TXT 一章一屏渲染,position 协议
-- [20260529-defensive-patterns.md](docs/20260529-defensive-patterns.md) — IDB 隐私窗口探针,retrySilentSignIn,navigator.onLine 不可信,系统对话框替换 TODO
+- [20260524-sync-constraints.md](ai-docs/20260524-sync-constraints.md) — cross-project 设计准则 (4 级数据保护 / consent scope / 8 条 priority)
+- [20260524-pwa-hot-update.md](ai-docs/20260524-pwa-hot-update.md) — SW 热更新 toast,3 条检测路径,bump CACHE_VERSION 仪式
+- [20260524-cloud-conflict-policy.md](ai-docs/20260524-cloud-conflict-policy.md) — etag freshness + ghost + accountId 隔离 + accountless 审计
+- [20260526-cross-device-sync.md](ai-docs/20260526-cross-device-sync.md) — session.json 跨设备同步,debounce+ceiling,412 merge,jumpscare 启动,focus 静默 pull
+- [20260526-txt-chapter-splitting.md](ai-docs/20260526-txt-chapter-splitting.md) — TXT 章节切分,内建正则,2-group level 约定,GB18030 编码,目录树折叠
+- [20260526-cache-strategy.md](ai-docs/20260526-cache-strategy.md) — IDB 缓存,4 级保护落地,LRU + pin,auto-cache,freshness 触发点
+- [20260526-local-upload-flow.md](ai-docs/20260526-local-upload-flow.md) — constraint #4 落地,pendingUpload/uploadDeferred 状态机,drain,collision
+- [20260526-ui-patterns.md](ai-docs/20260526-ui-patterns.md) — zen 顶栏,drawer 互斥,行级 busy 锁,键盘 + 手柄,主题
+- [20260526-viewer-architecture.md](ai-docs/20260526-viewer-architecture.md) — PDF 懒加载 + 重试,TXT 一章一屏渲染,position 协议
+- [20260529-defensive-patterns.md](ai-docs/20260529-defensive-patterns.md) — IDB 隐私窗口探针,retrySilentSignIn,navigator.onLine 不可信,系统对话框替换 TODO
 
 ### License
 
