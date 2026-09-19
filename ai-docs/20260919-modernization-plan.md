@@ -30,7 +30,12 @@ JRB 不再是「自研 IDB 缓存 + 自研 session.json 合并 + 裸 Graph」的
 
 ## 2. 目标（win condition，按优先级）
 
-0. **核心前提：远端一直在更新，新版必须不清缓存就能看到**（user：v1「远端覆盖了我需要清缓存才能看」）。落地 = app 的三条义务：① **开书前**在线必 `pullIfClean()`，云端更新则**先采纳再渲染**（没在读、没什么可抢，不出 chip）；② 阅读中 focus / visibility / online / 前台 60s 只对当前书复查；③ 图库帧的 `newer-on-cloud` 徽章是库算的，不由 app 猜。mock 测钉死：「本地有旧版、云端有新版 → 打开后一次网络往返内看到新版」。
+0. **核心前提：远端一直在更新，新版必须不清缓存就能看到**（user：v1「远端覆盖了我需要清缓存才能看」）——**但永不为此转圈**（user 2026-09-19「我不想开书时转很久」）。落地 = 开书规则「本地优先，后台追新」：
+   - ① **有本地副本 → 立刻渲染**（IDB 读 + 切章 + 画一章；不等 token、不等网、不等新鲜度）。同时后台 `pullIfClean()`：只一次元数据往返，有新版才下载；下载完——**用户还没动**（没滚、没翻）→ 静默换底（同章同锚，肉眼只见内容变多）；**已经在读** → chip「已更新」，翻章或点 chip 才换。
+   - ② **没有本地副本**（首开 / 被驱逐）→ 转圈不可避免，但**转的是字节进度条**（`keepOffline({onProgress})` 再 `open()`），可取消回图库；不是无限转。第二次起走 ①。
+   - ③ 阅读中 focus / visibility / online / 前台 60s 只对当前书复查，采纳一律走 chip；图库帧的 `newer-on-cloud` 徽章是库算的，不由 app 猜。
+   - v1「转很久」的三个来源本轮全删：10s 阻塞 boot sync 蒙层、开书前等 MSAL silent、eTag 变了整章重载。
+   - mock 测钉死：「本地有旧版 + 云端新版 → 首帧 < 300ms 且是旧版；一次往返后未动则已是新版 / 已动则 chip 在」。
 1. **读到一半不被抢**：远端覆盖 → 当前章 DOM 不动，只出一枚 chip「已更新 · +N 章 / 本章有更新」；翻章或点 chip 才用新字节。后台/下次打开时静默采纳。
 2. **位置经得起覆盖**：锚 = `{章节序号, 章节标题文本, 章内比例}`；恢复时标题命中优先、序号 clamp 兜底。**不做行 hash**（user 2026-09-19：串章小事；行 hash 靠不靠谱不确定——行本身在覆盖中会变，标题才是写入方承诺稳定的东西，handoff §5）。
 3. **启动不等网**（feedback 2026-09-19 启动速度优先）：首帧 = 本机（device-kv 上次那本 + 库本地缓存 + dir-index-cache 目录快照）；删掉 v1 的 10s 阻塞同步屏与 idle 蒙层。
@@ -123,7 +128,7 @@ v1 承诺（README）：「一台设备看到 100 页，另一台打开自动跳
 
 ### 4.9 启动路径
 
-`index.html` 烤 `data-theme`（kv 同步读）→ 模块顶层注册 SW → `createStore` → `initCollections()`（本地 hydrate，不碰网）→ 读 kv「本机上次那本」→ 库本地有副本则**立刻**渲染阅读器（首帧）→ 之后才：图库 data-face 订阅当前夹（dir-index-cache 首帧）、当前书 `pullIfClean`（采纳走 chip）、collections `reconcileWithRemote`。没有上次那本 / 本地无副本 → 首帧 = 图库。**没有任何阻塞蒙层，没有 10s 超时**。
+`index.html` 烤 `data-theme`（kv 同步读）→ 模块顶层注册 SW → `createStore` → `initCollections()`（本地 hydrate，不碰网）→ 读 kv「本机上次那本」→ 库本地有副本则**立刻**渲染阅读器（首帧；不等 MSAL silent）→ 之后才：auth silent、图库 data-face 订阅当前夹（dir-index-cache 首帧）、当前书后台 `pullIfClean`（§2 ①：未动静默换底 / 已动 chip）、collections `reconcileWithRemote`。没有上次那本 / 本地无副本 → 首帧 = 图库。**没有任何阻塞蒙层，没有 10s 超时，首帧目标 < 300ms**。
 
 ### 4.10 提案 .h（pin 住的目标契约；现状 .h = 无）
 
@@ -144,7 +149,8 @@ export interface BookListItem { name: string; dir: string; stem: string; kind: B
 export interface BookListFrame { folder: string; items: BookListItem[]; folders: string[]; complete: boolean; stale: boolean }
 export function watchBooks(folder: string, cb: (f: BookListFrame) => void, opts?: { onError?: (e: unknown, phase: WatchFolderErrorPhase) => void }): () => void;   // 过滤 *.part / ~* / .tmp / 保留名
 export type OpenBookResult = { kind: "ok"; blob: Blob } | { kind: "unavailable" } | { kind: "too-big"; size: number };
-export function openBook(name: string, opts?: { allowBig?: boolean }): Promise<OpenBookResult>;   // 在线必先 pullIfClean（§2 前提 0）
+export function openBook(name: string, opts?: { allowBig?: boolean; onProgress?: (done: number, total: number) => void }): Promise<OpenBookResult>;   // 本地优先秒开；无副本才带进度下载（§2 前提 0 ①②）
+export function refreshBookInBackground(name: string): Promise<FreshResult>;   // 开书后 / 复查时调；采纳与否由调用方按「用户动没动」决定
 export function pullBookIfClean(name: string): Promise<FreshResult>;
 export function keepBookOffline(name: string, onProgress?: (done: number, total: number) => void): Promise<void>;
 export function offloadBook(name: string): Promise<void>;
@@ -257,7 +263,7 @@ export function mountPdfViewer(el: HTMLElement, deps: PdfViewerDeps): PdfViewerH
 - **期 0 · 仓形（半天）**：`prod` 分支 = v23 快照；deploy.yml；Pages 切 Actions；`docs/` → `ai-docs/`（带日期戳，改引用）；收进本文与 09-17 handoff。**验证**：`/` 仍是 v23 可用；`/dev/` 出现。
 - **期 1a · gallery 包（API ritual，user 在场过目 .h）**：提案（§4.4 六条：列表视图 / 全屏 / subtitle·marker·pinned hook / 留离线动词 / 上传入口 / 隐藏新建）→ 过目 → 实现 → 测试 → release 0.3.0（WeebPaint / WXHW 零改动可验）。
 - **期 1b · 地基**：四包收货（store / gallery / workbench-elements / encryption）；TS/esbuild；`app-store.ts` 接缝 + 红线守卫测试；`books.ts`；device-kv / pwa-shell / i18n / sprite / error-badge；gallery 一屏（列表视图、全屏、云 chip 在图库）；**切章深模块 `src/chapters/` + 测试**；txt 阅读器；位置（乙）；`api/` 首刷。**win**：`/dev/` 登录 → 图库列表列出 `ai-dropbox/`、长书名整行可见 → 开 txt → 关掉重开回到原位 → 离线能开已缓存的书。
-- **期 2 · 可靠阅读**：锚 + 活书 chip + `pullIfClean` 接线 + 大件提示 + `.part` 过滤 + 最近阅读条 + 未读点 + 留离线/移除离线 + 上传 + `valuable-save` 节律。**win（mock 测，`@internal/store/testing`）**：⓪ 本地旧版 + 云端新版 → 开书后一次往返内是新版（前提 0）；① 同名覆盖 3 次、当前章 DOM 未重画、chip 出现、翻章后按标题回到同一章；② 前插章节 → 标题命中；③ 标题消失 → clamp；④ `.part` 不入书架；⑤ 离线开已缓存书成功、开纯云端书诚实失败。**真机总单（一批）**：`/dev/` 登录 → 图库 → 开活书 → 电脑上跑一次装订覆盖 → 手机上 chip 出现且没被抢 → 翻章 → 关 app 半天再开回原位 → 飞行模式开已缓存书 → 登出。
+- **期 2 · 可靠阅读**：锚 + 活书 chip + `pullIfClean` 接线 + 大件提示 + `.part` 过滤 + 最近阅读条 + 未读点 + 留离线/移除离线 + 上传 + `valuable-save` 节律。**win（mock 测，`@internal/store/testing`）**：⓪ 本地旧版 + 云端新版 → 首帧秒开旧版、一次往返后未动则新版 / 已动则 chip（前提 0）；① 同名覆盖 3 次、当前章 DOM 未重画、chip 出现、翻章后按标题回到同一章；② 前插章节 → 标题命中；③ 标题消失 → clamp；④ `.part` 不入书架；⑤ 离线开已缓存书成功、开纯云端书诚实失败。**真机总单（一批）**：`/dev/` 登录 → 图库 → 开活书 → 电脑上跑一次装订覆盖 → 手机上 chip 出现且没被抢 → 翻章 → 关 app 半天再开回原位 → 飞行模式开已缓存书 → 登出。
 - **期 3 · 收尾**：README 重写（承诺随 §4.7 改）；`api/` 重打；`0.1.0` 翻牌（先问 push prod）；真机总单结果 → user 说 push prod → `prod` 分支前进。
 - **期 4（下一轮，记账）**：pdf-viewer 控件包 + JRB 消费（§10）；folder provider 无地骑士（PC 读本地文件夹）。
 
@@ -276,6 +282,7 @@ export function mountPdfViewer(el: HTMLElement, deps: PdfViewerDeps): PdfViewerH
 11. pdf-viewer → **控件化，下一轮**（§10）。
 12. 新增：**切章专门独立一个深模块**（§4.5）。
 13. 新增：**「远端一直在更新」= 核心设计前提**（§2 前提 0）。
+14. 新增：**「我不想开书时转很久」→ 开书规则改为本地优先、后台追新、未动静默换底 / 已动 chip；无副本才带进度转圈**（§2 前提 0 ①②）。
 
 **仍开放**：gallery 提案 .h 的具体形状（期 1a 时 user 在场）；`pinned` vs `sortKey`。
 
