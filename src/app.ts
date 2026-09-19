@@ -132,11 +132,17 @@ async function openBookByName(name: string, opts: { size?: number; allowBig?: bo
   book = st; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name);
   reader.load(st.text, st.chapters, getPosition(name)?.anchor ?? null);
   markOpened(name);
+  rememberHeader(st);
   renderTopbar(); renderSettings();
   if (!opts.quiet) setStatus("");
   diagNote("book", `open "${name}" fromLocal=${r.fromLocal} chapters=${st.chapters.length} enc=${st.encoding}`);
   void refreshCurrentBook();   // 后台追新（不阻塞首帧）
   return true;
+}
+/** 状态头进 book-prefs（synced）：书架副标题不用读字节、别的设备也看得到；没变不写（防无谓推云）。 */
+function rememberHeader(st: OpenBookState): void {
+  const cur = getBookPref(st.name)?.header;
+  if ((st.header ?? undefined) !== cur) setBookPref(st.name, { header: st.header ?? undefined });
 }
 function closeBook(): void { if (!book) return; keepalivePosition(); book = null; setActiveBookName(null); reader.teardown(); closeNotice("book-updated"); renderTopbar(); renderSettings(); }
 
@@ -154,7 +160,7 @@ function refreshCurrentBook(): Promise<void> {
       if (again.kind !== "ok" || !book || book.name !== name) return;
       const st = await decodeBook(name, again.blob);
       if (!book || book.name !== name) return;
-      book = st;
+      book = st; rememberHeader(st);
       if (!reader.touched()) { reader.load(st.text, st.chapters, reader.current()); setStatus(t("st.refreshed")); diagNote("book", `silent swap "${name}" chapters=${st.chapters.length}`); return; }
       const upd = reader.adopt(st.text, st.chapters);
       diagNote("book", `adopt pending "${name}" +${upd.addedChapters} currentChanged=${upd.currentChanged}`);

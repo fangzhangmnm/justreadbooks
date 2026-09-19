@@ -5,7 +5,9 @@ import { createApp, defineComponent, reactive, ref, computed, watch, onMounted, 
 import { createGallery, type CreateGalleryDeps, type GalleryDocHost, type VueRuntime, type GItem, type VerbStore, type DataFaceStore, type Gallery } from "@internal/gallery";
 import { iconHtml } from "@internal/workbench-elements";
 import { requireStore, auth } from "./app-store.ts";
-import { isBookName, stemOf } from "./books.ts";
+import { isBookName, isHiddenName, stemOf } from "./books.ts";
+import { isUnread } from "./reading-position.ts";
+import { getBookPref } from "./book-prefs.ts";
 import { openConfirmSheet, openInputSheet, openChoiceSheet, withBusy } from "./sheets.ts";
 import { deviceKvGet, deviceKvSet } from "./device-kv.ts";
 import { reportError } from "./error-badge.ts";
@@ -70,8 +72,9 @@ export function initGalleryHost(d: GalleryHostDeps) {
     naming: NAMING,
     isZipDoc: () => false,
     hasThumb: () => false,
-    policy: { isDoc: (p) => isBookName(p), isImage: () => false, naming: NAMING },
-    tile: { aspect: "2/3" },
+    // 0.3.0：hide = v1 遗留 json / 写入方半成品连杂物都不显示；list = 长书名整行；副标题 = 状态头（开书时记进 book-prefs，跨设备可见、不用读字节）；未读点 = reading-position 无条目
+    policy: { isDoc: (p) => isBookName(p), isImage: () => false, naming: NAMING, hide: (p) => isHiddenName(p) },
+    tile: { aspect: "2/3", layout: "list", subtitle: (item) => getBookPref(item.name)?.header ?? null, marker: (item) => (isUnread(item.name) ? "unread" : null) },
     folderMemory: { get: () => deviceKvGet(KV_FOLDER) ?? "", set: (p) => deviceKvSet(KV_FOLDER, p || null) },
     isGalleryVisible: () => document.body.dataset.mode === "gallery",
     reportError: (e, level) => reportError(e, level ?? "error"),
