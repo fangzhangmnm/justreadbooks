@@ -1,51 +1,60 @@
-// SW: cache-first + 后台 revalidate + ETag/length diff → 通知页面 "有新版本"。
-// 用户点刷新才 skipWaiting + reload(永不自动 reload —— 可能正在读书)。
-//
-// 改了 precache 文件后必须 bump CACHE_VERSION。
-//
-// 全部依赖都同源 (src/vendor/),不走 CDN —— 没有跨域 fetch,
-// 也就没有 Edge "Tracking Prevention" 拦截问题。
-// 唯一跨源 = Graph + MSAL login,passthrough 不缓存。
+// SW（v2，抄 WXHW / WeebPaint service-worker.js，家族 content-hash 形）：整个站只剩 1 个 hash-named bundle，缓存失效自动通过文件名差异解决。
+// created 2026-09-19 by Claude Fable 5.1
+//   - install：fetch index.html → 抠出当前 bundle 文件名 → precache 入口 + bundle + statics
+//   - cache name = "jrb-<bundleHash>"。新 bundle = 新 cache name；activate 清老的（含 v1 的 "jrb-v23-…" 等一切 jrb- 前缀）。
+//   - prod(scope=/)：cache-first + 后台 revalidate（ETag 变了通知 page）；dev(scope 含 /dev/)：network-first（改完即见，离线回退缓存）。
+//   - 书的字节不经 SW（走 @internal/store 的 IDB）；本 SW 只管壳。
 
-// 版本号 SSoT 在 src/version.js;改了字节会被浏览器算作 SW 变化 → 触发 install
-importScripts("./src/version.js");
-const CACHE_VERSION = self.JRB_VERSION || "v?";
-const CACHE_NAME = `jrb-${CACHE_VERSION}`;
-
-const PRECACHE_URLS = [
+const STATIC_PRECACHE = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./icon.svg",
-  "./src/styles.css",
-  "./src/app.js",
-  "./src/auth.js",
-  "./src/graph.js",
-  "./src/session.js",
-  "./src/cache.js",
-  "./src/encoding.js",
-  "./src/chapter-split.js",
-  "./src/viewer-pdf.js",
-  "./src/viewer-txt.js",
-  "./src/config.js",
-  "./src/version.js",
-  "./src/vendor/pdfjs/pdf.mjs",
-  "./src/vendor/pdfjs/pdf.worker.mjs",
-  "./src/vendor/pdfjs/web/pdf_viewer.mjs",
-  "./src/vendor/pdfjs/web/pdf_viewer.css",
-  "./src/vendor/msal/msal-browser.min.js",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./styles.css",
+  "./vendor/internal-css/gallery.css",
+  "./vendor/internal-css/workbench-elements.css",
+  "./vendor/msal/msal-browser.min.js",
 ];
-// cmaps / standard_fonts / web/images 不预缓 —— 按需 fetch (SW 仍会命中本站缓存层),
-// 体积大装 PWA 时不阻塞。
+
+let CACHE_NAME = "jrb-boot";
+const SCOPE_IS_DEV = self.location.pathname.includes("/dev/");
+const SCOPE_PATH = self.location.pathname.replace(/[^/]*$/, "");
+
+// SW 空闲被杀重启后顶层重跑，CACHE_NAME 会回落 "jrb-boot" → 从 caches.keys() 找回唯一的 jrb-<hash>（家族级坑）。
+let cacheNameResolved = null;
+async function currentCacheName() {
+  if (CACHE_NAME !== "jrb-boot") return CACHE_NAME;
+  if (!cacheNameResolved) cacheNameResolved = (async () => {
+    const keys = (await caches.keys()).filter((k) => k.startsWith("jrb-") && k !== "jrb-boot");
+    if (keys.length) CACHE_NAME = keys[keys.length - 1];
+    return CACHE_NAME;
+  })().finally(() => { cacheNameResolved = null; });
+  return cacheNameResolved;
+}
+
+async function getCurrentBundleUrl() {
+  const res = await fetch("./index.html", { cache: "no-store" });
+  if (!res.ok) throw new Error("install: index.html fetch failed " + res.status);
+  const html = await res.text();
+  const m = html.match(/src="(\.\/dist\/jrb-[a-z0-9-]+\.mjs)"/i);
+  if (!m) throw new Error("install: entry ./dist/jrb-*.mjs not found in index.html");
+  return { html, bundleUrl: m[1] };
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
+    const { bundleUrl } = await getCurrentBundleUrl();
+    const bundleHash = bundleUrl.match(/jrb-([a-z0-9-]+)\.mjs/i)?.[1] || "boot";
+    CACHE_NAME = `jrb-${bundleHash}`;
     const cache = await caches.open(CACHE_NAME);
-    // 同源整体 precache。单个 fail 不要让整个 install 挂(可能某次重命名遗漏)
-    for (const url of PRECACHE_URLS) {
-      try { await cache.add(url); }
-      catch (e) { console.warn("precache miss:", url, e?.message); }
-    }
+    const urls = [...STATIC_PRECACHE, bundleUrl];
+    await Promise.all(urls.map((u) =>
+      fetch(u, { cache: "no-store" })
+        .then((r) => (r.ok ? cache.put(u, r) : null))
+        .catch((err) => console.warn("[SW] precache miss", u, err.message)),
+    ));
     await self.skipWaiting();
   })());
 });
@@ -53,64 +62,85 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(
-      keys.filter((k) => k.startsWith("jrb-") && k !== CACHE_NAME)
-          .map((k) => caches.delete(k))
-    );
+    await Promise.all(keys.filter((k) => k.startsWith("jrb-") && k !== CACHE_NAME).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
 
-let updateAnnouncedThisLoad = false;
+let updateAnnounced = false;
 async function notifyUpdate(url) {
-  if (updateAnnouncedThisLoad) return;
-  updateAnnouncedThisLoad = true;
-  const clientsList = await self.clients.matchAll({ includeUncontrolled: true });
-  for (const client of clientsList) client.postMessage({ type: "asset-updated", url });
+  if (updateAnnounced) return;
+  updateAnnounced = true;
+  const clients = await self.clients.matchAll({ includeUncontrolled: true });
+  for (const c of clients) c.postMessage({ type: "asset-updated", url });
 }
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-
-  // 跨源 (Graph / MSAL login) → passthrough
   if (url.origin !== self.location.origin) return;
-
-  event.respondWith((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match(req);
-    const networkFetch = fetch(req).then((response) => {
-      if (response && response.ok) {
-        if (cached) {
-          const cE = cached.headers.get("etag");
-          const fE = response.headers.get("etag");
-          const cL = cached.headers.get("content-length");
-          const fL = response.headers.get("content-length");
-          const changed = (cE && fE && cE !== fE) || (!cE && cL && fL && cL !== fL);
-          if (changed) notifyUpdate(req.url).catch(() => {});
-        }
-        cache.put(req, response.clone()).catch(() => {});
-      }
-      return response;
-    }).catch(() => null);
-
-    if (cached) {
-      networkFetch.catch(() => {});
-      return cached;
-    }
-    const response = await networkFetch;
-    if (response) return response;
-    if (req.mode === "navigate") {
-      const fallback = await cache.match("./index.html");
-      if (fallback) return fallback;
-    }
-    return new Response("offline & not cached", {
-      status: 503,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
-  })());
+  if (!url.pathname.startsWith(SCOPE_PATH)) return;
+  if (!SCOPE_IS_DEV && url.pathname.includes("/dev/")) return;
+  const p = SCOPE_IS_DEV ? networkFirst(req) : cacheFirst(req);
+  event.respondWith(req.mode === "navigate" ? withNoStore(p) : p);
 });
+
+// 导航响应加 Cache-Control: no-store → WebKit 不把本页放进 bfcache（登录 redirect 离场时旧页冻进 bfcache 会握死 IDB 锁；store 0.12.1 闸门是承重层，这是额外一层）。
+async function withNoStore(p) {
+  const r = await p;
+  if (!(r instanceof Response)) return r;
+  const h = new Headers();
+  if (r.headers && typeof r.headers.forEach === "function") r.headers.forEach((v, k) => h.set(k, v));
+  h.set("Cache-Control", "no-store");
+  return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
+}
+
+async function cacheFirst(req) {
+  const cache = await caches.open(await currentCacheName());
+  const cached = await cache.match(req, { ignoreSearch: true });
+  const networkPromise = fetch(req).then((resp) => {
+    if (resp && resp.ok) {
+      if (cached) {
+        const cE = cached.headers.get("etag"), fE = resp.headers.get("etag");
+        const cL = cached.headers.get("content-length"), fL = resp.headers.get("content-length");
+        const changed = (cE && fE && cE !== fE) || (!cE && cL && fL && cL !== fL);
+        if (changed) notifyUpdate(req.url).catch(() => {});
+      }
+      cache.put(req, resp.clone()).catch(() => {});
+    }
+    return resp;
+  }).catch(() => null);
+  if (cached) { networkPromise.catch(() => {}); return cached; }
+  const resp = await networkPromise;
+  if (resp) return resp;
+  return navFallback(req, cache);
+}
+
+const NETWORK_FIRST_TIMEOUT_MS = self.__NETWORK_FIRST_TIMEOUT_MS ?? 60000;
+async function networkFirst(req) {
+  const cache = await caches.open(await currentCacheName());
+  try {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), NETWORK_FIRST_TIMEOUT_MS);
+    let resp;
+    try { resp = await fetch(req, { signal: ac.signal }); } finally { clearTimeout(timer); }
+    if (resp && resp.ok) cache.put(req, resp.clone()).catch(() => {});
+    return resp;
+  } catch {
+    const cached = await cache.match(req, { ignoreSearch: true });
+    if (cached) return cached;
+    return navFallback(req, cache);
+  }
+}
+
+async function navFallback(req, cache) {
+  if (req.mode === "navigate") {
+    const fallback = await cache.match("./index.html");
+    if (fallback) return fallback;
+  }
+  return new Response("offline & not cached", { status: 503 });
+}
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "skip-waiting") self.skipWaiting();

@@ -1,0 +1,22 @@
+{
+  "name": "justreadbooks",
+  "private": true,
+  "type": "module",
+  "comment": "JRB 0.1 纪元（2026-09-19 开工，计划 = ai-docs/20260919-modernization-plan.md）。依赖全 vendor：四个 @internal 包走 file:vendor-pkgs/*.tgz（tgz 物理在仓，断网可装；升级 = 各库仓 scripts/pull-package.sh）。esbuild 打进 dist bundle，部署零 node_modules。devDependencies 只供开发期（tsc --noEmit 类型门 + 借 WeebPaint 的 playwright 跑 boot smoke）。骨架抄 WXHW 2.0。",
+  "scripts": {
+    "test": "node test/run.mjs",
+    "build": "bash scripts/build.sh",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "smoke": "node test/boot-smoke.mjs",
+    "api": "bash scripts/gen-api.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@internal/encryption": "file:./vendor-pkgs/internal-encryption-0.1.0.tgz",
+    "@internal/gallery": "file:./vendor-pkgs/internal-gallery-0.2.2.tgz",
+    "@internal/store": "file:./vendor-pkgs/internal-store-0.13.0.tgz",
+    "@internal/workbench-elements": "file:./vendor-pkgs/internal-workbench-elements-0.1.0.tgz"
+  }
+}

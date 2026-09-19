@@ -1,9 +1,14 @@
+# 人类区 / 本机区（家族 2026-08-13 契约）
+journal/
+journals/
+.claude/
+# 构建工具与依赖（tgz 在 vendor-pkgs/ 进 git；node_modules 不进）
+node_modules/
+tools/esbuild/
+# 临时
+tmp/
+*.log
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-.claude/
-*.log
-node_modules/
-journal/
-journals/

@@ -1,0 +1,21 @@
+{
+  // 类型检查专用（tsc --noEmit）；运行时 esbuild bundle。全 src/**/*.ts 纳管（抄 WXHW 2.0）。
+  // module:preserve + bundler 解析 + allowImportingTsExtensions → import 写 "./x.ts"（node 24 strip-types 直跑测试）。
+  // verbatimModuleSyntax：type-only import 必须写 import type（否则 node strip-types 留下运行时 import 炸）。
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable", "webworker"],
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "types": [],
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts"]
+}

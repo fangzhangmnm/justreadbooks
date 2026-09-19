@@ -1,0 +1,15 @@
+// book-prefs —— 每本书的切章规则 / 编码（synced collection，key = 路径；替代 v1 library.json）。created 2026-09-19 by Claude Fable 5.1
+import { bookPrefs } from "./app-store.ts";
+import type { ChapterPref } from "./chapters/index.ts";
+
+export interface BookPref extends ChapterPref { encoding?: string }
+export function getBookPref(name: string): BookPref | null {
+  const v = bookPrefs.getItem(name) as BookPref | null | undefined;
+  return v && typeof v === "object" ? v : null;
+}
+export function setBookPref(name: string, patch: Partial<BookPref>): void {
+  const cur = getBookPref(name) ?? {};
+  const next: BookPref = { ...cur, ...patch };
+  for (const k of Object.keys(next) as (keyof BookPref)[]) if (next[k] === undefined || next[k] === "") delete next[k];
+  bookPrefs.setItem(name, next);
+}

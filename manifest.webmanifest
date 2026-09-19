@@ -1,20 +1,17 @@
 {
-  "name": "justreadbooks",
-  "short_name": "Books",
-  "description": "网络小说 (TXT) + 图书 (PDF)。OneDrive 同步,飞机上离线也能看。",
+  "name": "读书 · JustReadBooks",
+  "short_name": "读书",
+  "description": "TXT 网文阅读器：一打开就是上次没看完的那一页；书放 OneDrive，飞机上也能看。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#d8c8a8",
-  "theme_color": "#d8c8a8",
+  "background_color": "#F6F4EF",
+  "theme_color": "#F6F4EF",
   "lang": "zh-CN",
   "icons": [
-    {
-      "src": "./icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }
