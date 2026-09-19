@@ -117,7 +117,7 @@ src/
 ai-docs/                 工程笔记 (PWA 热更新、sync 约束等)
 ```
 
-### 工程笔记 docs/
+### 工程笔记 ai-docs/
 
 按话题分:
 
