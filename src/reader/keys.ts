@@ -9,6 +9,8 @@ export interface KeysDeps {
   modalOpen: () => boolean;
   toggleShelf: () => void;
   toggleChapters: () => void;
+  /** 目录 view 开着：它是 modal，但 o / 手柄 Select 要能把它关掉（Quest 没 Escape）。 */
+  chaptersOpen: () => boolean;
   toggleSettings: () => void;
 }
 const DPAD_LINES = 4;
@@ -21,6 +23,7 @@ function inputFocused(): boolean {
 export function initKeys(d: KeysDeps): void {
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || inputFocused()) return;
+    if (d.chaptersOpen()) { if (e.key === "o" || e.key === "O") { e.preventDefault(); d.toggleChapters(); } return; }
     if (d.modalOpen()) return;
     switch (e.key) {
       case "b": case "B": e.preventDefault(); d.toggleShelf(); return;
@@ -46,7 +49,8 @@ export function initKeys(d: KeysDeps): void {
     const pressed = (i: number) => !!gp!.buttons[i]?.pressed;
     const edge = (i: number) => pressed(i) && !prev.has(i);
     const r = d.reader();
-    if (r && d.readerVisible() && !d.modalOpen() && !inputFocused()) {
+    if (d.chaptersOpen() && !inputFocused()) { if (edge(8)) d.toggleChapters(); }
+    else if (r && d.readerVisible() && !d.modalOpen() && !inputFocused()) {
       if (edge(12)) r.lineStep(-1, DPAD_LINES);
       if (edge(13)) r.lineStep(1, DPAD_LINES);
       if (edge(14)) r.prev();

@@ -92,7 +92,9 @@ export const S = {
   "rd.chaptersTitle": { zh: "目录 · {n} 章", en: "Chapters · {n}" },
   "rd.chaptersSearchPh": { zh: "搜章名", en: "Search chapters" },
   "rd.chaptersEmpty": { zh: "没有匹配的章", en: "No matching chapter" },
-  "rd.jump": { zh: "跳转", en: "Go" },
+  "rd.chaptersLocate": { zh: "当前章", en: "Current" },
+  "rd.chaptersCollapse": { zh: "折叠", en: "Collapse" },
+  "rd.chaptersExpand": { zh: "展开", en: "Expand" },
   "rd.statusOpening": { zh: "正在打开「{name}」", en: "Opening “{name}”" },
   // ── 状态行 ──
   "st.synced": { zh: "已同步", en: "Synced" },

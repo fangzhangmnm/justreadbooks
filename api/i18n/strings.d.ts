@@ -340,9 +340,17 @@ export declare const S: {
         readonly zh: "没有匹配的章";
         readonly en: "No matching chapter";
     };
-    readonly "rd.jump": {
-        readonly zh: "跳转";
-        readonly en: "Go";
+    readonly "rd.chaptersLocate": {
+        readonly zh: "当前章";
+        readonly en: "Current";
+    };
+    readonly "rd.chaptersCollapse": {
+        readonly zh: "折叠";
+        readonly en: "Collapse";
+    };
+    readonly "rd.chaptersExpand": {
+        readonly zh: "展开";
+        readonly en: "Expand";
     };
     readonly "rd.statusOpening": {
         readonly zh: "正在打开「{name}」";

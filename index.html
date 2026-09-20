@@ -236,6 +236,23 @@
       <button class="update-dismiss" id="updateDismissButton" type="button" aria-label="忽略" data-i18n-aria="ui.updateDismiss"><svg class="ico" aria-hidden="true"><use href="#x"/></svg></button>
     </div>
 
+    <!-- 目录：第三个整屏 view（书架 / 设置同族；右上 ✕ = user 2026-09-20 拍板）；虚拟化分组清单，src/chapters-view.ts -->
+    <section id="chaptersView" class="chapters-view" hidden role="dialog" aria-modal="true" aria-label="目录" data-i18n-aria="ui.chapters">
+      <header class="chapters-head">
+        <h2 id="chaptersTitle"></h2>
+        <button class="auth-action" id="chaptersLocate" type="button" data-i18n="rd.chaptersLocate">当前章</button>
+        <button class="menu-button" id="chaptersClose" type="button" aria-label="关闭" data-i18n-aria="common.close" data-i18n-title="common.close"><svg class="ico" aria-hidden="true"><use href="#x"/></svg></button>
+      </header>
+      <div class="chapters-tools"><input id="chaptersSearch" class="chapters-search" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="搜章名" data-i18n-ph="rd.chaptersSearchPh" /></div>
+      <div class="chapters-body">
+        <div class="chapters-float" id="chaptersFloat" hidden aria-hidden="true"></div>
+        <div class="chapters-scroll" id="chaptersScroll" role="listbox" aria-label="目录" data-i18n-aria="ui.chapters">
+          <div class="chapters-spacer" id="chaptersSpacer"></div>
+          <p class="chapters-empty" id="chaptersEmpty" hidden data-i18n="rd.chaptersEmpty">没有匹配的章</p>
+        </div>
+      </div>
+    </section>
+
     <!-- 通用 sheet（确认 / 输入 / 多选 / 搜索选一项）；sheets.ts -->
     <div id="sheet" class="crypto-modal hidden" role="dialog" aria-modal="true">
       <div class="crypto-card" id="sheetCard">
@@ -265,6 +282,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-7fa756cca4a2.mjs"></script>
+    <script type="module" src="./dist/jrb-5c5606f02ce3.mjs"></script>
   </body>
 </html>

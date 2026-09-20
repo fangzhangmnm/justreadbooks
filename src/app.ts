@@ -5,7 +5,7 @@ import { FOREGROUND_POLL_MS, READER_DEFAULTS, FONT_SIZE_RANGE, BOOK_EXTS } from 
 import { initI18n, t, lang, setLang, LANGS, LANG_NAME, type Lang } from "./i18n/index.ts";
 import { initErrorBadge, reportError, errorLog } from "./error-badge.ts";
 import { initDiagLog, note as diagNote, entries as diagEntries } from "./diag-log.ts";
-import { initSheets, openConfirmSheet, openChoiceSheet, openInputSheet, openPickSheet, withBusy } from "./sheets.ts";
+import { initSheets, openConfirmSheet, openChoiceSheet, openInputSheet, withBusy } from "./sheets.ts";
 import { configureFloors, togglePopupMenu, currentPopupMenu, showNotice, closeNotice } from "@internal/workbench-elements";
 import { humanSize } from "@internal/gallery";
 import { auth, initCollections, reconcileCollections, flushCollections, requireStore, requestStoragePersistence, setActiveBookName, readingPos } from "./app-store.ts";
@@ -16,6 +16,7 @@ import { split, listBuiltin, statusHeader, type Chapter, type Anchor, type Chapt
 import { decodeBytes } from "./encoding.ts";
 import { createTxtReader, type ReaderPrefs } from "./reader/txt.ts";
 import { initKeys } from "./reader/keys.ts";
+import { initChaptersView } from "./chapters-view.ts";
 import { initGalleryHost, shelfLayout } from "./gallery-host.ts";
 import { initPwaShell } from "./pwa-shell.ts";
 import { holdUntilSettled } from "./settle-hold.ts";
@@ -97,6 +98,18 @@ function setReadingMode(on: boolean): void { if (on) document.body.dataset.readi
     setChrome(!chromeShown());
   });
   readerEl.addEventListener("scroll", () => { if (chromeShown() && Math.abs(readerEl.scrollTop - chromeShownAtScroll) > 12) setChrome(false); }, { passive: true });
+  // 到顶再下拉 = 出顶栏（user 2026-09-20「到顶的时候再下拉应该出顶栏。主视图也相应能下拉一点而不是被覆盖」；顶栏改推正文见 CSS）。
+  //   触屏走 touchmove（滚动一开始 pointer 就被 cancel，touch 不会）；鼠标 / 触控板走 wheel（到顶再往上滚一格）。
+  const PULL_PX = 40;
+  let pull: { y: number } | null = null;
+  readerEl.addEventListener("touchstart", (e) => { pull = readerEl.scrollTop <= 0 && e.touches.length === 1 ? { y: e.touches[0]!.clientY } : null; }, { passive: true });
+  readerEl.addEventListener("touchmove", (e) => {
+    if (!pull || !book || chromeShown()) return;
+    if (readerEl.scrollTop > 0) { pull = null; return; }
+    if ((e.touches[0]?.clientY ?? pull.y) - pull.y > PULL_PX) { pull = null; setChrome(true); }
+  }, { passive: true });
+  readerEl.addEventListener("touchend", () => { pull = null; }, { passive: true });
+  readerEl.addEventListener("wheel", (e) => { if (book && !chromeShown() && readerEl.scrollTop <= 0 && e.deltaY < 0) setChrome(true); }, { passive: true });
 }
 function renderTopbar(): void {
   setReadingMode(!!book);
@@ -341,16 +354,16 @@ async function uploadFiles(files: File[]): Promise<void> {
   if (last && files.length === 1) { const ok = await openBookByName(last); if (ok) galleryHost.close(); }
 }
 
-// ── 目录（pick sheet：搜索 + 跳转；Quest/触屏友好）──
-function openChapters(): void {
-  if (!book) return;
-  const chs = reader.chapters();
-  void openPickSheet<number, "go">(t("rd.chaptersTitle", { n: chs.length }), {
-    placeholder: t("rd.chaptersSearchPh"), emptyText: t("rd.chaptersEmpty"), fullscreen: true,
-    search: (q) => { const lv = chs.map((c) => c.level ?? 0).filter((l) => l > 0); const base = lv.length ? Math.min(...lv) : 0; return chs.map((c, i) => ({ value: i, label: `${"\u3000".repeat(Math.max(0, (c.level ?? base) - base))}${i + 1}. ${reader.titleOf(i)}` })).filter((r) => !q || r.label.toLowerCase().includes(q.toLowerCase())); },
-    actions: () => [{ id: "go", label: t("rd.jump"), primary: true }],
-  }).then((r) => { if (r) reader.goTo(r.value); });
-}
+// ── 目录（第三个整屏 view；src/chapters-view.ts）──
+const chaptersView = initChaptersView({
+  el: $("chaptersView"),
+  chapters: () => reader.chapters(), titleOf: (i) => reader.titleOf(i), currentIndex: () => reader.currentIndex(), goTo: (i) => reader.goTo(i),
+  bookKey: activeName,
+  title: (n) => t("rd.chaptersTitle", { n }),
+  toggleLabel: (collapsed) => t(collapsed ? "rd.chaptersExpand" : "rd.chaptersCollapse"),
+  onClosed: () => { if (book && !galleryHost.isOpen()) setChrome(false); },
+});
+function openChapters(): void { if (!book) return; chaptersView.open(); }
 $("chaptersButton").addEventListener("click", openChapters);
 
 // ── 设置面板 ──
@@ -432,17 +445,19 @@ $("diagButton").addEventListener("click", () => { const pre = $("diagLog"); pre.
 $("diagCopy").addEventListener("click", () => { void navigator.clipboard?.writeText($("diagLog").textContent ?? "").then(() => setStatus(t("settings.diagCopied"))).catch((e) => reportError(e, "warning")); });
 
 // ── 键盘 / 手柄 ──
-function modalOpen(): boolean { return !!document.querySelector('[role="dialog"]:not(.hidden):not(#galleryFull)') || !!currentPopupMenu() || !settingsView.hidden; }
+function modalOpen(): boolean { return !!document.querySelector('[role="dialog"]:not(.hidden):not([hidden]):not(#galleryFull)') || !!currentPopupMenu(); }   // :not([hidden])：设置 / 目录 view 用 hidden 属性（0.1.7 修：之前设置永远算开着，快捷键全哑）
 initKeys({
   reader: () => (book ? reader : null),
   readerVisible: () => !!book && !galleryHost.isOpen(),
   modalOpen,
   toggleShelf: () => { if (galleryHost.isOpen()) galleryHost.close(); else void galleryHost.open(); },
-  toggleChapters: openChapters,
+  toggleChapters: () => { if (chaptersView.isOpen()) chaptersView.close(); else openChapters(); },
+  chaptersOpen: () => chaptersView.isOpen(),
   toggleSettings: () => { if (settingsView.hidden) openSettings(); else closeSettings(); },
 });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || e.defaultPrevented) return;
+  if (chaptersView.isOpen()) { chaptersView.close(); return; }
   if (!settingsView.hidden) { closeSettings(); return; }
   if (galleryHost.isOpen() && book) galleryHost.close();
 });
@@ -524,6 +539,7 @@ void boot();
 
 // 供 boot smoke / 调试台探针（非 API）
 (window as unknown as { __jrb?: unknown }).__jrb = {
+  chaptersView,
   version: APP_VERSION, openBook: openBookByName, closeBook, reader, gallery: galleryHost, store: requireStore, book: () => book, prefs: readerPrefs, confirm: openConfirmSheet, choice: openChoiceSheet,
   /** smoke 探针：模拟「远端覆盖后新字节到手」——走与 refreshCurrentBook 完全相同的采纳路径（静默换底 / chip）。 */
   simulateFreshText: (text: string) => { if (!book) return false; const { chapters, chosen } = splitFor(book.name, text); adoptFreshBytes({ ...book, text, chapters, chosen, header: statusHeader(text) }); return true; },

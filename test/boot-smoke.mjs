@@ -85,6 +85,17 @@ try {
   check("左边轻点：不翻章、顶栏也不动（user：不喜欢左右翻章）", await page.evaluate(() => document.querySelector("#reader .txt-chapter-title")?.textContent === "第2章 标题2" && document.body.dataset.chrome === "shown"));
   await page.mouse.move(187, 420); await page.mouse.wheel(0, 240); await page.waitForTimeout(300);
   check("滚动 → 顶栏收起", await page.evaluate(() => document.body.dataset.chrome !== "shown" && document.getElementById("reader").scrollTop > 0));
+  // 0.1.7：顶栏推正文（不盖）；目录 = 第三个整屏 view（右上 ✕、虚拟化分组清单）
+  await page.evaluate(() => { document.getElementById("reader").scrollTop = 0; }); await page.waitForTimeout(100);
+  const yBefore = await page.evaluate(() => document.querySelector("#reader .txt-chapter-title").getBoundingClientRect().top);
+  await page.mouse.move(187, 420); await page.mouse.wheel(0, -60); await page.waitForTimeout(350);
+  const pushed = await page.evaluate((y0) => ({ shown: document.body.dataset.chrome === "shown", dy: document.querySelector("#reader .txt-chapter-title").getBoundingClientRect().top - y0 }), yBefore);
+  check("到顶再往上滚一格 → 顶栏出、正文被推下 36px（不盖）", pushed.shown && Math.round(pushed.dy) === 36, JSON.stringify(pushed));
+  await page.click("#chaptersButton"); await page.waitForTimeout(200);
+  const cv = await page.evaluate(() => { const v = document.getElementById("chaptersView"); return { open: !v.hidden, rows: v.querySelectorAll(".ch-row").length, cur: v.querySelector(".ch-row[aria-current=true] .ch-title")?.textContent, sheetHidden: document.getElementById("sheet").classList.contains("hidden") }; });
+  check("目录 = 整屏 view（非 sheet）、5 行、当前章高亮第 2 章", cv.open && cv.rows === 5 && cv.cur === "第2章 标题2" && cv.sheetHidden, JSON.stringify(cv));
+  await page.click("#chaptersClose"); await page.waitForTimeout(200);
+  check("目录右上 ✕ → 关、顶栏收起", await page.evaluate(() => document.getElementById("chaptersView").hidden && document.body.dataset.chrome !== "shown"));
   await page.evaluate(() => { document.getElementById("reader").scrollTop = 0; }); await page.waitForTimeout(600);
   // 模拟远端覆盖（真实采纳路径 simulateFreshText = refreshCurrentBook 快进后的同一函数）：用户翻过章（touched）→ 不重画、出 chip；点 chip「刷新」→ 换新章节表回同一章
   const upd = await page.evaluate(async () => {

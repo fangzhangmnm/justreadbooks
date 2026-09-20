@@ -81,10 +81,11 @@ body { background: var(--bg-0); color: var(--ink); font-family: var(--font-ui); 
   background: transparent; z-index: var(--z-chrome);
   transition: transform 160ms ease, opacity 160ms ease;
 }
-/* 沉浸阅读：阅读时顶栏默认藏（往上滑出安全区），中间轻点露出时带毛玻璃底 + 底线盖在正文上（overlay，不推正文） */
+/* 沉浸阅读：阅读时顶栏默认藏（往上滑出安全区）；露出时**推正文**不盖（user 2026-09-20「到顶的时候再下拉应该出顶栏。主视图也相应能下拉一点而不是被覆盖」）：.reader padding-top 跟着长 36px */
 body[data-reading="1"] .top-bar { transform: translateY(calc(-100% - var(--top-floor) - 2px)); opacity: 0; pointer-events: none; }
-body[data-reading="1"][data-chrome="shown"] .top-bar { transform: none; opacity: 1; pointer-events: auto; background: color-mix(in srgb, var(--bg-0) 90%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 1px 0 var(--line); }
-body[data-reading="1"] .reader { top: 0; padding-top: var(--top-floor); }
+body[data-reading="1"][data-chrome="shown"] .top-bar { transform: none; opacity: 1; pointer-events: auto; background: var(--bg-0); box-shadow: 0 1px 0 var(--line); }
+body[data-reading="1"] .reader { top: 0; padding-top: var(--top-floor); transition: padding-top 160ms ease; }
+body[data-reading="1"][data-chrome="shown"] .reader { padding-top: calc(var(--top-floor) + 36px); }
 .title-block { min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
 .book-title { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chapter-line { font-size: 10px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -154,6 +155,31 @@ body[data-reading="1"] .reader { top: 0; padding-top: var(--top-floor); }
 .status-toast.error { background: var(--danger); color: #fff; }
 
 /* ── 设置面板（一屏，压在书架之上；简单表单）── */
+/* 目录 view（第三个整屏 view；右上 ✕；虚拟化分组清单——行 position:absolute 挂在 spacer 里，--ch-row 是行高 SSoT，TS 读它） */
+.chapters-view { --ch-row: 44px; position: fixed; inset: 0; z-index: var(--z-drawer); background: var(--bg-0); color: var(--ink); display: flex; flex-direction: column; font-family: var(--font-ui); }
+.chapters-view[hidden] { display: none; }
+.chapters-head { display: flex; align-items: center; gap: 8px; padding: max(env(safe-area-inset-top, 0px), 8px) 12px 8px; border-bottom: 1px solid var(--line); }
+.chapters-head h2 { margin: 0; font-size: 15px; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chapters-tools { padding: 8px 16px 4px; }
+.chapters-search { width: 100%; box-sizing: border-box; border: 1px solid var(--line-strong); background: var(--bg-1); color: var(--ink); font-family: inherit; font-size: 14px; padding: 8px 10px; border-radius: 8px; outline: none; -webkit-appearance: none; appearance: none; }
+.chapters-search:focus { border-color: var(--accent); }
+.chapters-body { position: relative; flex: 1 1 auto; min-height: 0; }
+.chapters-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 0 16px calc(var(--bottom-floor) + 16px); }
+.chapters-spacer { position: relative; width: 100%; }
+.chapters-float { position: absolute; top: 0; left: 16px; right: 16px; z-index: 1; height: var(--ch-row); display: flex; align-items: center; padding: 0 4px; box-sizing: border-box; background: var(--bg-0); border-bottom: 1px solid var(--line-strong); font-size: 14px; font-weight: 600; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.chapters-float[hidden] { display: none; }
+.chapters-empty { color: var(--ink-muted); font-size: 13px; padding: 24px 0; text-align: center; margin: 0; }
+.ch-row { position: absolute; left: 0; right: 0; height: var(--ch-row); display: flex; align-items: stretch; border-bottom: 1px solid var(--line); box-sizing: border-box; }
+.ch-jump { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 14px; text-align: left; padding: 0 4px; cursor: pointer; }
+.ch-jump:hover, .ch-jump:focus-visible { background: var(--bg-1); outline: none; }
+.ch-num { flex: 0 0 auto; min-width: 2.4em; color: var(--ink-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ch-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-row[data-kind="group"] .ch-title { font-weight: 600; }
+.ch-row[aria-current="true"] { background: var(--accent-soft); }
+.ch-row[aria-current="true"] .ch-title { color: var(--accent-strong); font-weight: 600; }
+.ch-toggle { flex: 0 0 44px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.ch-toggle[hidden] { display: none; }
+.ch-toggle svg { width: 18px; height: 18px; }
 .settings-view { position: fixed; inset: 0; z-index: var(--z-drawer); background: var(--bg-0); color: var(--ink); display: flex; flex-direction: column; }
 .settings-view[hidden] { display: none; }
 .settings-head { display: flex; align-items: center; gap: 8px; padding: max(env(safe-area-inset-top, 0px), 8px) 12px 8px; border-bottom: 1px solid var(--line); }
@@ -187,10 +213,6 @@ body[data-reading="1"] .reader { top: 0; padding-top: var(--top-floor); }
 .crypto-modal { position: fixed; inset: 0; background: var(--overlay); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .crypto-modal.hidden { display: none; }
 .crypto-card { background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: 12px; padding: 20px; width: min(380px, 100%); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
-/* 全屏 sheet（openPickSheet fullscreen；目录用）：卡片撑满视口，列表吃掉剩余高 */
-.crypto-modal.sheet-full { padding: 0; align-items: stretch; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.crypto-modal.sheet-full .crypto-card { width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; padding: calc(12px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom)); }
-.crypto-modal.sheet-full .sheet-pick { max-height: none; flex: 1 1 auto; min-height: 0; }
 .crypto-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
 .crypto-hint { margin: 0; font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
 .crypto-hint.warning { color: var(--danger); }

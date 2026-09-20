@@ -2,6 +2,7 @@
 import "./redline-guard.test.mjs";
 import "./i18n-and-assets.test.mjs";
 import "./chapters.test.mjs";
+import "./chapters-view.test.mjs";
 import "./encoding.test.mjs";
 import "./valuable-save.test.mjs";
 import { run } from "./runner.mjs";
