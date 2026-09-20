@@ -20,7 +20,7 @@ TXT 网文/轻小说阅读器（0.1 纪元：2026-09-19 在 @internal/store + @i
 ## 持久层白名单
 | 层 | 键 / 库 | 内容 |
 |---|---|---|
-| localStorage（device-kv，前缀 `justreadbooks-2f8a41c7b9d3e650:`） | theme / reader-prefs / lang / last-open / gallery-folder / last-scene / diag-log | 设备属性 + 本机指针 + 黑匣子 |
+| localStorage（device-kv，前缀 `justreadbooks-2f8a41c7b9d3e650:`） | theme / reader-prefs / shelf-layout / lang / last-open / gallery-folder / last-scene / diag-log | 设备属性 + 本机指针 + 黑匣子 |
 | IndexedDB `jrb.defaultStore`（库） | files / trash / backup / collections / staging / dir-index-cache | 书的本地副本 + 两个 collection |
-| 云端 appfolder | `<夹/>书.txt`、`.jrb/reading-position.json`、`.jrb/book-prefs.json`、`.trash/` | 书 + 位置 + 规则 |
+| 云端 appfolder | `<夹/>书.txt`、`.jrb/reading-position.json`（{anchor, readAt}）、`.jrb/book-prefs.json`（{regexId, regexCustom, encoding, header}）、`.trash/` | 书 + 位置 + 规则 + 状态头 |
 | localStorage 库前缀 `jrb.defaultStore.*` | etag / dirty / pending 账 | 库内部 |

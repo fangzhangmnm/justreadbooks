@@ -11,7 +11,7 @@ import { humanSize } from "@internal/gallery";
 import { auth, initCollections, reconcileCollections, flushCollections, requireStore, requestStoragePersistence, setActiveBookName, readingPos } from "./app-store.ts";
 import { openBook, refreshBookInBackground, keepBookOffline, offloadBook, uploadBook, pushBook, renameBook, stemOf, splitPath, isBookName } from "./books.ts";
 import { getPosition, notePosition, markOpened, flushPosition, keepalivePosition, recentBooks } from "./reading-position.ts";
-import { getBookPref, setBookPref } from "./book-prefs.ts";
+import { getBookPref, setBookPref, moveBookPref } from "./book-prefs.ts";
 import { split, listBuiltin, statusHeader, type Chapter, type Anchor, type ChapterPref } from "./chapters/index.ts";
 import { decodeBytes } from "./encoding.ts";
 import { createTxtReader, type ReaderPrefs } from "./reader/txt.ts";
@@ -130,6 +130,9 @@ function showProgress(done: number, total: number): void {
 function hideProgress(): void { progressEl.classList.add("hidden"); }
 $("openProgressCancel").addEventListener("click", () => { hideProgress(); void galleryHost.open(); });
 
+/** 开不了的书：本机「上次那本」指针清掉（不然每次启动白试一次），本 session 从「继续读」条摘掉（位置条目不删——可能只是离线暂时够不着）。 */
+const recentHidden = new Set<string>();
+function forgetFailedOpen(name: string): void { if (deviceKvGet(KV_LAST_OPEN) === name) deviceKvSet(KV_LAST_OPEN, null); recentHidden.add(name); }
 let openSeq = 0;
 /** 打开一本书（计划 §2 前提 0：本地优先秒开，后台追新）。返回 true = 已切过去。 */
 async function openBookByName(name: string, opts: { size?: number; allowBig?: boolean; quiet?: boolean } = {}): Promise<boolean> {
@@ -147,9 +150,9 @@ async function openBookByName(name: string, opts: { size?: number; allowBig?: bo
     const ok = await openConfirmSheet(t("rd.bigTitle"), t("rd.bigMsg", { name: stemOf(name), size: humanSize(r.size) }), { okLabel: t("rd.bigOpen") });
     return ok ? openBookByName(name, { ...opts, allowBig: true }) : false;
   }
-  if (r.kind === "unavailable") { setStatus(t("rd.unavailable"), { error: true }); return false; }
+  if (r.kind === "unavailable") { setStatus(t("rd.unavailable"), { error: true }); forgetFailedOpen(name); return false; }
   let st: OpenBookState;
-  try { st = await decodeBook(name, r.blob); } catch (e) { reportError(e, "error"); setStatus(t("rd.badTxt"), { error: true }); return false; }
+  try { st = await decodeBook(name, r.blob); } catch (e) { reportError(e, "error"); setStatus(t("rd.badTxt"), { error: true }); forgetFailedOpen(name); return false; }
   if (seq !== openSeq) return false;
   void flushPosition();   // 上一本的位置推云走后台；绝不在切书路径上等网络（user 2026-09-19「点了 gallery 之后有卡顿」= 这里和 galleryHost.open 曾 await 云端往返）
   book = st; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name);
@@ -209,7 +212,8 @@ const galleryHost = initGalleryHost({
   activeName,
   openBook: (name, size) => openBookByName(name, size != null ? { size } : {}),
   renameActive: renameActiveBook,
-  setActiveName: (name) => { if (book) { moveReadingPosition(book.name, name); book = { ...book, name }; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name); renderTopbar(); } },
+  setActiveName: (name) => { if (book) { book = { ...book, name }; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name); renderTopbar(); } },
+  onRenamed: (from, to) => { moveReadingPosition(from, to); moveBookPref(from, to); if (deviceKvGet(KV_LAST_OPEN) === from) deviceKvSet(KV_LAST_OPEN, to); },
   pushBook: async (name) => { const ok = await pushBook(name); setStatus(ok ? t("st.pushed", { name: stemOf(name) }) : t("st.pushFail"), { error: !ok }); },
   offloadBook: async (name) => { try { await offloadBook(name); setStatus(t("st.offloaded", { name: stemOf(name) })); if (book?.name === name) closeBook(); } catch (e) { reportError(e, "warning"); } },
   flushLocal: async () => { await flushCollections(); void flushPosition(); },   // 只等 IDB（毫秒级）；云端推送丢后台
@@ -224,7 +228,7 @@ async function renameActiveBook(): Promise<string | null> {
   const input = await openInputSheet(t("gal.title"), { defaultValue: stemOf(book.name) });
   if (input == null) return book.name;
   const r = await renameBook(book.name, input);
-  if (r.ok) { if (r.name !== book.name) { moveReadingPosition(book.name, r.name); book = { ...book, name: r.name }; setActiveBookName(r.name); deviceKvSet(KV_LAST_OPEN, r.name); renderTopbar(); setStatus(t("st.renamed", { name: stemOf(r.name) })); } return r.name; }
+  if (r.ok) { if (r.name !== book.name) { moveReadingPosition(book.name, r.name); moveBookPref(book.name, r.name); book = { ...book, name: r.name }; setActiveBookName(r.name); deviceKvSet(KV_LAST_OPEN, r.name); renderTopbar(); setStatus(t("st.renamed", { name: stemOf(r.name) })); } return r.name; }
   setStatus("where" in r ? t("st.renameTaken", { loc: r.where === "local" ? t("st.locLocal") : t("st.locCloud") }) : t("st.renameFail", { e: r.error }), { error: true });
   return book.name;
 }
@@ -242,7 +246,7 @@ $("galleryEmptyTrash").addEventListener("click", () => {
 // 「继续读」条：跨夹最近 N 本（reading-position 的 readAt），宿主 chrome（包只订阅当前夹）
 const recentEl = $("galleryRecent");
 function renderRecent(): void {
-  const rows = recentBooks(6).filter((r) => r.name !== book?.name);
+  const rows = recentBooks(8).filter((r) => r.name !== book?.name && !recentHidden.has(r.name)).slice(0, 6);
   recentEl.innerHTML = "";
   recentEl.hidden = rows.length === 0;
   if (!rows.length) return;
@@ -337,7 +341,7 @@ function openChapters(): void {
   const chs = reader.chapters();
   void openPickSheet<number, "go">(t("rd.chaptersTitle", { n: chs.length }), {
     placeholder: t("rd.chaptersSearchPh"), emptyText: t("rd.chaptersEmpty"),
-    search: (q) => chs.map((_c, i) => ({ value: i, label: `${i + 1}. ${reader.titleOf(i)}` })).filter((r) => !q || r.label.toLowerCase().includes(q.toLowerCase())),
+    search: (q) => { const lv = chs.map((c) => c.level ?? 0).filter((l) => l > 0); const base = lv.length ? Math.min(...lv) : 0; return chs.map((c, i) => ({ value: i, label: `${"\u3000".repeat(Math.max(0, (c.level ?? base) - base))}${i + 1}. ${reader.titleOf(i)}` })).filter((r) => !q || r.label.toLowerCase().includes(q.toLowerCase())); },
     actions: () => [{ id: "go", label: t("rd.jump"), primary: true }],
   }).then((r) => { if (r) reader.goTo(r.value); });
 }
@@ -492,7 +496,7 @@ async function boot(): Promise<void> {
   const last = deviceKvGet(KV_LAST_OPEN);
   let opened = false;
   if (last && !galleryHost.wasInGallery()) opened = await openBookByName(last, { quiet: true });
-  if (!opened) await galleryHost.open();
+  if (!opened) { if (last && !galleryHost.wasInGallery()) forgetFailedOpen(last); await galleryHost.open(); }
   // auth 在首帧之后（不阻塞）：silent probe → onAuthChanged 里 afterSignIn
   auth.initAuth().then((st) => { renderCloudButton(); if (st.signedIn) void afterSignIn(); }).catch((e) => reportError(e, "log")).finally(() => _authBootResolve());
   if (new URLSearchParams(location.search).has("reset")) { setStatus(t("st.forceUpdated", { v: APP_VERSION })); try { history.replaceState(null, "", location.pathname + location.hash); } catch { /* ignore */ } }

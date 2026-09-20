@@ -132,6 +132,20 @@ try {
   const tiles = await page.evaluate(() => ({ n: document.querySelectorAll("#galleryMount .gallery-tile:not(.folder)").length, recent: document.getElementById("galleryRecent").hidden, names: [...document.querySelectorAll("#galleryMount .gallery-tile-name")].map((e) => e.textContent) }));
   check("书架有这本书（显示名去 .txt）", tiles.n === 1 && tiles.names[0] === "冒烟测试", JSON.stringify(tiles));
   await page.screenshot({ path: process.env.JRB_SHOT_DIR ? `${process.env.JRB_SHOT_DIR}/shelf.png` : "tmp/shelf.png" }).catch(() => {});
+  // 0.1.3：书架菜单改名**非活动**书 → 阅读位置 / 规则跟着搬（gallery 0.3.1 onRenamed）。先上传第二本让它成为活动书
+  await page.setInputFiles("#uploadInput", { name: "另一本.txt", mimeType: "text/plain", buffer: Buffer.from(mk(3), "utf8") });
+  await page.waitForFunction(() => window.__jrb.book()?.name === "另一本.txt", null, { timeout: 8000 }); await page.waitForTimeout(300);
+  await page.mouse.click(187, 420); await page.waitForTimeout(250); await page.click("#libraryButton"); await page.waitForTimeout(900);
+  const rowBtn = await page.evaluateHandle(() => [...document.querySelectorAll("#galleryMount .gallery-tile")].find((t) => t.querySelector(".gallery-tile-name")?.textContent.trim() === "冒烟测试")?.querySelector(".gallery-tile-menu-btn"));
+  await rowBtn.click(); await page.waitForTimeout(200);
+  const renameBtn = await page.evaluateHandle(() => [...document.querySelectorAll("#galleryMount .gallery-tile-menu-popup:not(.hidden) button")].find((b) => b.textContent.trim() === "重命名"));
+  await renameBtn.click(); await page.waitForTimeout(300);
+  check("改名框默认值不带 .txt（裸名边界）", (await page.inputValue("#sheetInput")) === "冒烟测试", await page.inputValue("#sheetInput"));
+  await page.fill("#sheetInput", "冒烟改名"); await page.click("#sheetConfirm");
+  await page.waitForFunction(() => !!window.__jrb.store().collection("reading-position").getEntry("冒烟改名.txt"), null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const moved = await page.evaluate(() => { const c = window.__jrb.store().collection("reading-position"); return { newHas: !!c.getEntry("冒烟改名.txt"), oldHas: !!c.getEntry("冒烟测试.txt"), chapter: c.getItem("冒烟改名.txt")?.anchor?.chapter, names: [...document.querySelectorAll("#galleryMount .gallery-tile-name")].map((e) => e.textContent.trim()).sort().join("|") }; });
+  check("书架改名非活动书 → 阅读位置跟着搬（第 2 章保留）、旧键墓碑", moved.newHas && !moved.oldHas && moved.chapter === 1 && moved.names.includes("冒烟改名"), JSON.stringify(moved));
   const benign = /Not signed in|CloudNetworkError|Failed to fetch|net::ERR|msal/i;
   const realErrors = pageErrors.filter((e) => !benign.test(e));
   check("零页面错误（未登录/断网的库日志除外）", realErrors.length === 0, realErrors.join(" | ").slice(0, 400));

@@ -14,6 +14,8 @@ export interface GalleryHostDeps {
         error?: boolean;
     }) => void;
     currentDir: () => string;
+    /** 包里改名 / 移动成功（非活动书也算）：阅读位置 / 切章规则按路径键，跟着搬。 */
+    onRenamed: (from: string, to: string) => void;
     onOpened?: () => void;
     onClosed?: () => void;
 }

@@ -7,6 +7,12 @@ export function getBookPref(name: string): BookPref | null {
   const v = bookPrefs.getItem(name) as BookPref | null | undefined;
   return v && typeof v === "object" ? v : null;
 }
+/** 书改名 / 移动：规则跟着身份走（旧键墓碑、新键整条搬）。 */
+export function moveBookPref(from: string, to: string): void {
+  const v = bookPrefs.getItem(from);
+  if (v == null || from === to) return;
+  bookPrefs.setItem(to, v); bookPrefs.deleteItem(from);
+}
 export function setBookPref(name: string, patch: Partial<BookPref>): void {
   const cur = getBookPref(name) ?? {};
   const next: BookPref = { ...cur, ...patch };
