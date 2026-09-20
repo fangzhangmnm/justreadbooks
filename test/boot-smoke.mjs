@@ -62,25 +62,35 @@ try {
   await page.click("#galleryBack"); await page.waitForTimeout(150);
   check("无书时「回到阅读」→ 空态页可见", await page.evaluate(() => document.getElementById("galleryFull").classList.contains("hidden") && !document.getElementById("landing").classList.contains("hidden")));
   // ── 阅读闭环（无云：上传 = local-only）：上传 5 章 txt → 阅读器 → 翻章 → 模拟远端覆盖（adopt）→ 刷新页面回到原位 ──
-  const mk = (n, extraLine = "") => "2026-09-19 装订 《冒烟》 · 状态头\n" + Array.from({ length: n }, (_, i) => `第${i + 1}章 标题${i + 1}\n正文${i + 1}${extraLine}\n\n`).join("");
+  const LONG = "\n" + "这一行是凑长度的正文，让一章能滚动起来。".repeat(3).concat("\n").repeat(40);
+  const mk = (n, extraLine = "") => "2026-09-19 装订 《冒烟》 · 状态头\n" + Array.from({ length: n }, (_, i) => `第${i + 1}章 标题${i + 1}\n正文${i + 1}${extraLine}${LONG}\n\n`).join("");
   await page.click("#libraryButton"); await page.waitForTimeout(200);
   await page.setInputFiles("#uploadInput", { name: "冒烟测试.txt", mimeType: "text/plain", buffer: Buffer.from(mk(5), "utf8") });
   await page.waitForFunction(() => !!window.__jrb.book(), null, { timeout: 8000 });
   await page.waitForTimeout(600);
   const b1 = await page.evaluate(() => ({ name: window.__jrb.book().name, n: window.__jrb.book().chapters.length, header: window.__jrb.book().header, galleryHidden: document.getElementById("galleryFull").classList.contains("hidden"), title: document.querySelector("#reader .txt-chapter-title")?.textContent, body: document.querySelector("#reader .txt-body")?.textContent?.trim() }));
-  check("上传 txt → 阅读器打开（书架关、第 1 章）", b1.name === "冒烟测试.txt" && b1.n === 5 && b1.galleryHidden && b1.title === "第1章 标题1" && b1.body === "正文1", JSON.stringify(b1));
+  check("上传 txt → 阅读器打开（书架关、第 1 章）", b1.name === "冒烟测试.txt" && b1.n === 5 && b1.galleryHidden && b1.title === "第1章 标题1" && b1.body.startsWith("正文1"), JSON.stringify({ ...b1, body: b1.body?.slice(0, 20) }));
   check("状态头 = 第一行", b1.header === "2026-09-19 装订 《冒烟》 · 状态头", String(b1.header));
   await page.evaluate(() => window.__jrb.reader.next()); await page.waitForTimeout(150);
   check("翻到第 2 章", await page.evaluate(() => document.querySelector("#reader .txt-chapter-title")?.textContent === "第2章 标题2"));
+  // 沉浸阅读：默认藏顶栏 → 中间轻点露出 → 左边轻点无动作 → 滚动收起
+  check("阅读时顶栏默认藏", await page.evaluate(() => document.body.dataset.reading === "1" && document.body.dataset.chrome !== "shown" && getComputedStyle(document.getElementById("topBar")).opacity === "0"));
+  await page.mouse.click(187, 420); await page.waitForTimeout(250);
+  check("中间轻点 → 顶栏露出", await page.evaluate(() => document.body.dataset.chrome === "shown" && getComputedStyle(document.getElementById("topBar")).opacity === "1"));
+  await page.mouse.click(30, 420); await page.waitForTimeout(200);
+  check("左边轻点：不翻章、顶栏也不动（user：不喜欢左右翻章）", await page.evaluate(() => document.querySelector("#reader .txt-chapter-title")?.textContent === "第2章 标题2" && document.body.dataset.chrome === "shown"));
+  await page.mouse.move(187, 420); await page.mouse.wheel(0, 240); await page.waitForTimeout(300);
+  check("滚动 → 顶栏收起", await page.evaluate(() => document.body.dataset.chrome !== "shown" && document.getElementById("reader").scrollTop > 0));
+  await page.evaluate(() => { document.getElementById("reader").scrollTop = 0; }); await page.waitForTimeout(600);
   // 模拟远端覆盖（真实采纳路径 simulateFreshText = refreshCurrentBook 快进后的同一函数）：用户翻过章（touched）→ 不重画、出 chip；点 chip「刷新」→ 换新章节表回同一章
   const upd = await page.evaluate(async () => {
     const t = "2026-09-19 装订 《冒烟》 · 状态头（更新）\n" + Array.from({ length: 7 }, (_, i) => `第${i + 1}章 标题${i + 1}\n正文${i + 1} 更新版\n\n`).join("");
-    const before = document.querySelector("#reader .txt-body")?.textContent?.trim();
+    const before = document.querySelector("#reader .txt-body")?.textContent?.trim().slice(0, 12);
     window.__jrb.simulateFreshText(t);
     await new Promise((r) => setTimeout(r, 150));
     const notice = [...document.querySelectorAll(".notice-stack *")].map((e) => e.textContent).join(" ");
     const prog = document.querySelector("#reader .chapter-nav-progress")?.textContent;
-    const afterAdopt = document.querySelector("#reader .txt-body")?.textContent?.trim();
+    const afterAdopt = document.querySelector("#reader .txt-body")?.textContent?.trim().slice(0, 12);
     return { before, afterAdopt, prog, noticeShown: notice.includes("有更新"), hadButton: [...document.querySelectorAll(".notice-stack button")].some((b) => b.textContent.trim() === "刷新") };
   });
   await page.screenshot({ path: process.env.JRB_SHOT_DIR ? `${process.env.JRB_SHOT_DIR}/chip.png` : "tmp/chip.png" }).catch(() => {});
@@ -90,7 +100,7 @@ try {
     await new Promise((r) => setTimeout(r, 150));
     return { noticeGone: !document.querySelector(".notice-stack button"), afterApply: document.querySelector("#reader .txt-body")?.textContent?.trim(), title: document.querySelector("#reader .txt-chapter-title")?.textContent, idx: window.__jrb.reader.currentIndex(), header: window.__jrb.book().header };
   }));
-  check("覆盖后（已动过）：当前章 DOM 未重画、进度显示新总数、chip「有更新」出现", upd.before === upd.afterAdopt && upd.afterAdopt === "正文2" && upd.prog === "2 / 7" && upd.noticeShown && upd.hadButton, JSON.stringify(upd));
+  check("覆盖后（已动过）：当前章 DOM 未重画、进度显示新总数、chip「有更新」出现", upd.before === upd.afterAdopt && upd.afterAdopt.startsWith("正文2") && upd.prog === "2 / 7" && upd.noticeShown && upd.hadButton, JSON.stringify(upd));
   check("点 chip「刷新」→ 按标题回到同一章（第2章）换新正文、chip 收起、状态头随新版", upd.title === "第2章 标题2" && upd.afterApply === "正文2 更新版" && upd.idx === 1 && upd.noticeGone && upd.header.includes("更新"), JSON.stringify({ title: upd.title, afterApply: upd.afterApply, idx: upd.idx, noticeGone: upd.noticeGone, header: upd.header }));
   // 没动过的情况：重开书（touched=false）→ 新字节静默换底、无 chip
   await page.evaluate(() => window.__jrb.closeBook());
@@ -113,7 +123,12 @@ try {
   await page.waitForTimeout(500);
   const re = await page.evaluate(() => ({ name: window.__jrb.book().name, title: document.querySelector("#reader .txt-chapter-title")?.textContent, galleryHidden: document.getElementById("galleryFull").classList.contains("hidden") }));
   check("刷新页面 → 秒开上次那本、回到第 2 章（首帧本机，无蒙层）", re.name === "冒烟测试.txt" && re.title === "第2章 标题2" && re.galleryHidden, JSON.stringify(re));
-  await page.click("#libraryButton"); await page.waitForTimeout(800);
+  await page.mouse.click(187, 420); await page.waitForTimeout(250);   // 沉浸阅读：先叫出顶栏
+  const tOpen = Date.now(); await page.click("#libraryButton");
+  await page.waitForFunction(() => !document.getElementById("galleryFull").classList.contains("hidden"), null, { timeout: 5000 });
+  const openMs = Date.now() - tOpen;
+  check("点书架 → 书架屏出现不等网络（<400ms）", openMs < 400, `${openMs}ms`);
+  await page.waitForTimeout(800);
   const tiles = await page.evaluate(() => ({ n: document.querySelectorAll("#galleryMount .gallery-tile:not(.folder)").length, recent: document.getElementById("galleryRecent").hidden, names: [...document.querySelectorAll("#galleryMount .gallery-tile-name")].map((e) => e.textContent) }));
   check("书架有这本书（显示名去 .txt）", tiles.n === 1 && tiles.names[0] === "冒烟测试", JSON.stringify(tiles));
   await page.screenshot({ path: process.env.JRB_SHOT_DIR ? `${process.env.JRB_SHOT_DIR}/shelf.png` : "tmp/shelf.png" }).catch(() => {});

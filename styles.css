@@ -79,7 +79,12 @@ body { background: var(--bg-0); color: var(--ink); font-family: var(--font-ui); 
   position: fixed; top: var(--top-floor); left: var(--sa-left); right: var(--sa-right); height: 36px;
   display: flex; align-items: center; gap: 4px; padding: 0 8px;
   background: transparent; z-index: var(--z-chrome);
+  transition: transform 160ms ease, opacity 160ms ease;
 }
+/* 沉浸阅读：阅读时顶栏默认藏（往上滑出安全区），中间轻点露出时带毛玻璃底 + 底线盖在正文上（overlay，不推正文） */
+body[data-reading="1"] .top-bar { transform: translateY(calc(-100% - var(--top-floor) - 2px)); opacity: 0; pointer-events: none; }
+body[data-reading="1"][data-chrome="shown"] .top-bar { transform: none; opacity: 1; pointer-events: auto; background: color-mix(in srgb, var(--bg-0) 90%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 1px 0 var(--line); }
+body[data-reading="1"] .reader { top: 0; padding-top: var(--top-floor); }
 .title-block { min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
 .book-title { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chapter-line { font-size: 10px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -232,4 +237,4 @@ body { background: var(--bg-0); color: var(--ink); font-family: var(--font-ui); 
 .menu-item-icon-blank { width: 18px; height: 18px; flex: none; }
 .menu-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .popup-menu-sep { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
-@media (prefers-reduced-motion: reduce) { .open-progress-fill, .status-toast { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .open-progress-fill, .status-toast, .top-bar { transition: none; } }

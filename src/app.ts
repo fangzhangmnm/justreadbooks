@@ -41,7 +41,7 @@ initDiagLog();
 initSheets({ ok: t("common.ok"), cancel: t("common.cancel") });
 setStoreQuietStatus((text) => setStatus(text));
 const topBar = $("topBar");
-configureFloors({ toolbarBottom: () => topBar.getBoundingClientRect().bottom });
+configureFloors({ toolbarBottom: () => Math.max(0, topBar.getBoundingClientRect().bottom) });   // 阅读时顶栏藏起（负坐标）→ 地板退到 0
 console.log("[jrb] build:", APP_VERSION);
 $("settingsBuild").textContent = APP_VERSION;
 
@@ -76,7 +76,30 @@ interface OpenBookState { name: string; text: string; chapters: readonly Chapter
 let book: OpenBookState | null = null;
 const activeName = () => book?.name ?? null;
 
+// ── 沉浸阅读（user 2026-09-19「同意，我也不喜欢左右翻章」）：阅读时顶栏默认藏；阅读区中间 1/3 轻点 = 开关；一滚动就收；左右 1/3 不接任何动作；
+//   回到阅读（关书架 / 关设置）默认藏。主流滚动式阅读器（Apple Books 滚动 / 微信读书滚动）同款；不做定时自动收。
+function chromeShown(): boolean { return document.body.dataset.chrome === "shown"; }
+let chromeShownAtScroll = 0;
+function setChrome(shown: boolean): void { document.body.dataset.chrome = shown ? "shown" : "hidden"; if (shown) chromeShownAtScroll = readerEl.scrollTop; }
+function setReadingMode(on: boolean): void { if (on) document.body.dataset.reading = "1"; else delete document.body.dataset.reading; setChrome(false); }
+{
+  let tap: { x: number; y: number; t: number; scroll: number } | null = null;
+  readerEl.addEventListener("pointerdown", (e) => { if (e.button !== 0) { tap = null; return; } tap = { x: e.clientX, y: e.clientY, t: performance.now(), scroll: readerEl.scrollTop }; });
+  readerEl.addEventListener("pointercancel", () => { tap = null; });
+  readerEl.addEventListener("pointerup", (e) => {
+    const d = tap; tap = null;
+    if (!d || !book || e.button !== 0) return;
+    if ((e.target as HTMLElement | null)?.closest("button, a, input, select, textarea")) return;
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 350 || Math.abs(readerEl.scrollTop - d.scroll) > 2) return;   // 拖 / 长按 / 滚动都不算轻点
+    const r = readerEl.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / Math.max(1, r.width);
+    if (fx < 1 / 3 || fx > 2 / 3) return;   // 左右 1/3：什么都不做（不翻章，章尾章首有按钮）
+    setChrome(!chromeShown());
+  });
+  readerEl.addEventListener("scroll", () => { if (chromeShown() && Math.abs(readerEl.scrollTop - chromeShownAtScroll) > 12) setChrome(false); }, { passive: true });
+}
 function renderTopbar(): void {
+  setReadingMode(!!book);
   titleEl.textContent = book ? stemOf(book.name) : t("ui.appTitle");
   $("chaptersButton").hidden = !book;
   landingEl.classList.toggle("hidden", !!book);
@@ -128,7 +151,7 @@ async function openBookByName(name: string, opts: { size?: number; allowBig?: bo
   let st: OpenBookState;
   try { st = await decodeBook(name, r.blob); } catch (e) { reportError(e, "error"); setStatus(t("rd.badTxt"), { error: true }); return false; }
   if (seq !== openSeq) return false;
-  await flushPosition();
+  void flushPosition();   // 上一本的位置推云走后台；绝不在切书路径上等网络（user 2026-09-19「点了 gallery 之后有卡顿」= 这里和 galleryHost.open 曾 await 云端往返）
   book = st; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name);
   reader.load(st.text, st.chapters, getPosition(name)?.anchor ?? null);
   markOpened(name);
@@ -189,10 +212,11 @@ const galleryHost = initGalleryHost({
   setActiveName: (name) => { if (book) { moveReadingPosition(book.name, name); book = { ...book, name }; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name); renderTopbar(); } },
   pushBook: async (name) => { const ok = await pushBook(name); setStatus(ok ? t("st.pushed", { name: stemOf(name) }) : t("st.pushFail"), { error: !ok }); },
   offloadBook: async (name) => { try { await offloadBook(name); setStatus(t("st.offloaded", { name: stemOf(name) })); if (book?.name === name) closeBook(); } catch (e) { reportError(e, "warning"); } },
-  flushLocal: async () => { await flushPosition(); await flushCollections(); },
+  flushLocal: async () => { await flushCollections(); void flushPosition(); },   // 只等 IDB（毫秒级）；云端推送丢后台
   setStatus,
   currentDir: () => (book ? splitPath(book.name).dir : galleryHost?.currentFolder() ?? ""),
   onOpened: () => { $("galleryTrashBar").classList.add("hidden"); renderRecent(); },
+  onClosed: () => { setChrome(false); },
 });
 function moveReadingPosition(from: string, to: string): void { const v = readingPos.getItem(from); if (v != null) { readingPos.setItem(to, v); readingPos.deleteItem(from); } }
 async function renameActiveBook(): Promise<string | null> {
@@ -264,7 +288,7 @@ galleryCloudBtn.addEventListener("click", (e) => { e.stopPropagation(); openClou
 galleryRefreshBtn.addEventListener("click", () => { void refreshCloudNow(); });
 /** 登录（两步手势，对账 WeebPaint/WXHW）：先落盘，再弹「去登录」，onPick 在 click 同步栈里起跳 redirect。 */
 async function onSignIn(): Promise<void> {
-  try { await flushPosition(); await flushCollections(); }
+  try { await flushCollections(); }   // 落本地就够（redirect 回来 afterSignIn 会对齐 + 推）；等云端会让「去登录」卡住
   catch (e) { reportError(new Error("[sign-in] flush before redirect failed — not navigating: " + String(e)), "error"); setStatus(t("auth.flushFailed"), { error: true }); return; }
   await openChoiceSheet<"go">(t("auth.readyTitle"), t("auth.readyMsg"), [{
     label: t("auth.go"), value: "go", primary: true,
@@ -322,7 +346,7 @@ $("chaptersButton").addEventListener("click", openChapters);
 // ── 设置面板 ──
 const settingsView = $("settingsView");
 function openSettings(): void { renderSettings(); settingsView.hidden = false; }
-function closeSettings(): void { settingsView.hidden = true; }
+function closeSettings(): void { settingsView.hidden = true; if (book && !galleryHost.isOpen()) setChrome(false); }
 $("settingsButton").addEventListener("click", () => { if (settingsView.hidden) openSettings(); else closeSettings(); });
 $("settingsClose").addEventListener("click", closeSettings);
 const chapterRuleSelect = $<HTMLSelectElement>("chapterRuleSelect");
@@ -438,7 +462,7 @@ const shell = initPwaShell({
     if (!auth.isSignedIn() && navigator.onLine !== false) void auth.retrySilentSignIn().catch((e) => reportError(e, "log"));
     void refreshCurrentBook(); void reconcileCollections().then(() => { if (galleryHost.isOpen()) { galleryHost.refresh(); renderRecent(); } });
   },
-  onBeforeReload: async () => { const how = await authBootSettled(); diagNote("sw", `reload requested (auth boot ${how})`); await flushPosition(); await flushCollections(); },
+  onBeforeReload: async () => { const how = await authBootSettled(); diagNote("sw", `reload requested (auth boot ${how})`); await flushCollections(); void flushPosition(); },
 });
 $("updateReloadButton").addEventListener("click", () => { void shell.reload(); });
 $("updateDismissButton").addEventListener("click", () => updateToast.classList.add("hidden"));
