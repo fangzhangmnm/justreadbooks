@@ -31,6 +31,10 @@ export interface GalleryHostDeps {
   onClosed?: () => void;
 }
 const KV_FOLDER = "gallery-folder";
+/** 书架布局（device-kv；默认列表：长书名整行，user 2026-09-19）。 */
+const KV_LAYOUT = "shelf-layout";
+export type ShelfLayout = "cards" | "list";
+export function shelfLayout(): ShelfLayout { return deviceKvGet(KV_LAYOUT) === "cards" ? "cards" : "list"; }
 /** 上次离开时在哪个场景（WeebPaint 行为：从书架出 → 回来在书架）。 */
 const KV_SCENE = "last-scene";
 const GALLERY_TEXT_OVERRIDES: Record<string, Parameters<typeof t>[0]> = {
@@ -74,7 +78,7 @@ export function initGalleryHost(d: GalleryHostDeps) {
     hasThumb: () => false,
     // 0.3.0：hide = v1 遗留 json / 写入方半成品连杂物都不显示；list = 长书名整行；副标题 = 状态头（开书时记进 book-prefs，跨设备可见、不用读字节）；未读点 = reading-position 无条目
     policy: { isDoc: (p) => isBookName(p), isImage: () => false, naming: NAMING, hide: (p) => isHiddenName(p) },
-    tile: { aspect: "2/3", layout: "list", subtitle: (item) => getBookPref(item.name)?.header ?? null, marker: (item) => (isUnread(item.name) ? "unread" : null) },
+    tile: { aspect: "2/3", layout: shelfLayout(), subtitle: (item) => getBookPref(item.name)?.header ?? null, marker: (item) => (isUnread(item.name) ? "unread" : null) },
     folderMemory: { get: () => deviceKvGet(KV_FOLDER) ?? "", set: (p) => deviceKvSet(KV_FOLDER, p || null) },
     isGalleryVisible: () => document.body.dataset.mode === "gallery",
     reportError: (e, level) => reportError(e, level ?? "error"),
@@ -110,6 +114,7 @@ export function initGalleryHost(d: GalleryHostDeps) {
     getView: () => gallery?.handle.getView() ?? "files",
     emptyTrash: (scope: "local" | "cloud" | "both") => ensureMounted().handle.emptyTrash(scope),
     currentFolder: () => gallery?.handle.getFolder() ?? (deviceKvGet(KV_FOLDER) ?? ""),
+    setLayout: (l: ShelfLayout) => { deviceKvSet(KV_LAYOUT, l === "cards" ? "cards" : null); gallery?.handle.setLayout(l); },
   };
 }
 export type GalleryHost = ReturnType<typeof initGalleryHost>;

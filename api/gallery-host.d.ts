@@ -17,6 +17,8 @@ export interface GalleryHostDeps {
     onOpened?: () => void;
     onClosed?: () => void;
 }
+export type ShelfLayout = "cards" | "list";
+export declare function shelfLayout(): ShelfLayout;
 export declare function initGalleryHost(d: GalleryHostDeps): {
     open: () => Promise<void>;
     close: () => void;
@@ -27,5 +29,6 @@ export declare function initGalleryHost(d: GalleryHostDeps): {
     getView: () => "files" | "trash";
     emptyTrash: (scope: "local" | "cloud" | "both") => void;
     currentFolder: () => string;
+    setLayout: (l: ShelfLayout) => void;
 };
 export type GalleryHost = ReturnType<typeof initGalleryHost>;

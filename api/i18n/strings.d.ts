@@ -592,6 +592,18 @@ export declare const S: {
         readonly zh: "宽（纸书，约 30 字/行）";
         readonly en: "Wide (paperback, ~30 chars)";
     };
+    readonly "settings.shelfLayout": {
+        readonly zh: "书架布局";
+        readonly en: "Shelf layout";
+    };
+    readonly "settings.shelfList": {
+        readonly zh: "列表（长书名整行）";
+        readonly en: "List (full titles)";
+    };
+    readonly "settings.shelfCards": {
+        readonly zh: "卡片";
+        readonly en: "Cards";
+    };
     readonly "settings.theme": {
         readonly zh: "主题";
         readonly en: "Theme";

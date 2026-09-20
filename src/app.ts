@@ -16,7 +16,7 @@ import { split, listBuiltin, statusHeader, type Chapter, type Anchor, type Chapt
 import { decodeBytes } from "./encoding.ts";
 import { createTxtReader, type ReaderPrefs } from "./reader/txt.ts";
 import { initKeys } from "./reader/keys.ts";
-import { initGalleryHost } from "./gallery-host.ts";
+import { initGalleryHost, shelfLayout } from "./gallery-host.ts";
 import { initPwaShell } from "./pwa-shell.ts";
 import { holdUntilSettled } from "./settle-hold.ts";
 import { setStoreQuietStatus } from "./store-ui.ts";
@@ -328,6 +328,7 @@ function renderSettings(): void {
   $<HTMLSelectElement>("fontSelect").value = p.fontFamily;
   $<HTMLSelectElement>("widthSelect").value = p.widthTier;
   $<HTMLSelectElement>("themeSelect").value = theme();
+  $<HTMLSelectElement>("shelfLayoutSelect").value = shelfLayout();
   const ls = $<HTMLSelectElement>("langSelect");
   if (!ls.options.length) for (const l of LANGS) { const o = document.createElement("option"); o.value = l; o.textContent = LANG_NAME[l]; ls.appendChild(o); }
   ls.value = lang();
@@ -352,6 +353,7 @@ $<HTMLSelectElement>("lineHeightSelect").addEventListener("change", (e) => setRe
 $<HTMLSelectElement>("fontSelect").addEventListener("change", (e) => setReaderPrefs({ fontFamily: (e.target as HTMLSelectElement).value === "serif" ? "serif" : "sans" }));
 $<HTMLSelectElement>("widthSelect").addEventListener("change", (e) => setReaderPrefs({ widthTier: (e.target as HTMLSelectElement).value === "classic" ? "classic" : "novel" }));
 $<HTMLSelectElement>("themeSelect").addEventListener("change", (e) => applyTheme((e.target as HTMLSelectElement).value as Theme));
+$<HTMLSelectElement>("shelfLayoutSelect").addEventListener("change", (e) => galleryHost.setLayout((e.target as HTMLSelectElement).value === "cards" ? "cards" : "list"));
 $<HTMLSelectElement>("langSelect").addEventListener("change", (e) => setLang((e.target as HTMLSelectElement).value as Lang));
 chapterRuleSelect.addEventListener("change", () => { void applyChapterRule(chapterRuleSelect.value); });
 /** 换切章规则：同一文本重切，按当前**字符偏移**找回同一段（章节标题全变了，锚的标题命中不适用）。 */
