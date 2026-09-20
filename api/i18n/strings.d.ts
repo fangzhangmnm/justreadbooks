@@ -436,6 +436,22 @@ export declare const S: {
         readonly zh: "已清缓存重启 · {v}";
         readonly en: "Cache cleared and restarted · {v}";
     };
+    readonly "st.updateChecking": {
+        readonly zh: "正在检查更新…";
+        readonly en: "Checking for updates…";
+    };
+    readonly "st.updateFound": {
+        readonly zh: "有新版本，点「刷新」应用";
+        readonly en: "Update found — tap Reload to apply";
+    };
+    readonly "st.updateLatest": {
+        readonly zh: "已是最新 · {v}";
+        readonly en: "Up to date · {v}";
+    };
+    readonly "st.updateUnavailable": {
+        readonly zh: "此环境无法检查更新 · {v}";
+        readonly en: "Update check unavailable here · {v}";
+    };
     readonly "st.syncPushing": {
         readonly zh: "正在推送到云端…";
         readonly en: "Pushing to cloud…";
@@ -671,6 +687,10 @@ export declare const S: {
     readonly "settings.build": {
         readonly zh: "版本";
         readonly en: "Version";
+    };
+    readonly "settings.checkUpdate": {
+        readonly zh: "检查更新";
+        readonly en: "Check for updates";
     };
     readonly "settings.forceUpdate": {
         readonly zh: "清缓存重启";

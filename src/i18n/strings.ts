@@ -117,6 +117,10 @@ export const S = {
   "st.locLocal": { zh: "本机", en: "local" },
   "st.locCloud": { zh: "云端", en: "cloud" },
   "st.forceUpdated": { zh: "已清缓存重启 · {v}", en: "Cache cleared and restarted · {v}" },
+  "st.updateChecking": { zh: "正在检查更新…", en: "Checking for updates…" },
+  "st.updateFound": { zh: "有新版本，点「刷新」应用", en: "Update found — tap Reload to apply" },
+  "st.updateLatest": { zh: "已是最新 · {v}", en: "Up to date · {v}" },
+  "st.updateUnavailable": { zh: "此环境无法检查更新 · {v}", en: "Update check unavailable here · {v}" },
   // store busy 文案（库 15 key 穷举映射）
   "st.syncPushing": { zh: "正在推送到云端…", en: "Pushing to cloud…" },
   "st.fileRenaming": { zh: "正在改名…", en: "Renaming…" },
@@ -179,6 +183,7 @@ export const S = {
   "settings.noBook": { zh: "（没有打开的书）", en: "(no book open)" },
   "settings.app": { zh: "应用", en: "App" },
   "settings.build": { zh: "版本", en: "Version" },
+  "settings.checkUpdate": { zh: "检查更新", en: "Check for updates" },
   "settings.forceUpdate": { zh: "清缓存重启", en: "Clear cache & restart" },
   "settings.diag": { zh: "诊断日志", en: "Diagnostic log" },
   "settings.diagCopy": { zh: "复制", en: "Copy" },

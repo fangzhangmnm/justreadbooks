@@ -20,6 +20,9 @@ export interface PwaShell {
   reload: () => Promise<void>;
   /** 清缓存重启（PWA 卡旧版的逃生舱）：unregister 全部 SW + 清 Cache Storage + reload。IDB（书的本地副本）不碰。 */
   forceReset: () => Promise<void>;
+  /** 手动检查更新（设置里的按钮）：poke registration.update()，等新 SW 装完。
+   *  "found" = 有新版待应用（调用方弹「有新版本」toast）；"latest" = 已是最新；"unavailable" = 没有 SW（localhost / 不支持）。 */
+  checkForUpdate: () => Promise<"found" | "latest" | "unavailable">;
 }
 
 export function initPwaShell(opts: PwaShellOptions): PwaShell {
@@ -52,6 +55,24 @@ export function initPwaShell(opts: PwaShellOptions): PwaShell {
     setTimeout(() => { location.href = target; }, 2500);   // 看门狗：第一脚没走再踢一次
   }
 
+  async function checkForUpdate(): Promise<"found" | "latest" | "unavailable"> {
+    const reg = registration ?? (await navigator.serviceWorker?.getRegistration()) ?? null;
+    if (!reg) return "unavailable";
+    if (reg.waiting) return "found";
+    try { await reg.update(); } catch { return "unavailable"; }
+    if (reg.waiting) return "found";
+    const sw = reg.installing;
+    if (!sw) return "latest";
+    // 新 SW 正在装：等它 installed（≤15s，慢网兜底）——装完 = 有新版
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(reg.waiting ? "found" : "latest"), 15000);
+      sw.addEventListener("statechange", () => {
+        if (sw.state === "installed") { clearTimeout(timer); resolve("found"); }
+        else if (sw.state === "redundant") { clearTimeout(timer); resolve("latest"); }
+      });
+    });
+  }
+
   const onFg = () => {
     registration?.update().catch(() => {});
     opts.onForeground?.();
@@ -77,5 +98,5 @@ export function initPwaShell(opts: PwaShellOptions): PwaShell {
     }).catch((err: unknown) => { console.warn("[pwa] SW register failed", err); });
   }
 
-  return { isDevRoute, reload, forceReset };
+  return { isDevRoute, reload, forceReset, checkForUpdate };
 }

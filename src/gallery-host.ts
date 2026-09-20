@@ -53,7 +53,7 @@ export function initGalleryHost(d: GalleryHostDeps) {
   const storeFace = (): (VerbStore & DataFaceStore) | null => {
     try { return requireStore() as unknown as VerbStore & DataFaceStore; } catch { return null; }
   };
-  const sizeOf = (item: GItem): number | undefined => { const c = item.cloud as { size?: number } | null; const l = item.local as { size?: number } | null; return c?.size ?? l?.size; };
+  const sizeOf = (item: GItem): number | undefined => item.size;   // gallery 0.4.0：GItem = {name, syncState, size?, lastModified?}
   const doc: GalleryDocHost = {
     open: async (item: GItem) => { const ok = await d.openBook(fullOf(item.name), sizeOf(item)); if (ok) close(); },
     renameActive: async () => { const n = await d.renameActive(); return n ? bareOf(n) : null; },

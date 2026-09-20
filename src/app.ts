@@ -420,6 +420,14 @@ async function applyChapterRule(v: string): Promise<void> {
   renderSettings();
 }
 $("forceUpdateButton").addEventListener("click", () => { void shell.forceReset(); });
+$("checkUpdateButton").addEventListener("click", () => {
+  setStatus(t("st.updateChecking"));
+  void shell.checkForUpdate().then((r) => {
+    diagNote("sw", `manual check → ${r}`);
+    if (r === "found") { updateToast.classList.remove("hidden"); setStatus(t("st.updateFound")); }
+    else setStatus(t(r === "latest" ? "st.updateLatest" : "st.updateUnavailable", { v: APP_VERSION }));
+  });
+});
 $("diagButton").addEventListener("click", () => { const pre = $("diagLog"); pre.hidden = !pre.hidden; if (!pre.hidden) pre.textContent = [...diagEntries().map((e) => `${new Date(e.t).toISOString().slice(11, 19)} ${e.l} ${e.m}`), ...errorLog()].join("\n") || t("settings.diagEmpty"); });
 $("diagCopy").addEventListener("click", () => { void navigator.clipboard?.writeText($("diagLog").textContent ?? "").then(() => setStatus(t("settings.diagCopied"))).catch((e) => reportError(e, "warning")); });
 

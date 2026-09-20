@@ -51,6 +51,10 @@ try {
   await page.click("#fontSizeUp"); await page.waitForTimeout(100);
   const after = await page.textContent("#fontSizeValue");
   check("字号 + 生效（device-kv）", Number(after) === Number(before) + 1, `${before}→${after}`);
+  // 0.1.5：「检查更新」按钮——smoke 服的是 dist 静态站（SW 可注册），结果只能是「已是最新」或「此环境无法检查」，绝不许卡在「正在检查」
+  await page.click("#checkUpdateButton");
+  const checkMsg = await page.waitForFunction(() => { const t = document.getElementById("toast").textContent; return /已是最新|无法检查|有新版本/.test(t) ? t : null; }, null, { timeout: 20000 }).then((h) => h.jsonValue()).catch(() => "(timeout)");
+  check("「检查更新」→ 明确结论 toast（不卡在检查中）", /已是最新|无法检查/.test(checkMsg) && checkMsg.includes(version), checkMsg);
   await page.click("#settingsClose"); await page.waitForTimeout(150);
   check("设置关闭", await page.evaluate(() => document.getElementById("settingsView").hidden));
   const picked = await page.evaluate(async () => { const p = window.__jrb.choice("t", "m", [{ label: "A", value: 1 }, { label: "B", value: 2 }]); await new Promise((r) => setTimeout(r, 50)); document.querySelector("#sheetChoices button").click(); return await p; });
