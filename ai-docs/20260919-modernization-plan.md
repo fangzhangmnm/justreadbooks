@@ -295,3 +295,8 @@ export function mountPdfViewer(el: HTMLElement, deps: PdfViewerDeps): PdfViewerH
 - 加密书、简繁转换、日期分组、`beforeunload` keepalive PUT（库无此面；靠 valuable-save 节律 + 切后台 flush）。
 - folder provider / 多库 registry（gallery 包已有器官，等 user 点名）。
 - PDF 缩略图派生缓存（逐案申请）。
+
+## 11. 状态日志
+
+- 2026-09-19（user「开始做吧」当晚）：期 0 ✓（prod 分支 = v23 快照、Pages 切 Actions、`/` 验证不变）；期 1a ✓（gallery 提案 .h → user「好，继续做」→ **0.3.0 发版**：`tile.layout:"list"` / subtitle / marker / `policy.hide` / `keepOffline`）；期 1b ✓ + 期 2 ✓（**0.1.0 `fd976d3` → 0.1.1 `c1506e6` 推 main → `/dev/`**：切章深模块 33 测、smoke 23 项含「上传→阅读→覆盖 adopt 不重画→刷新回原位」）；期 3 半（README 按乙改写、ledger 真机总单 `20260919-ledger.md` §2）。**真机零；push prod 等 user。** 偏离计划的两处：① 单行状态头不成 head 章（开书直进第 1 篇，plan §4.5 未写，实现时发现「（开头）」只有一行状态头很怪）；② 「书架布局」列表/卡片切换进设置（device-kv），用 select 不用图标。
+
