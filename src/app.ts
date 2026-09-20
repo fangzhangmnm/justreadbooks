@@ -160,19 +160,24 @@ function refreshCurrentBook(): Promise<void> {
       if (again.kind !== "ok" || !book || book.name !== name) return;
       const st = await decodeBook(name, again.blob);
       if (!book || book.name !== name) return;
-      book = st; rememberHeader(st);
-      if (!reader.touched()) { reader.load(st.text, st.chapters, reader.current()); setStatus(t("st.refreshed")); diagNote("book", `silent swap "${name}" chapters=${st.chapters.length}`); return; }
-      const upd = reader.adopt(st.text, st.chapters);
-      diagNote("book", `adopt pending "${name}" +${upd.addedChapters} currentChanged=${upd.currentChanged}`);
-      showNotice({
-        id: "book-updated", level: "info", dismissible: true, dismissLabel: t("common.later"),
-        text: upd.addedChapters > 0 ? t("rd.updated", { n: upd.addedChapters }) : upd.currentChanged ? t("rd.updatedCurrent") : t("rd.updatedPlain"),
-        actions: [{ label: t("rd.reload"), primary: true, onClick: () => { reader.applyPending(); closeNotice("book-updated"); } }],
-      });
-      renderSettings();
+      adoptFreshBytes(st);
     } catch (e) { reportError(e, "log"); }
   })().finally(() => { refreshing = null; });
   return refreshing;
+}
+
+/** 新字节到手（后台追新快进后）：用户没动 → 静默换底；动过 → 换底稿不重画 + chip「已更新」，点「刷新」才用新章节表。 */
+function adoptFreshBytes(st: OpenBookState): void {
+  book = st; rememberHeader(st);
+  if (!reader.touched()) { reader.load(st.text, st.chapters, reader.current()); setStatus(t("st.refreshed")); diagNote("book", `silent swap "${st.name}" chapters=${st.chapters.length}`); renderSettings(); return; }
+  const upd = reader.adopt(st.text, st.chapters);
+  diagNote("book", `adopt pending "${st.name}" +${upd.addedChapters} currentChanged=${upd.currentChanged}`);
+  showNotice({
+    id: "book-updated", level: "info", dismissible: true, dismissLabel: t("common.later"),
+    text: upd.addedChapters > 0 ? t("rd.updated", { n: upd.addedChapters }) : upd.currentChanged ? t("rd.updatedCurrent") : t("rd.updatedPlain"),
+    actions: [{ label: t("rd.reload"), primary: true, onClick: () => { reader.applyPending(); closeNotice("book-updated"); } }],
+  });
+  renderSettings();
 }
 
 // ── 书架屏 ──
@@ -476,4 +481,8 @@ window.addEventListener("unhandledrejection", (event) => {
 void boot();
 
 // 供 boot smoke / 调试台探针（非 API）
-(window as unknown as { __jrb?: unknown }).__jrb = { version: APP_VERSION, openBook: openBookByName, closeBook, reader, gallery: galleryHost, store: requireStore, book: () => book, prefs: readerPrefs, confirm: openConfirmSheet, choice: openChoiceSheet };
+(window as unknown as { __jrb?: unknown }).__jrb = {
+  version: APP_VERSION, openBook: openBookByName, closeBook, reader, gallery: galleryHost, store: requireStore, book: () => book, prefs: readerPrefs, confirm: openConfirmSheet, choice: openChoiceSheet,
+  /** smoke 探针：模拟「远端覆盖后新字节到手」——走与 refreshCurrentBook 完全相同的采纳路径（静默换底 / chip）。 */
+  simulateFreshText: (text: string) => { if (!book) return false; const { chapters, chosen } = splitFor(book.name, text); adoptFreshBytes({ ...book, text, chapters, chosen, header: statusHeader(text) }); return true; },
+};

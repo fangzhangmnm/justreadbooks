@@ -72,21 +72,38 @@ try {
   check("状态头 = 第一行", b1.header === "2026-09-19 装订 《冒烟》 · 状态头", String(b1.header));
   await page.evaluate(() => window.__jrb.reader.next()); await page.waitForTimeout(150);
   check("翻到第 2 章", await page.evaluate(() => document.querySelector("#reader .txt-chapter-title")?.textContent === "第2章 标题2"));
-  // 模拟远端覆盖：+2 章，且当前章正文变了 → adopt 不重画、进度显示新总数；applyPending 才换
+  // 模拟远端覆盖（真实采纳路径 simulateFreshText = refreshCurrentBook 快进后的同一函数）：用户翻过章（touched）→ 不重画、出 chip；点 chip「刷新」→ 换新章节表回同一章
   const upd = await page.evaluate(async () => {
     const t = "2026-09-19 装订 《冒烟》 · 状态头（更新）\n" + Array.from({ length: 7 }, (_, i) => `第${i + 1}章 标题${i + 1}\n正文${i + 1} 更新版\n\n`).join("");
-    const mkCh = (text) => { const re = /^第\d+章 .+$/gm; const hits = []; let m; while ((m = re.exec(text))) hits.push({ start: m.index, title: m[0] }); return hits.map((h, i) => ({ title: h.title, start: h.start, bodyStart: text.indexOf("\n", h.start) + 1, end: i + 1 < hits.length ? hits[i + 1].start : text.length })); };
-    const chapters = mkCh(t);
     const before = document.querySelector("#reader .txt-body")?.textContent?.trim();
-    const u = window.__jrb.reader.adopt(t, chapters);
+    window.__jrb.simulateFreshText(t);
+    await new Promise((r) => setTimeout(r, 150));
+    const notice = [...document.querySelectorAll(".notice-stack *")].map((e) => e.textContent).join(" ");
     const prog = document.querySelector("#reader .chapter-nav-progress")?.textContent;
     const afterAdopt = document.querySelector("#reader .txt-body")?.textContent?.trim();
-    window.__jrb.reader.applyPending();
-    await new Promise((r) => setTimeout(r, 100));
-    return { u, before, afterAdopt, prog, afterApply: document.querySelector("#reader .txt-body")?.textContent?.trim(), title: document.querySelector("#reader .txt-chapter-title")?.textContent, idx: window.__jrb.reader.currentIndex() };
+    return { before, afterAdopt, prog, noticeShown: notice.includes("有更新"), hadButton: [...document.querySelectorAll(".notice-stack button")].some((b) => b.textContent.trim() === "刷新") };
   });
-  check("覆盖 adopt：当前章 DOM 未重画、进度显示新总数、diff 报 +2 章且本章有更新", upd.before === upd.afterAdopt && upd.afterAdopt === "正文2" && upd.prog === "2 / 7" && upd.u.addedChapters === 2 && upd.u.currentChanged === true, JSON.stringify(upd));
-  check("applyPending：按标题回到同一章（第2章）并换成新正文", upd.title === "第2章 标题2" && upd.afterApply === "正文2 更新版" && upd.idx === 1, JSON.stringify({ title: upd.title, afterApply: upd.afterApply, idx: upd.idx }));
+  await page.screenshot({ path: process.env.JRB_SHOT_DIR ? `${process.env.JRB_SHOT_DIR}/chip.png` : "tmp/chip.png" }).catch(() => {});
+  Object.assign(upd, await page.evaluate(async () => {
+    const btn = [...document.querySelectorAll(".notice-stack button")].find((b) => b.textContent.trim() === "刷新");
+    btn?.click();
+    await new Promise((r) => setTimeout(r, 150));
+    return { noticeGone: !document.querySelector(".notice-stack button"), afterApply: document.querySelector("#reader .txt-body")?.textContent?.trim(), title: document.querySelector("#reader .txt-chapter-title")?.textContent, idx: window.__jrb.reader.currentIndex(), header: window.__jrb.book().header };
+  }));
+  check("覆盖后（已动过）：当前章 DOM 未重画、进度显示新总数、chip「有更新」出现", upd.before === upd.afterAdopt && upd.afterAdopt === "正文2" && upd.prog === "2 / 7" && upd.noticeShown && upd.hadButton, JSON.stringify(upd));
+  check("点 chip「刷新」→ 按标题回到同一章（第2章）换新正文、chip 收起、状态头随新版", upd.title === "第2章 标题2" && upd.afterApply === "正文2 更新版" && upd.idx === 1 && upd.noticeGone && upd.header.includes("更新"), JSON.stringify({ title: upd.title, afterApply: upd.afterApply, idx: upd.idx, noticeGone: upd.noticeGone, header: upd.header }));
+  // 没动过的情况：重开书（touched=false）→ 新字节静默换底、无 chip
+  await page.evaluate(() => window.__jrb.closeBook());
+  await page.evaluate(() => window.__jrb.openBook("冒烟测试.txt", { quiet: true }));
+  await page.waitForFunction(() => !!window.__jrb.book(), null, { timeout: 8000 }); await page.waitForTimeout(300);
+  const silent = await page.evaluate(async () => {
+    const t = "头\n" + Array.from({ length: 9 }, (_, i) => `第${i + 1}章 标题${i + 1}\n正文${i + 1} 静默版\n\n`).join("");
+    window.__jrb.simulateFreshText(t); await new Promise((r) => setTimeout(r, 150));
+    return { body: document.querySelector("#reader .txt-body")?.textContent?.trim(), prog: document.querySelector("#reader .chapter-nav-progress")?.textContent, notice: !!document.querySelector(".notice-stack button"), title: document.querySelector("#reader .txt-chapter-title")?.textContent };
+  });
+  check("覆盖后（没动过）：静默换底到同一章、无 chip", silent.body === "正文2 静默版" && silent.prog === "2 / 9" && !silent.notice && silent.title === "第2章 标题2", JSON.stringify(silent));
+  await page.evaluate(() => window.__jrb.reader.next()); await page.waitForTimeout(150);   // 后面「刷新页面回到第 2 章」的前提：先回到第 2 章的位置（静默换底后仍在第 2 章，翻到第 3 再翻回）
+  await page.evaluate(() => window.__jrb.reader.prev()); await page.waitForTimeout(150);
   await page.screenshot({ path: process.env.JRB_SHOT_DIR ? `${process.env.JRB_SHOT_DIR}/reader.png` : "tmp/reader.png" }).catch(() => {});
   // 刷新页面：last-open + 位置（collection 本地）→ 回到第 2 章
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
