@@ -155,7 +155,7 @@ body[data-reading="1"][data-chrome="shown"] .reader { padding-top: calc(var(--to
 .status-toast.error { background: var(--danger); color: #fff; }
 
 /* ── 设置面板（一屏，压在书架之上；简单表单）── */
-/* 目录 view（第三个整屏 view；右上 ✕；虚拟化分组清单——行 position:absolute 挂在 spacer 里，--ch-row 是行高 SSoT，TS 读它） */
+/* 目录 view（第三个整屏 view；右上 ✕；虚拟化分组清单——行 position:absolute 挂在 spacer 里，--ch-row 是行高 SSoT，TS 读它；无折叠无小三角） */
 .chapters-view { --ch-row: 44px; position: fixed; inset: 0; z-index: var(--z-drawer); background: var(--bg-0); color: var(--ink); display: flex; flex-direction: column; font-family: var(--font-ui); }
 .chapters-view[hidden] { display: none; }
 .chapters-head { display: flex; align-items: center; gap: 8px; padding: max(env(safe-area-inset-top, 0px), 8px) 12px 8px; border-bottom: 1px solid var(--line); }
@@ -177,9 +177,6 @@ body[data-reading="1"][data-chrome="shown"] .reader { padding-top: calc(var(--to
 .ch-row[data-kind="group"] .ch-title { font-weight: 600; }
 .ch-row[aria-current="true"] { background: var(--accent-soft); }
 .ch-row[aria-current="true"] .ch-title { color: var(--accent-strong); font-weight: 600; }
-.ch-toggle { flex: 0 0 44px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-.ch-toggle[hidden] { display: none; }
-.ch-toggle svg { width: 18px; height: 18px; }
 .settings-view { position: fixed; inset: 0; z-index: var(--z-drawer); background: var(--bg-0); color: var(--ink); display: flex; flex-direction: column; }
 .settings-view[hidden] { display: none; }
 .settings-head { display: flex; align-items: center; gap: 8px; padding: max(env(safe-area-inset-top, 0px), 8px) 12px 8px; border-bottom: 1px solid var(--line); }

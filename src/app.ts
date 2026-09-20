@@ -358,9 +358,7 @@ async function uploadFiles(files: File[]): Promise<void> {
 const chaptersView = initChaptersView({
   el: $("chaptersView"),
   chapters: () => reader.chapters(), titleOf: (i) => reader.titleOf(i), currentIndex: () => reader.currentIndex(), goTo: (i) => reader.goTo(i),
-  bookKey: activeName,
   title: (n) => t("rd.chaptersTitle", { n }),
-  toggleLabel: (collapsed) => t(collapsed ? "rd.chaptersExpand" : "rd.chaptersCollapse"),
   onClosed: () => { if (book && !galleryHost.isOpen()) setChrome(false); },
 });
 function openChapters(): void { if (!book) return; chaptersView.open(); }
