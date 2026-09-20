@@ -346,7 +346,7 @@ function openChapters(): void {
   if (!book) return;
   const chs = reader.chapters();
   void openPickSheet<number, "go">(t("rd.chaptersTitle", { n: chs.length }), {
-    placeholder: t("rd.chaptersSearchPh"), emptyText: t("rd.chaptersEmpty"),
+    placeholder: t("rd.chaptersSearchPh"), emptyText: t("rd.chaptersEmpty"), fullscreen: true,
     search: (q) => { const lv = chs.map((c) => c.level ?? 0).filter((l) => l > 0); const base = lv.length ? Math.min(...lv) : 0; return chs.map((c, i) => ({ value: i, label: `${"\u3000".repeat(Math.max(0, (c.level ?? base) - base))}${i + 1}. ${reader.titleOf(i)}` })).filter((r) => !q || r.label.toLowerCase().includes(q.toLowerCase())); },
     actions: () => [{ id: "go", label: t("rd.jump"), primary: true }],
   }).then((r) => { if (r) reader.goTo(r.value); });

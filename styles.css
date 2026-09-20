@@ -187,6 +187,10 @@ body[data-reading="1"] .reader { top: 0; padding-top: var(--top-floor); }
 .crypto-modal { position: fixed; inset: 0; background: var(--overlay); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .crypto-modal.hidden { display: none; }
 .crypto-card { background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: 12px; padding: 20px; width: min(380px, 100%); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+/* 全屏 sheet（openPickSheet fullscreen；目录用）：卡片撑满视口，列表吃掉剩余高 */
+.crypto-modal.sheet-full { padding: 0; align-items: stretch; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.crypto-modal.sheet-full .crypto-card { width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; padding: calc(12px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom)); }
+.crypto-modal.sheet-full .sheet-pick { max-height: none; flex: 1 1 auto; min-height: 0; }
 .crypto-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
 .crypto-hint { margin: 0; font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
 .crypto-hint.warning { color: var(--danger); }

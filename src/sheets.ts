@@ -46,7 +46,7 @@ let _open: (() => void) | null = null;   // 当前 sheet 的 cancel 路径（bac
 
 function _show(): void { g.sheet().classList.remove("hidden"); }
 function _hide(): void {
-  g.sheet().classList.add("hidden");
+  g.sheet().classList.add("hidden"); g.sheet().classList.remove("sheet-full");
   if (document.activeElement instanceof HTMLElement && g.sheet().contains(document.activeElement)) document.activeElement.blur();
   _open = null;
 }
@@ -58,6 +58,7 @@ function _reset(): void {
   g.pick().classList.add("hidden"); g.pick().innerHTML = "";
   g.check().classList.add("hidden"); g.checkInput().checked = false;
   g.confirm().classList.remove("hidden", "danger"); g.cancel().classList.remove("hidden");
+  g.sheet().classList.remove("sheet-full");
   g.input().value = ""; g.input2().value = "";
   g.input().style.setProperty("-webkit-text-security", ""); g.input2().style.setProperty("-webkit-text-security", "");
 }
@@ -194,11 +195,13 @@ export interface PickOpts<T, A extends string> {
   message?: string; placeholder?: string; emptyText: string;
   search: (q: string) => PickRow<T>[];
   actions: (row: PickRow<T>) => PickAction<A>[];
+  fullscreen?: boolean;   // 撑满视口（目录用；长列表 + 触屏）；.sheet-full 由 _reset 清
 }
 export function openPickSheet<T, A extends string>(title: string, opts: PickOpts<T, A>): Promise<{ value: T; action: A } | null> {
   _assertNotBusy("pick");
   return new Promise((resolve) => {
     _reset();
+    g.sheet().classList.toggle("sheet-full", !!opts.fullscreen);
     g.title().textContent = title;
     if (opts.message) { g.message().textContent = opts.message; g.message().classList.remove("hidden"); }
     const inp = g.input(), list = g.pick(), box = g.choices();
