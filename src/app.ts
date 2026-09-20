@@ -212,8 +212,7 @@ const galleryHost = initGalleryHost({
   activeName,
   openBook: (name, size) => openBookByName(name, size != null ? { size } : {}),
   renameActive: renameActiveBook,
-  setActiveName: (name) => { if (book) { book = { ...book, name }; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name); renderTopbar(); } },
-  onRenamed: (from, to) => { moveReadingPosition(from, to); moveBookPref(from, to); if (deviceKvGet(KV_LAST_OPEN) === from) deviceKvSet(KV_LAST_OPEN, to); },
+  setActiveName: (name) => { if (book && book.name !== name) { book = { ...book, name }; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name); renderTopbar(); } },   // 通常 store 的 onRenamed 已先处理；这里只兜底
   pushBook: async (name) => { const ok = await pushBook(name); setStatus(ok ? t("st.pushed", { name: stemOf(name) }) : t("st.pushFail"), { error: !ok }); },
   offloadBook: async (name) => { try { await offloadBook(name); setStatus(t("st.offloaded", { name: stemOf(name) })); if (book?.name === name) closeBook(); } catch (e) { reportError(e, "warning"); } },
   flushLocal: async () => { await flushCollections(); void flushPosition(); },   // 只等 IDB（毫秒级）；云端推送丢后台
@@ -223,12 +222,19 @@ const galleryHost = initGalleryHost({
   onClosed: () => { setChrome(false); },
 });
 function moveReadingPosition(from: string, to: string): void { const v = readingPos.getItem(from); if (v != null) { readingPos.setItem(to, v); readingPos.deleteItem(from); } }
+// 身份变更事件源 = store（0.14.0，user 2026-09-19「改名事件源该在 store」）：无论谁发起的改名 / 移动（书架 ⋯、顶栏改名、别的代码），
+//   按路径键的伴生数据跟着搬：阅读位置、切章规则、本机「上次那本」指针、正在读的那本的身份。
+requireStore().files.onRenamed((from, to) => {
+  moveReadingPosition(from, to); moveBookPref(from, to);
+  if (deviceKvGet(KV_LAST_OPEN) === from) deviceKvSet(KV_LAST_OPEN, to);
+  if (book?.name === from) { book = { ...book, name: to }; setActiveBookName(to); renderTopbar(); }
+});
 async function renameActiveBook(): Promise<string | null> {
   if (!book) return null;
   const input = await openInputSheet(t("gal.title"), { defaultValue: stemOf(book.name) });
   if (input == null) return book.name;
   const r = await renameBook(book.name, input);
-  if (r.ok) { if (r.name !== book.name) { moveReadingPosition(book.name, r.name); moveBookPref(book.name, r.name); book = { ...book, name: r.name }; setActiveBookName(r.name); deviceKvSet(KV_LAST_OPEN, r.name); renderTopbar(); setStatus(t("st.renamed", { name: stemOf(r.name) })); } return r.name; }
+  if (r.ok) { if (r.name !== book.name) { book = { ...book, name: r.name }; setActiveBookName(r.name); deviceKvSet(KV_LAST_OPEN, r.name); renderTopbar(); setStatus(t("st.renamed", { name: stemOf(r.name) })); } return r.name; }   // 位置 / 规则由 store 的 onRenamed 搬
   setStatus("where" in r ? t("st.renameTaken", { loc: r.where === "local" ? t("st.locLocal") : t("st.locCloud") }) : t("st.renameFail", { e: r.error }), { error: true });
   return book.name;
 }

@@ -1,34 +1,11 @@
-import type { SyncState, FreshResult, WatchFolderErrorPhase } from "@internal/store";
-export interface BookListItem {
-    /** 身份（全路径，含 .txt）。 */
-    name: string;
-    dir: string;
-    /** 显示名（不含夹、不含扩展名）。 */
-    stem: string;
-    syncState: SyncState;
-    cached: boolean;
-    dirty: boolean;
-    size?: number;
-    lastModified?: number;
-}
-export interface BookListFrame {
-    folder: string;
-    items: BookListItem[];
-    folders: string[];
-    complete: boolean;
-    stale: boolean;
-}
+import type { FreshResult } from "@internal/store";
 export declare function isBookName(path: string): boolean;
-export declare function isHiddenName(path: string): boolean;
 export declare function splitPath(path: string): {
     dir: string;
     base: string;
 };
 export declare function joinPath(dir: string, base: string): string;
 export declare function stemOf(path: string): string;
-export declare function watchBooks(folder: string, cb: (frame: BookListFrame) => void, opts?: {
-    onError?: (err: unknown, phase: WatchFolderErrorPhase) => void;
-}): () => void;
 export type OpenBookResult = {
     kind: "ok";
     blob: Blob; /** 首帧来自本地副本（秒开）；false = 刚下载的。 */

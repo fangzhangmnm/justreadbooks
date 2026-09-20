@@ -12,7 +12,7 @@
 
 import { createStore, createOneDriveProvider, requestStoragePersistence, isCached, isDirty } from "@internal/store";
 import type { Store, Collection, OneDriveAuth } from "@internal/store";
-import { APP_ID, CLIENT_ID, AUTHORITY, SCOPES, MSAL_URL, COLLECTIONS } from "./config.ts";
+import { APP_ID, CLIENT_ID, AUTHORITY, SCOPES, MSAL_URL, COLLECTIONS, HIDDEN_NAME_RE } from "./config.ts";
 import { storeUI } from "./store-ui.ts";
 import { appEncryption } from "./encryption.ts";
 import { looksLikeBookText } from "./encoding.ts";
@@ -40,6 +40,8 @@ const store: Store = createStore({
   readOnlyFiles: false,
   signedIn: () => od.auth.isSignedIn(),
   activeFileName: () => _activeBook,
+  // 夹里有什么是 store 的事（0.14.0）：写入方半成品 *.part / ~* / .tmp 与 v1 遗留 session.json / library.json 不进帧、不进 cloud-gone 收敛
+  hiddenName: (p) => HIDDEN_NAME_RE.test(p),
 });
 
 export function requireStore(): Store { return store; }

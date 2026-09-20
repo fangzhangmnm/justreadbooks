@@ -5,7 +5,7 @@ import { createApp, defineComponent, reactive, ref, computed, watch, onMounted, 
 import { createGallery, type CreateGalleryDeps, type GalleryDocHost, type VueRuntime, type GItem, type VerbStore, type DataFaceStore, type Gallery } from "@internal/gallery";
 import { iconHtml } from "@internal/workbench-elements";
 import { requireStore, auth } from "./app-store.ts";
-import { isBookName, isHiddenName, stemOf } from "./books.ts";
+import { isBookName, stemOf } from "./books.ts";
 import { isUnread } from "./reading-position.ts";
 import { getBookPref } from "./book-prefs.ts";
 import { openConfirmSheet, openInputSheet, openChoiceSheet, withBusy } from "./sheets.ts";
@@ -27,8 +27,6 @@ export interface GalleryHostDeps {
   flushLocal: () => Promise<void>;
   setStatus: (text: string, opts?: { error?: boolean }) => void;
   currentDir: () => string;
-  /** 包里改名 / 移动成功（非活动书也算）：阅读位置 / 切章规则按路径键，跟着搬。 */
-  onRenamed: (from: string, to: string) => void;
   onOpened?: () => void;
   onClosed?: () => void;
 }
@@ -81,8 +79,9 @@ export function initGalleryHost(d: GalleryHostDeps) {
     naming: NAMING,
     isZipDoc: () => false,
     hasThumb: () => false,
-    // 0.3.0：hide = v1 遗留 json / 写入方半成品连杂物都不显示；list = 长书名整行；副标题 = 状态头（开书时记进 book-prefs，跨设备可见、不用读字节）；未读点 = reading-position 无条目
-    policy: { isDoc: (p) => isBookName(p), isImage: () => false, naming: NAMING, hide: (p) => isHiddenName(p) },
+    // list = 长书名整行；副标题 = 状态头（开书时记进 book-prefs，跨设备可见、不用读字节）；未读点 = reading-position 无条目。
+    //   隐藏名（半成品 / 遗留 json）与改名事件都在 store（createStore hiddenName / files.onRenamed），图库不管数据。
+    policy: { isDoc: (p) => isBookName(p), isImage: () => false, naming: NAMING },
     tile: { aspect: "2/3", layout: shelfLayout(), subtitle: (item) => getBookPref(fullOf(item.name))?.header ?? null, marker: (item) => (isUnread(fullOf(item.name)) ? "unread" : null) },
     folderMemory: { get: () => deviceKvGet(KV_FOLDER) ?? "", set: (p) => deviceKvSet(KV_FOLDER, p || null) },
     isGalleryVisible: () => document.body.dataset.mode === "gallery",
@@ -90,7 +89,6 @@ export function initGalleryHost(d: GalleryHostDeps) {
     reloadApp: () => location.reload(),
     text: { lang: lang(), t: (key, params) => { const k = GALLERY_TEXT_OVERRIDES[key]; return k ? t(k, params) : undefined; } },
     deviceKv: { get: deviceKvGet, set: deviceKvSet },
-    onRenamed: (from, to) => d.onRenamed(fullOf(from), fullOf(to)),
   };
   let gallery: Gallery | null = null;
   function ensureMounted(): Gallery { if (!gallery) gallery = createGallery(d.mountEl, deps); return gallery; }
