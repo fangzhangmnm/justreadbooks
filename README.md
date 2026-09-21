@@ -75,7 +75,7 @@ python3 -m http.server 8000 # 本地跑（http://localhost:8000/，无 SW）
 1. fork 这个 repo
 2. [Entra](https://entra.microsoft.com) → App registrations → New registration：Supported account types = **Personal Microsoft accounts only**；Redirect URI = Single-page application，值 = 你的 GH Pages 地址；API permissions = `Files.ReadWrite.AppFolder` + `offline_access`
 3. 拿到 Application (client) ID，填到 [src/config.ts](src/config.ts) 的 `CLIENT_ID`
-4. GitHub repo Settings → Pages → Source = GitHub Actions；建 `prod` 分支
+4. GitHub repo Settings → Pages → Source = GitHub Actions；建 `prod` 分支；Settings → Environments → `github-pages` → Deployment branches 加上 `prod`（默认只放行 `main`，不加则 prod 的部署被 environment protection rules 拒掉）
 
 ### 架构
 
