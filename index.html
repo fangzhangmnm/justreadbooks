@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#F6F4EF" />
-    <meta name="read-aloud-worker-piper-plus" content="./dist/read-aloud-worker-piper-plus-9a36aa468074.js" />
+    <meta name="read-aloud-worker-piper-plus" content="./dist/read-aloud-worker-piper-plus-2b03e1cd8028.js" />
     <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -231,12 +231,11 @@
         </details>
         <details class="settings-section" id="secReadAloud">
         <summary class="settings-section-title" data-i18n="settings.readAloud">朗读</summary>
-        <div class="setting-note" data-i18n="ra.intro">朗读是可选的：下载一个音色并打开朗读模式，顶栏才会出现喇叭钮。开书后点喇叭进入朗读——点读：轻点一句，只念这一句；全文朗读：按播放键从这一句一路往下念，念的时候轻点别的句子就跳到那里接着念。退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。</div>
-        <div class="setting-row"><span data-i18n="ra.mode">朗读模式</span><select id="raModeSelect" disabled><option value="on" data-i18n="ra.modeOn">开</option><option value="off" data-i18n="ra.modeOff" selected>关</option></select></div>
+        <div class="setting-note" data-i18n="ra.intro">朗读是可选的：下载一个音色、朗读模式不是「关」，顶栏才会出现喇叭钮。开书后点喇叭进入朗读。逐句（学语言用）：轻点一句，只念这一句。连续：轻点一句，从这一句一路往下念，念的时候点别的句子就跳过去。退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。</div>
+        <div class="setting-row"><span data-i18n="ra.mode">朗读模式</span><select id="raModeSelect" disabled><option value="off" data-i18n="ra.modeOff" selected>关</option><option value="continuous" data-i18n="ra.modeContinuous">连续</option><option value="sentence" data-i18n="ra.modeSentence">逐句</option></select></div>
         <div id="raPacks"></div>
         <div class="setting-row" id="raVoiceRow" hidden><span data-i18n="ra.voice">音色</span><select id="raVoiceSelect"></select></div>
         <div class="setting-row" id="raSpeakerRow" hidden><span data-i18n="ra.speaker">说话人</span><select id="raSpeakerSelect"></select></div>
-        <div class="setting-row"><span data-i18n="ra.speed">语速</span><select id="raSpeedSelect"><option value="0.8">0.8×</option><option value="0.9">0.9×</option><option value="1">1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></div>
         <div class="setting-row"><span data-i18n="ra.source">语音包来源</span><input id="raSourceInput" class="setting-input" type="url" inputmode="url" autocomplete="off" spellcheck="false" /></div>
         <div class="setting-note" data-i18n="ra.sourceHint">留空 = 默认来源。可以填任何镜像的网址，也可以用「从本机文件导入」：语音包到手后逐片校验，对不上就拒收。</div>
         <input type="file" id="raImportInput" multiple hidden />
@@ -261,9 +260,11 @@
 
     <div id="raBar" class="ra-bar" hidden role="toolbar" aria-label="朗读" data-i18n-aria="ra.title">
       <button class="menu-button" id="raPrev" type="button" aria-label="上一句" data-i18n-aria="ra.prev" data-i18n-title="ra.prev"><svg class="ico" aria-hidden="true"><use href="#skip-prev"/></svg></button>
-      <button class="menu-button ra-play" id="raPlay" type="button" aria-label="连读" data-i18n-aria="ra.play" data-i18n-title="ra.play"><svg class="ico" aria-hidden="true"><use id="raPlayIcon" href="#play"/></svg></button>
+      <button class="menu-button ra-play" id="raPlay" type="button" aria-label="播放" data-i18n-aria="ra.play" data-i18n-title="ra.play"><svg class="ico" aria-hidden="true"><use id="raPlayIcon" href="#play"/></svg></button>
       <button class="menu-button" id="raNext" type="button" aria-label="下一句" data-i18n-aria="ra.next" data-i18n-title="ra.next"><svg class="ico" aria-hidden="true"><use href="#skip-next"/></svg></button>
+      <button class="ra-speed" id="raSpeed" type="button" aria-label="语速" data-i18n-aria="ra.speed" data-i18n-title="ra.speed">1×</button>
       <span class="ra-status" id="raStatus" aria-live="polite"></span>
+      <button class="menu-button" id="raMenu" type="button" aria-label="显示 / 收起顶栏" data-i18n-aria="ra.menu" data-i18n-title="ra.menu"><svg class="ico" aria-hidden="true"><use href="#more"/></svg></button>
       <button class="menu-button" id="raClose" type="button" aria-label="退出朗读" data-i18n-aria="ra.close" data-i18n-title="ra.close"><svg class="ico" aria-hidden="true"><use href="#x"/></svg></button>
     </div>
 
@@ -326,6 +327,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-92c343096385.mjs"></script>
+    <script type="module" src="./dist/jrb-3a9d7c1dcb66.mjs"></script>
   </body>
 </html>

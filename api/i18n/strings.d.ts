@@ -589,24 +589,28 @@ export declare const S: {
         readonly en: "Read aloud";
     };
     readonly "ra.intro": {
-        readonly zh: "朗读是可选的：下载一个音色并打开朗读模式，顶栏才会出现喇叭钮。开书后点喇叭进入朗读——点读：轻点一句，只念这一句；全文朗读：按播放键从这一句一路往下念，念的时候轻点别的句子就跳到那里接着念。退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。";
-        readonly en: "Read-aloud is optional: the speaker button appears in the top bar only when a voice is downloaded and read-aloud mode is on. Open a book and tap the speaker — tap to hear: tap a sentence to hear just that one; read on: press play to read from that sentence onward, and tap another sentence while it is reading to jump there. Leave and the page is as usual. Speech is synthesised on this device; your text never leaves it.";
+        readonly zh: "朗读是可选的：下载一个音色、朗读模式不是「关」，顶栏才会出现喇叭钮。开书后点喇叭进入朗读。逐句（学语言用）：轻点一句，只念这一句。连续：轻点一句，从这一句一路往下念，念的时候点别的句子就跳过去。退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。";
+        readonly en: "Read-aloud is optional: the speaker button appears in the top bar only when a voice is downloaded and the mode is not Off. Open a book and tap the speaker. Sentence (for language learning): tap a sentence to hear just that one. Continuous: tap a sentence to read on from there; tap another one while it is reading to jump. Leave and the page is as usual. Speech is synthesised on this device; your text never leaves it.";
     };
     readonly "ra.mode": {
         readonly zh: "朗读模式";
         readonly en: "Read-aloud mode";
     };
-    readonly "ra.modeOn": {
-        readonly zh: "开";
-        readonly en: "On";
-    };
     readonly "ra.modeOff": {
         readonly zh: "关";
         readonly en: "Off";
     };
+    readonly "ra.modeContinuous": {
+        readonly zh: "连续";
+        readonly en: "Continuous";
+    };
+    readonly "ra.modeSentence": {
+        readonly zh: "逐句";
+        readonly en: "Sentence";
+    };
     readonly "ra.play": {
-        readonly zh: "从这里念全文";
-        readonly en: "Read on from here";
+        readonly zh: "播放";
+        readonly en: "Play";
     };
     readonly "ra.pause": {
         readonly zh: "暂停";
@@ -619,6 +623,10 @@ export declare const S: {
     readonly "ra.next": {
         readonly zh: "下一句";
         readonly en: "Next sentence";
+    };
+    readonly "ra.menu": {
+        readonly zh: "显示 / 收起顶栏";
+        readonly en: "Show / hide the top bar";
     };
     readonly "ra.close": {
         readonly zh: "退出朗读";
@@ -687,6 +695,10 @@ export declare const S: {
     readonly "ra.importNoMatch": {
         readonly zh: "选的文件里没有这个音色的语音包分片";
         readonly en: "None of the chosen files belongs to this voice";
+    };
+    readonly "ra.termsSummary": {
+        readonly zh: "{name} · 音源署名与使用条款";
+        readonly en: "{name} · voice credit & terms of use";
     };
     readonly "ra.creditLead": {
         readonly zh: "音源署名与使用条款（原文，使用这个音色即受其约束）：";

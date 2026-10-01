@@ -22,6 +22,17 @@ const results = [];
 const check = (name, ok, detail = "") => { results.push(ok); console.log(`${ok ? "✓" : "✗"} ${name}${ok ? "" : "  " + detail}`); };
 const browser = await chromium.launch({ args: ["--disable-gpu"] });
 const page = await browser.newPage({ viewport: { width: 375, height: 667 } });
+// 喇叭探针：数「同时在响的声源」有几个（任何时刻不许超过 1）。
+// 「响完了」的监听在声源一出生就挂上（排在库自己的 onended 前面）：库在 onended 里会同步接着起下一段，探针得先记下这一段已经完了。
+await page.addInitScript(() => {
+  const live = (window.__live = { now: 0, max: 0 });
+  const off = (n) => { if (n.__live) { n.__live = false; live.now--; } };
+  const create0 = BaseAudioContext.prototype.createBufferSource;
+  BaseAudioContext.prototype.createBufferSource = function (...a) { const n = create0.apply(this, a); n.addEventListener("ended", () => off(n)); return n; };
+  const S = AudioBufferSourceNode.prototype, start0 = S.start, stop0 = S.stop;
+  S.start = function (...a) { if (!this.__live) { this.__live = true; live.now++; live.max = Math.max(live.max, live.now); } return start0.apply(this, a); };
+  S.stop = function (...a) { off(this); return stop0.apply(this, a); };
+});
 const pageErrors = [];
 page.on("pageerror", (e) => pageErrors.push(String(e)));
 page.on("console", (m) => { if (m.type() === "error") pageErrors.push("console.error: " + m.text()); });
@@ -72,23 +83,27 @@ try {
   // ── 入口在设置的「朗读」栏 ──
   await page.click("#settingsButton"); await page.waitForTimeout(250);
   await page.click("#secReadAloud > summary"); await page.waitForTimeout(300);
-  const s1 = await page.evaluate(() => ({ row: document.querySelector("#raPacks .ra-pack")?.textContent ?? "", intro: document.querySelector("#secReadAloud .setting-note").textContent, voiceRow: getComputedStyle(document.getElementById("raVoiceRow")).display !== "none", speakerRow: getComputedStyle(document.getElementById("raSpeakerRow")).display !== "none", speakers: document.getElementById("raSpeakerSelect").options.length, creditPx: parseFloat(getComputedStyle(document.querySelector("#raPacks .ra-credit") ?? document.body).fontSize) }));
-  check("「朗读」栏说明：下载音色之后顶栏才出现喇叭钮", s1.intro.includes("朗读是可选的"), s1.intro);
-  check("没装音色：朗读模式开关是灰的、停在「关」", await page.evaluate(() => { const m = document.getElementById("raModeSelect"); return m.disabled && m.value === "off"; }));
+  const s1 = await page.evaluate(() => { const terms = document.getElementById("raTerms"); return { row: document.querySelector("#raPacks .ra-pack")?.textContent ?? "", intro: document.querySelector("#secReadAloud .setting-note").textContent, voiceRow: getComputedStyle(document.getElementById("raVoiceRow")).display !== "none", speakerRow: getComputedStyle(document.getElementById("raSpeakerRow")).display !== "none", speakers: document.getElementById("raSpeakerSelect").options.length, termsOpen: terms?.open, termsSummary: terms?.querySelector("summary")?.textContent ?? "", termsText: terms?.textContent ?? "", creditPx: parseFloat(getComputedStyle(document.querySelector("#raTerms .ra-credit") ?? document.body).fontSize), speedRow: !!document.getElementById("raSpeedSelect") }; });
+  check("「朗读」栏说明：朗读是可选的，讲清逐句和连续", s1.intro.includes("朗读是可选的") && s1.intro.includes("逐句") && s1.intro.includes("连续"), s1.intro);
+  check("没装音色：朗读模式是灰的、停在「关」；三档 = 关 / 连续 / 逐句", await page.evaluate(() => { const m = document.getElementById("raModeSelect"); return m.disabled && m.value === "off" && [...m.options].map((o) => o.textContent).join("/") === "关/连续/逐句"; }));
   check("音色行：名字 · 语言 · 大小 · 未下载 · 出处", s1.row.includes("测试音色") && s1.row.includes("日语 / 中文 / 英语") && s1.row.includes("未下载") && s1.row.includes("出处：测试"), JSON.stringify(s1));
-  check("署名和使用条款原文显示出来，字号不小于 14（上游要求看得清）", s1.row.includes("署名：测试音色") && s1.row.includes("条款：测试") && s1.creditPx >= 14, JSON.stringify(s1));
-  check("只有一个音色：不露音色选择；这个音色有两个说话人：露说话人选择", !s1.voiceRow && s1.speakerRow && s1.speakers === 2, JSON.stringify(s1));
+  check("使用条款是一个可展开的栏，标题带音色名；没装这个音色时默认展开，原文字号不小于 14", s1.termsOpen === true && s1.termsSummary.includes("测试音色") && s1.termsText.includes("署名：测试音色") && s1.termsText.includes("条款：测试") && s1.creditPx >= 14, JSON.stringify(s1));
+  check("只有一个音色：不露音色选择；这个音色有两个说话人：露说话人选择；设置里没有语速（在控制条上）", !s1.voiceRow && s1.speakerRow && s1.speakers === 2 && !s1.speedRow, JSON.stringify(s1));
   await page.click("#raPacks .ra-pack-actions button");   // 下载
   check("点下载 → 已下载、出删除钮", await wait(() => { const r = document.querySelector("#raPacks .ra-pack"); return r && r.textContent.includes("已下载") && [...r.querySelectorAll("button")].some((b) => b.textContent === "删除"); }));
   check("下载用的是默认来源", await page.evaluate(() => window.__raLog.includes("download:https://fangzhangmnm.github.io/pwa-models")));
-  await page.selectOption("#raSpeedSelect", "0.8");
-  check("装了音色：朗读模式开关亮起来、自动在「开」", await page.evaluate(() => { const m = document.getElementById("raModeSelect"); return !m.disabled && m.value === "on"; }));
+  check("装了之后使用条款默认收起；点标题展开，重画设置也保持展开", await page.evaluate(() => document.getElementById("raTerms").open === false) && (await page.click("#raTerms > summary"), await page.evaluate(async () => { window.__jrb.readAloud.renderSettings(); await new Promise((r) => setTimeout(r, 200)); return document.getElementById("raTerms").open === true; })));
+  check("装了音色：朗读模式亮起来，默认「逐句」", await page.evaluate(() => { const m = document.getElementById("raModeSelect"); return !m.disabled && m.value === "sentence"; }));
   await page.selectOption("#raModeSelect", "off");
-  check("朗读模式关掉：音色留着，顶栏喇叭钮收起", await page.evaluate(() => document.getElementById("readAloudButton").hidden === true && document.querySelector("#raPacks .ra-pack").textContent.includes("已下载")));
-  await page.selectOption("#raModeSelect", "on");
+  check("朗读模式调到「关」：音色留着，顶栏喇叭钮收起", await page.evaluate(() => document.getElementById("readAloudButton").hidden === true && document.querySelector("#raPacks .ra-pack").textContent.includes("已下载")));
+  check("到这里引擎一次都没装过（开书、开设置、下载都不备引擎）", await page.evaluate(() => !window.__raLog.some((x) => x.startsWith("load"))));
+  await page.selectOption("#raModeSelect", "sentence");
+  check("把朗读模式调开 = 有意图：后台开始备引擎", await wait(() => window.__raLog.includes("load:ja+en")));
   await page.click("#settingsClose"); await page.waitForTimeout(200);
   await showChrome();
-  check("朗读模式开着 + 装了音色 → 顶栏露出朗读钮", await page.evaluate(() => document.getElementById("readAloudButton").hidden === false));
+  check("朗读模式不是「关」 + 装了音色 → 顶栏露出朗读钮", await page.evaluate(() => document.getElementById("readAloudButton").hidden === false));
+  const setMode = (m) => page.evaluate((v) => { const el = document.getElementById("raModeSelect"); el.value = v; el.dispatchEvent(new Event("change")); }, m);
+  const toEnd = () => wait(() => { const s = window.__jrb.readAloud.debugState(); return document.querySelector("#reader .txt-chapter-title")?.textContent === "第4章 结尾" && s.state === "idle" && !s.continuous && s.active; }, null, 30000);
 
   // ── 进朗读态 ──
   await showChrome();
@@ -96,49 +111,71 @@ try {
   check("点朗读 → 进朗读态、控制条出现、引擎开始装语音", await page.evaluate(() => window.__jrb.readAloud.active() && document.body.dataset.readAloud === "1" && !document.getElementById("raBar").hidden && window.__raLog.includes("load:ja+en")));
 
   check("朗读态下提示条在控制条上方，不盖住按钮", await page.evaluate(() => { const toast = document.getElementById("toast"), bar = document.getElementById("raBar"); const was = toast.hidden, txt = toast.textContent; toast.hidden = false; if (!txt) toast.textContent = "x"; const tr = toast.getBoundingClientRect(), br = bar.getBoundingClientRect(); toast.hidden = was; toast.textContent = txt; return tr.height > 0 && tr.bottom <= br.top; }));
+  // 语速在控制条上：点一下换一档（1 → 1.1 → 1.25 → 0.8）
+  check("控制条上的语速钮：显示 1×，点三下到 0.8×", await page.evaluate(() => document.getElementById("raSpeed").textContent === "1×") && (await page.click("#raSpeed"), await page.click("#raSpeed"), await page.click("#raSpeed"), await page.evaluate(() => document.getElementById("raSpeed").textContent === "0.8×")));
 
-  // ── 逐句：点一句读一句 ──
+  // ── 逐句模式（学语言用）：点一句念一句 ──
   const pt = await page.evaluate(() => { const node = document.querySelector("#reader .txt-body").firstChild; const i = node.data.indexOf("きつね"); const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1); const q = r.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; });
   const chromeBefore = await page.evaluate(() => document.body.dataset.chrome ?? "");
   await page.mouse.click(pt.x, pt.y);
-  check("点一句 → 合成的正是那一句（整句，引号里的句号不拆）、语言 = 日语、语速 = 设置的 0.8", await wait(() => window.__raLog.some((x) => x === "synth:ja:0.8:「お前はだれだ。」と、きつねがたずねました。")), (await page.evaluate(() => window.__raLog.join(" | "))));
+  check("点一句 → 合成的正是那一句（整句，引号里的句号不拆）、语言 = 日语、语速 = 控制条上的 0.8", await wait(() => window.__raLog.some((x) => x === "synth:ja:0.8:「お前はだれだ。」と、きつねがたずねました。")), (await page.evaluate(() => window.__raLog.join(" | "))));
   check("正在读的句子被标出来（CSS Highlight）", await wait(() => CSS.highlights.has("jrb-reading")) && await ra(`body.slice(s.marked.start, s.marked.end) === "「お前はだれだ。」と、きつねがたずねました。"`));
-  check("读完一句就停（不往下读）", await wait(() => window.__jrb.readAloud.debugState().state === "idle") && await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length === 1));
+  check("逐句：读完一句就停（不往下读）", await wait(() => window.__jrb.readAloud.debugState().state === "idle") && await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length === 1));
   check("朗读态下点正文不切顶栏", (await page.evaluate(() => document.body.dataset.chrome ?? "")) === chromeBefore);
-
-  // ── 上一句 / 下一句 ──
+  await page.click("#raMenu"); await page.waitForTimeout(250);
+  const chromeAfterMenu = await page.evaluate(() => document.body.dataset.chrome ?? "");
+  check("朗读态下从控制条上的「⋯」叫出 / 收起顶栏", chromeAfterMenu !== chromeBefore && (await page.click("#raMenu"), await page.waitForTimeout(250), (await page.evaluate(() => document.body.dataset.chrome ?? "")) === chromeBefore), `${chromeBefore} → ${chromeAfterMenu}`);
+  check("控制条在手机宽度里放得下（不超出屏幕）", await page.evaluate(() => { const r = document.getElementById("raBar").getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth; }));
   await page.click("#raNext");
-  check("下一句 → 读下一句", await wait(() => window.__raLog.some((x) => x.endsWith(":雨が降ってきました。"))) && await wait(() => window.__jrb.readAloud.debugState().state === "idle"));
-  await page.click("#raPrev"); await page.click("#raPrev");
-  check("上一句两次 → 回到第一句", await wait(() => { const s = window.__jrb.readAloud.debugState(); return s.marked && s.marked.start === 0; }) && await wait(() => window.__jrb.readAloud.debugState().state === "idle"));
-
-  // ── 亮屏连读：从标着的句子一路读，章末自动翻章，读到书末停 ──
+  check("逐句：下一句 → 只念下一句", await wait(() => window.__raLog.some((x) => x.endsWith(":雨が降ってきました。"))) && await wait(() => { const s = window.__jrb.readAloud.debugState(); return s.state === "idle" && !s.continuous; }));
+  await page.click("#raPrev"); await wait(() => window.__jrb.readAloud.debugState().state === "idle"); await page.click("#raPrev");
+  check("逐句：上一句两次 → 回到第一句", await wait(() => { const s = window.__jrb.readAloud.debugState(); return s.marked && s.marked.start === 0; }) && await wait(() => window.__jrb.readAloud.debugState().state === "idle"));
+  const nSynth = await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length);
+  await page.evaluate(() => { window.__live.max = 0; });
   await page.click("#raPlay");
-  check("连读：播放钮变暂停", await wait(() => document.getElementById("raPlayIcon").getAttribute("href") === "#pause"));
+  check("逐句：播放键 = 重念标着的这一句（不重新合成、念完就停、不往下走）", await wait(() => window.__live.max === 1) && await wait(() => { const s = window.__jrb.readAloud.debugState(); return s.state === "idle" && !s.continuous && s.marked.start === 0; }) && await page.evaluate((n) => window.__raLog.filter((x) => x.startsWith("synth:")).length === n, nSynth));
+  // 新点的优先：同一句（已合成好）连点四次、间隔比一句短 → 任何时刻只有一段在响（2026-10-01 真机听到的「unison」）
+  const p0 = await page.evaluate(() => { const node = document.querySelector("#reader .txt-body").firstChild; const r = document.createRange(); r.setStart(node, 0); r.setEnd(node, 1); const q = r.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; });
+  await page.evaluate(() => { window.__live.max = 0; });
+  for (let k = 0; k < 4; k++) { await page.mouse.click(p0.x, p0.y); await page.waitForTimeout(40); }
+  check("同一句连点四次：同时在响的声源最多一个，念完归零", await wait(() => window.__jrb.readAloud.debugState().state === "idle" && window.__live.now === 0) && await page.evaluate(() => window.__live.max === 1), JSON.stringify(await page.evaluate(() => window.__live)));
+
+  // ── 连续模式：点一句 / 按播放 = 一路往下念，章末自动翻章，读到书末停 ──
+  await setMode("continuous");
+  check("换成「连续」：还在朗读态，喇叭钮还在", await page.evaluate(() => window.__jrb.readAloud.active() && document.getElementById("readAloudButton").hidden === false));
+  await page.click("#raPlay");
+  check("连续：播放钮变暂停", await wait(() => document.getElementById("raPlayIcon").getAttribute("href") === "#pause"));
   check("连读：章末自动翻章接着读，只有标题的空章直接跳过", await wait(() => document.querySelector("#reader .txt-chapter-title")?.textContent === "第3章 中间" && window.__raLog.some((x) => x.endsWith(":这是第三章的第一句。")), null, 20000), JSON.stringify(await page.evaluate(() => ({ log: window.__raLog, st: window.__jrb.readAloud.debugState(), title: document.querySelector("#reader .txt-chapter-title")?.textContent, body: window.__jrb.reader.bodyText().slice(0, 80), ctx: "n/a" }))));
   check("翻章后语言跟着这一章变（中文），引擎换装成只装中文", await page.evaluate(() => window.__raLog.some((x) => x.startsWith("synth:zh:") && x.endsWith(":这是第三章的第一句。")) && window.__raLog.indexOf("load:zh") > window.__raLog.indexOf("load:ja+en")));
   await page.click("#raPlay");
   check("暂停 → 状态 paused；再点 → 继续", await ra(`s.state === "paused"`) && (await page.click("#raPlay"), await ra(`s.state === "playing" || s.state === "loading"`)));
-  check("读到书末：停下、还在朗读态、播放钮回到播放", await wait(() => { const s = window.__jrb.readAloud.debugState(); return document.querySelector("#reader .txt-chapter-title")?.textContent === "第4章 结尾" && s.state === "idle" && !s.continuous && s.active; }, null, 20000) && await page.evaluate(() => document.getElementById("raPlayIcon").getAttribute("href") === "#play"));
+  check("读到书末：停下、还在朗读态、播放钮回到播放", await toEnd() && await page.evaluate(() => document.getElementById("raPlayIcon").getAttribute("href") === "#play"));
   const order = await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).map((x) => x.split(":").slice(3).join(":")));
   const ALL = ["森の中で、小さな女の子が赤い花を見つけました。", "「お前はだれだ。」と、きつねがたずねました。", "雨が降ってきました。", "这是第三章的第一句。", "这是第三章的第二句！", "最后一句。"];
-  check("整本六句每句都合成过、且只合成一次（点过 / 跳过的句子连读时不重算）", order.length === 6 && ALL.every((x) => order.filter((y) => y === x).length === 1), JSON.stringify(order));
+  check("整本六句每句都合成过、且只合成一次（逐句时念过的句子连续时不重算）", order.length === 6 && ALL.every((x) => order.filter((y) => y === x).length === 1), JSON.stringify(order));
   check("后面几章按书里的顺序读", JSON.stringify(order.slice(3)) === JSON.stringify(ALL.slice(3)), JSON.stringify(order));
 
-  // ── 全文朗读中跳转：念着的时候点别的句子 = 跳到那里接着往下念（不是只念那一句）──
+  // ── 连续模式里的跳转：点哪句就从哪句接着往下念（正在念 / 停着都一样）──
   await page.evaluate(() => { window.__jrb.reader.goTo(0); });
   await page.waitForTimeout(150);
   await page.click("#raPlay");
   await wait(() => { const st = window.__jrb.readAloud.debugState().state; return st === "playing" || st === "loading"; });
   const ptRain = await page.evaluate(() => { const node = document.querySelector("#reader .txt-body").firstChild; const i = node.data.indexOf("雨が"); const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1); const q = r.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; });
+  await page.evaluate(() => { window.__live.max = 0; });
   await page.mouse.click(ptRain.x, ptRain.y);
-  check("全文朗读中点另一句 → 跳到那一句，仍在全文朗读", await wait(() => { const s = window.__jrb.readAloud.debugState(); const body = window.__jrb.reader.bodyText(); return s.continuous && s.marked && body.slice(s.marked.start, s.marked.end) === "雨が降ってきました。"; }), await ra(`JSON.stringify(s)`));
-  check("…并且接着往下念：自动翻到后面的章，一路到书末", await wait(() => { const s = window.__jrb.readAloud.debugState(); return document.querySelector("#reader .txt-chapter-title")?.textContent === "第4章 结尾" && s.state === "idle" && !s.continuous; }, null, 30000));
+  check("连续：正在念的时候点另一句 → 跳到那一句，仍是连续", await wait(() => { const s = window.__jrb.readAloud.debugState(); const body = window.__jrb.reader.bodyText(); return s.continuous && s.marked && body.slice(s.marked.start, s.marked.end) === "雨が降ってきました。"; }), await ra(`JSON.stringify(s)`));
+  check("…并且接着往下念：自动翻到后面的章，一路到书末；全程没有两段同时响", await toEnd() && await page.evaluate(() => window.__live.max === 1), JSON.stringify(await page.evaluate(() => window.__live)));
   await page.evaluate(() => { window.__jrb.reader.goTo(0); });
   await page.waitForTimeout(150);
-  const before1 = await page.evaluate(() => window.__raLog.length);
   await page.mouse.click(ptRain.x, ptRain.y);
-  check("没在念全文时点一句 → 只念这一句（点读）", await wait(() => { const s = window.__jrb.readAloud.debugState(); return s.marked && !s.continuous && s.state === "idle"; }) && await page.evaluate((n) => window.__raLog.slice(n).filter((x) => x.startsWith("synth:")).length <= 1, before1));
+  check("连续：停着的时候点一句 → 从那一句开始一路往下念", await wait(() => { const s = window.__jrb.readAloud.debugState(); return s.continuous && s.marked; }) && await toEnd());
+  // 念着的时候换语速：从标着的这一句按新速度重念，仍是连续
+  await page.evaluate(() => { window.__jrb.reader.goTo(0); });
+  await page.waitForTimeout(150);
+  await page.click("#raPlay");
+  await wait(() => window.__jrb.readAloud.debugState().state === "playing");
+  await page.click("#raSpeed");
+  check("念着的时候点语速钮（0.8 → 0.9）：这一句按新速度重新合成，接着连续念", await wait(() => window.__raLog.some((x) => x.startsWith("synth:ja:0.9:森の中で"))) && await page.evaluate(() => document.getElementById("raSpeed").textContent === "0.9×" && window.__jrb.readAloud.debugState().continuous) && await toEnd());
 
   // ── 自己翻章 = 停；退出 = 清干净 ──
   await page.evaluate(() => { window.__jrb.reader.goTo(0); });
@@ -147,7 +184,12 @@ try {
   await wait(() => window.__jrb.readAloud.debugState().state === "playing");
   await page.evaluate(() => window.__jrb.reader.next()); await page.waitForTimeout(200);
   check("连读中自己翻章 → 停下、标记清掉", await ra(`s.state === "idle" && s.marked === null && !s.continuous`) && await page.evaluate(() => !CSS.highlights.has("jrb-reading")));
+  await page.evaluate(() => { window.__jrb.reader.goTo(0); });
+  await page.waitForTimeout(150);
+  await page.click("#raPlay");
+  await wait(() => window.__jrb.readAloud.debugState().state === "playing" && window.__live.now === 1);
   await page.click("#raClose"); await page.waitForTimeout(150);
+  check("正在念的时候退出朗读 → 立刻没声（没有还在响的声源）", await page.evaluate(() => window.__live.now === 0));
   check("退出朗读 → 控制条收起、不在朗读态", await page.evaluate(() => document.getElementById("raBar").hidden && !window.__jrb.readAloud.active() && document.body.dataset.readAloud === undefined));
   const chrome0 = await page.evaluate(() => document.body.dataset.chrome === "shown");
   await page.mouse.click(187, 300); await page.waitForTimeout(250);
@@ -168,7 +210,10 @@ try {
   await showChrome();
   await page.click("#readAloudButton"); await page.waitForTimeout(250);
   check("再进朗读态", await page.evaluate(() => window.__jrb.readAloud.active()));
+  await page.click("#raPlay");
+  await wait(() => window.__jrb.readAloud.debugState().state === "playing" && window.__live.now === 1);
   await page.click("#libraryButton"); await page.waitForTimeout(300);
+  check("正在念的时候离开这本书（进书架）→ 立刻没声", await page.evaluate(() => window.__live.now === 0));
   check("进书架 → 自动退出朗读", await page.evaluate(() => !window.__jrb.readAloud.active() && document.getElementById("raBar").hidden));
   // ── 清缓存重启只清自己的：家族共享的模型缓存、兄弟 app 的壳缓存不陪葬 ──
   await page.evaluate(async () => { for (const k of ["pwa-models", "xiaoheiwu-keepme", "jrb-oldshell"]) await (await caches.open(k)).put("/__probe__", new Response("x")); });

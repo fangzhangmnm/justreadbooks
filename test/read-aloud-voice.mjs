@@ -42,6 +42,14 @@ page.on("console", (m) => { if (m.type() === "error") pageErrors.push("console.e
 // 喇叭探针：每次真的往喇叭送一段声音就记下它的时长和响度
 await page.addInitScript(() => {
   window.__played = [];
+  // 同时在响的声源计数（任何时刻不许超过 1）：「响完了」的监听在声源出生时就挂上，排在库自己的 onended 前面
+  const live = (window.__live = { now: 0, max: 0 });
+  const off = (n) => { if (n.__live) { n.__live = false; live.now--; } };
+  const create0 = BaseAudioContext.prototype.createBufferSource;
+  BaseAudioContext.prototype.createBufferSource = function (...a) { const n = create0.apply(this, a); n.addEventListener("ended", () => off(n)); return n; };
+  const S = AudioBufferSourceNode.prototype, start0 = S.start, stop0 = S.stop;
+  S.start = function (...a) { if (!this.__live) { this.__live = true; live.now++; live.max = Math.max(live.max, live.now); } return start0.apply(this, a); };
+  S.stop = function (...a) { off(this); return stop0.apply(this, a); };
   const orig = AudioBuffer.prototype.copyToChannel;
   AudioBuffer.prototype.copyToChannel = function (src, ch) { let s = 0; for (let i = 0; i < src.length; i++) s += src[i] * src[i]; window.__played.push({ sec: src.length / this.sampleRate, rms: Math.sqrt(s / Math.max(1, src.length)) }); return orig.call(this, src, ch); };
 });
@@ -111,11 +119,16 @@ try {
   // ── 连读：从第一句起，日语章 → 英语章 → 中文章，引擎跟着换装语言，读到书末停 ──
   const p0 = await page.evaluate(() => { const node = document.querySelector("#reader .txt-body").firstChild; const r = document.createRange(); r.setStart(node, 0); r.setEnd(node, 1); const q = r.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; });
   await page.mouse.click(p0.x, p0.y);
-  check("点第一句 → 念第一句", await wait(() => window.__played.length === 2) && await wait(() => window.__jrb.readAloud.debugState().state === "idle"));
+  check("点第一句 → 念第一句（逐句模式：念完就停）", await wait(() => window.__played.length === 2) && await wait(() => window.__jrb.readAloud.debugState().state === "idle"));
+  // 新点的优先：真的几秒长的句子，隔 0.3 秒连点三次 → 任何时刻只有一段在响
+  await page.evaluate(() => { window.__live.max = 0; });
+  for (let k = 0; k < 3; k++) { await page.mouse.click(p0.x, p0.y); await page.waitForTimeout(300); }
+  check("同一句连点三次：同时在响的声源最多一个", await wait(() => window.__jrb.readAloud.debugState().state === "idle" && window.__live.now === 0) && await page.evaluate(() => window.__live.max === 1), JSON.stringify(await page.evaluate(() => window.__live)));
+  await page.evaluate(() => { window.__played.length = 2; const el = document.getElementById("raModeSelect"); el.value = "continuous"; el.dispatchEvent(new Event("change")); });   // 换成「连续」
   await page.click("#raPlay");
   check("连读到书末：停在最后一章、回到 idle", await wait(() => { const s = window.__jrb.readAloud.debugState(); return document.querySelector("#reader .txt-chapter-title")?.textContent === "第3章 中文" && s.state === "idle" && !s.continuous && window.__played.length >= 9; }, null, 180000), JSON.stringify(await page.evaluate(() => ({ s: window.__jrb.readAloud.debugState(), n: window.__played.length, title: document.querySelector("#reader .txt-chapter-title")?.textContent, toast: document.getElementById("toast").textContent }))));
   const played = await page.evaluate(() => window.__played);
-  check("连读的三章七句都真的出了声（日 3 + 英 2 + 中 2），每段 0.8–9 秒", played.length === 9 && played.every((p) => p.sec > 0.8 && p.sec < 9 && p.rms > 0.01), JSON.stringify(played.map((p) => +p.sec.toFixed(1))));
+  check("连续模式的三章七句都真的出了声（日 3 + 英 2 + 中 2），每段 0.8–9 秒；全程没有两段同时响", played.length === 9 && played.every((p) => p.sec > 0.8 && p.sec < 9 && p.rms > 0.005) && await page.evaluate(() => window.__live.max === 1), JSON.stringify(played.map((p) => +p.sec.toFixed(1))));
   console.log(`  （各段时长 s：${played.map((p) => p.sec.toFixed(1)).join(" ")}）`);
 
   // ── 删除 ──

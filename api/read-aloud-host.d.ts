@@ -18,6 +18,8 @@ export interface ReadAloudHostDeps {
     confirm: (title: string, message: string) => Promise<boolean>;
     /** available() 的答案变了（装上 / 删掉了音色）：宿主重画顶栏。 */
     availabilityChanged: () => void;
+    /** 显示 / 收起顶栏（朗读态下点正文是点句子，顶栏只能从控制条上叫出来）。 */
+    toggleChrome: () => void;
     logError: (e: unknown) => void;
 }
 export interface ReadAloudHost {
