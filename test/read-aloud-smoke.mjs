@@ -131,6 +131,14 @@ try {
   check("再进朗读态", await page.evaluate(() => window.__jrb.readAloud.active()));
   await page.click("#libraryButton"); await page.waitForTimeout(300);
   check("进书架 → 自动退出朗读", await page.evaluate(() => !window.__jrb.readAloud.active() && document.getElementById("raBar").hidden));
+  // ── 清缓存重启只清自己的：家族共享的模型缓存、兄弟 app 的壳缓存不陪葬 ──
+  await page.evaluate(async () => { for (const k of ["pwa-models", "xiaoheiwu-keepme", "jrb-oldshell"]) await (await caches.open(k)).put("/__probe__", new Response("x")); });
+  await page.click("#gallerySettingsBtn"); await page.waitForTimeout(200);
+  await page.click("#secApp > summary"); await page.waitForTimeout(100);
+  await Promise.all([page.waitForURL(/[?&]reset=/, { timeout: 15000 }), page.click("#forceUpdateButton")]);
+  await page.waitForFunction(() => !!window.__jrb, null, { timeout: 15000 });
+  const kept = await page.evaluate(async () => { const keys = await caches.keys(); return { models: keys.includes("pwa-models"), sibling: keys.includes("xiaoheiwu-keepme"), ownOld: keys.includes("jrb-oldshell") }; });
+  check("清缓存重启：共享模型缓存和兄弟 app 的缓存留着，自己的旧壳缓存清掉", kept.models && kept.sibling && !kept.ownOld, JSON.stringify(kept));
   check("零页面错误（未登录/断网的库日志除外）", pageErrors.filter((e) => !/Not signed in|Failed to fetch|net::ERR/.test(e)).length === 0, pageErrors.join(" | ").slice(0, 400));
 } catch (e) { check("冒烟脚本自身", false, String(e).slice(0, 400)); }
 finally { await browser.close(); srv.close(); }

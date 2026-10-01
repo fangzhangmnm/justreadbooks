@@ -9,6 +9,9 @@
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", ""]);
 
+/** 本 app 壳缓存的名字前缀（= service-worker.js 的 `jrb-<hash>` / `jrb-boot`）。清缓存只许动这个前缀。 */
+const SHELL_CACHE_PREFIX = "jrb-";
+
 export interface PwaShellOptions {
   onUpdateAvailable: () => void;
   onForeground?: () => void;
@@ -47,8 +50,11 @@ export function initPwaShell(opts: PwaShellOptions): PwaShell {
     const settle = (p: void | Promise<void>, ms: number) => Promise.race([Promise.resolve(p).catch(() => undefined), new Promise<void>((r) => setTimeout(r, ms))]);
     await settle(opts.onBeforeReload?.(), 4000);
     try {
-      if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister().catch(() => {});
-      if (typeof caches !== "undefined") for (const k of await caches.keys()) await caches.delete(k).catch(() => {});
+      // 只动自己的：家族的 app 几乎都挂在同一个域名下，缓存和 service worker 是按域名算的——
+      //   「全部注销 / 全部删除」会把兄弟 app 的离线壳、家族共享的模型缓存 `pwa-models`（语音识别模型、朗读语音包）一起清掉。
+      //   自己的 = 管着当前页面的那一个 service worker + 名字以 `jrb-` 开头的缓存（service-worker.js 的壳缓存前缀）。
+      if (navigator.serviceWorker) { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.unregister().catch(() => {}); }
+      if (typeof caches !== "undefined") for (const k of await caches.keys()) { if (k.startsWith(SHELL_CACHE_PREFIX)) await caches.delete(k).catch(() => {}); }
     } catch { /* best-effort — reload anyway */ }
     const target = `${location.pathname}?reset=${Date.now()}`;
     setTimeout(() => location.replace(target), 150);

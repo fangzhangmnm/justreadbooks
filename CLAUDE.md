@@ -17,7 +17,7 @@ TXT 网文/轻小说阅读器（0.1 纪元：2026-09-19 在 @internal/store + @i
 部署：main → `/dev/`，prod 分支 → `/`（`.github/workflows/deploy.yml`）；**push prod 必问 user**（硬规则 #5）。
 
 ## 黄线区（外接服务白名单）
-**待 user 确认登记**（0.2.1 朗读要用；我在评估文档 §8 把它列为朗读的前置，user 2026-10-01 对朗读说了「做」，但没有单独点名这一条）：模型源 = 家族级白名单 ②（默认 `https://fangzhangmnm.github.io/pwa-models`，设置里可改镜像）——只读 GET 语音包分片，逐片 sha256 对内嵌清单；发请求的是 `@internal/read-aloud` 的 worker（不在 `src/` 里），`src/` 里仍然零非相对 URL 的 fetch，`speechSynthesis` / `SpeechRecognition` 一律禁（守卫测试）。这一版语音包清单是空的，所以现在不会发出任何这类请求。
+**模型源**（user 2026-10-01「JRB 可以从家族模型仓下载语音包、并存在浏览器缓存里吗？ 可以！」；0.2.1 朗读用）= 家族级白名单 ②（默认 `https://fangzhangmnm.github.io/pwa-models`，设置里可改镜像）——只读 GET 语音包分片，逐片 sha256 对内嵌清单；发请求的是 `@internal/read-aloud` 的 worker（不在 `src/` 里），`src/` 里仍然零非相对 URL 的 fetch，`speechSynthesis` / `SpeechRecognition` 一律禁（守卫测试）。
 除此之外：JRB 不接任何第三方网络服务；云端全经 `@internal/store`（OneDrive appfolder，硬规则 #6/#7）。`test/redline-guard.test.mjs` 黄线测试守 `src/` 零非相对 URL fetch。
 
 ## 持久层白名单
@@ -28,5 +28,5 @@ TXT 网文/轻小说阅读器（0.1 纪元：2026-09-19 在 @internal/store + @i
 | 云端 appfolder | `<夹/>书.txt`、`.jrb/reading-position.json`（{anchor, readAt}）、`.jrb/book-prefs.json`（{regexId, regexCustom, encoding, header}）、`.trash/` | 书 + 位置 + 规则 + 状态头 |
 | localStorage 库前缀 `jrb.defaultStore.*` | etag / dirty / pending 账 | 库内部 |
 | localStorage（device-kv）`read-aloud` | { pack, voice, speed, source } | 朗读偏好（设备属性，不跟云；0.2.1） |
-| Cache Storage `pwa-models`（家族共享名；经 `@internal/read-aloud` 的 worker） | 语音包分片 + verified 标记 | 可再生派生缓存；**待 user 确认**（同上，随朗读一起列的前置）。同源的 WXHW 下过的包这里直接能用 |
+| Cache Storage `pwa-models`（家族共享名；经 `@internal/read-aloud` 的 worker） | 语音包分片 + verified 标记 | 可再生派生缓存（user 2026-10-01 批，同上一句话）。**家族共享**：同源的 WXHW 下过的包这里直接能用（user「最好jrb和wxhw如果都用朗读的话可以共享同一个缓存」）。「清缓存重启」不许动它（`src/pwa-shell.ts` 只清 `jrb-` 前缀，冒烟守着）；删语音包只在设置 →「朗读」里逐包删 |
 | Cache Storage `jrb-<hash>`（service worker 运行时缓存） | 公共字体 `vendor/fonts/sans.ttf.gz`、朗读 worker、朗读引擎文件 | 用过才进缓存；换版本重取 |
