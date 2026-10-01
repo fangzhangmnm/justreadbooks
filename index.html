@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#F6F4EF" />
-    <meta name="read-aloud-worker-piper-plus" content="./dist/read-aloud-worker-piper-plus-18d9ab2b0ee4.js" />
+    <meta name="read-aloud-worker-piper-plus" content="./dist/read-aloud-worker-piper-plus-79e1a902bd31.js" />
     <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -233,6 +233,8 @@
         <summary class="settings-section-title" data-i18n="settings.readAloud">朗读</summary>
         <div class="setting-note" data-i18n="ra.intro">朗读是可选的：下载一个音色、朗读模式不是「关」，顶栏才会出现喇叭钮。开书后点喇叭进入朗读。逐句（学语言用）：轻点一句，只念这一句。连续：轻点一句，从这一句一路往下念，念的时候点别的句子就跳过去。退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。</div>
         <div class="setting-row"><span data-i18n="ra.mode">朗读模式</span><select id="raModeSelect" disabled><option value="off" data-i18n="ra.modeOff" selected>关</option><option value="continuous" data-i18n="ra.modeContinuous">连续</option><option value="sentence" data-i18n="ra.modeSentence">逐句</option></select></div>
+        <div class="setting-row"><span data-i18n="ra.style">念法（实验）</span><select id="raStyleSelect"><option value="normal" data-i18n="ra.styleNormal" selected>原样</option><option value="steady" data-i18n="ra.styleSteady">平稳</option></select></div>
+        <div class="setting-note" data-i18n="ra.styleHint">平稳 = 随机起伏调小、稍慢一点：机器听写的错字少一半以上，但可能更平。两种切着听，告诉我哪个好。</div>
         <div id="raPacks"></div>
         <div class="setting-row" id="raVoiceRow" hidden><span data-i18n="ra.voice">音色</span><select id="raVoiceSelect"></select></div>
         <div class="setting-row" id="raSpeakerRow" hidden><span data-i18n="ra.speaker">说话人</span><select id="raSpeakerSelect"></select></div>
@@ -327,6 +329,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-adf4f1fdad9a.mjs"></script>
+    <script type="module" src="./dist/jrb-7cddd29261dc.mjs"></script>
   </body>
 </html>

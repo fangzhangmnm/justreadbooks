@@ -68,7 +68,7 @@ try {
       load: async (voice, opts) => { const langs = opts?.langs ?? ALL; log.push(`load:${langs.join("+")}`); loaded = { voice, langs }; return { voice, langs, alreadyLoaded: false, createMs: 1, sampleRate: 22050, speakers: 2 }; },
       loaded: () => loaded,
       isKnownReady: (voice, lang) => (asked ? ready : undefined),
-      synth: async (text, o) => { log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
+      synth: async (text, o) => { if (o.steady) window.__raSteady = true; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
       dispose() { log.push("dispose"); loaded = null; },
     };
     const manifest = { v: 1, slug: "fake-pack", name: "fake", task: "tts", lang: ALL, engine: "fake", engineConfig: {}, files: [], chunkBytes: 1, chunks: [], totalBytes: 4096, sha256: "", license: { name: "test", file: "", sha256: "", attribution: "" } };
@@ -97,6 +97,7 @@ try {
   await page.selectOption("#raModeSelect", "off");
   check("朗读模式调到「关」：音色留着，顶栏喇叭钮收起", await page.evaluate(() => document.getElementById("readAloudButton").hidden === true && document.querySelector("#raPacks .ra-pack").textContent.includes("已下载")));
   check("到这里引擎一次都没装过（开书、开设置、下载都不备引擎）", await page.evaluate(() => !window.__raLog.some((x) => x.startsWith("load"))));
+  check("念法（实验）默认「原样」", await page.evaluate(() => document.getElementById("raStyleSelect").value === "normal"));
   await page.selectOption("#raModeSelect", "sentence");
   check("把朗读模式调开 = 有意图：后台开始备引擎", await wait(() => window.__raLog.includes("load:ja+en")));
   await page.click("#settingsClose"); await page.waitForTimeout(200);
@@ -176,6 +177,14 @@ try {
   await wait(() => window.__jrb.readAloud.debugState().state === "playing");
   await page.click("#raSpeed");
   check("念着的时候点语速钮（0.8 → 0.9）：这一句按新速度重新合成，接着连续念", await wait(() => window.__raLog.some((x) => x.startsWith("synth:ja:0.9:森の中で"))) && await page.evaluate(() => document.getElementById("raSpeed").textContent === "0.9×" && window.__jrb.readAloud.debugState().continuous) && await toEnd());
+
+  // ── 念法（实验）：切到「平稳」，引擎收到 steady ──
+  await page.evaluate(() => { const el = document.getElementById("raStyleSelect"); el.value = "steady"; el.dispatchEvent(new Event("change")); });
+  const nSteady = await page.evaluate(() => window.__raLog.length);
+  await setMode("sentence"); await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("念法切到「平稳」：点一句，引擎收到 steady（同一句重新合成）", await wait(() => window.__raSteady === true));
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle");
+  await page.evaluate(() => { const el = document.getElementById("raStyleSelect"); el.value = "normal"; el.dispatchEvent(new Event("change")); });
 
   // ── 自己翻章 = 停；退出 = 清干净 ──
   await page.evaluate(() => { window.__jrb.reader.goTo(0); });

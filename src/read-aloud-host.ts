@@ -22,7 +22,7 @@ const KV = "read-aloud";
 /** have = 这台设备上有能用的音色（上次问引擎时的结论）。朗读是可选的：没装音色的人顶栏上看不到喇叭钮，入口只在设置 →「朗读」。
  *  记在偏好里是为了启动时不用为了问这一句去起 worker。
  *  mode = 设置里的朗读模式；没设过 = 逐句（这个功能是语言学习逼出来的）。关 = 音色留着，喇叭钮收起。 */
-interface Prefs { voice?: string; speaker?: number; speed?: number; source?: string; have?: boolean; mode?: Mode }
+interface Prefs { voice?: string; speaker?: number; speed?: number; source?: string; have?: boolean; mode?: Mode; steady?: boolean }
 /** 朗读模式（user 2026-10-01「朗读模式不是有三种吗 关 连续 逐句 逐句是用来语言学习的」）。 */
 type Mode = "off" | "continuous" | "sentence";
 const MODES: readonly Mode[] = ["off", "continuous", "sentence"];
@@ -172,7 +172,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     try { await ensureLoaded(id, lang); } catch (e) { deps.logError(e); deps.status(t("ra.error"), { error: true }); return; }
     if (my !== readSeq || !on || deps.reader.bodyText() !== text) return;   // 等引擎的工夫里又点了别的 / 退出了 / 翻章了
     continuous = !once;
-    reader_().start(text, from, { once, lang, speaker: speaker(id), speed: speed() });
+    reader_().start(text, from, { once, lang, speaker: speaker(id), speed: speed(), steady: prefs().steady === true });
     void syncWake();
   }
   function stopReading(): void { readSeq++; chapterGap = false; continuous = false; ra?.stop(); marked = null; deps.reader.markReading(null); void syncWake(); renderBar(); }
@@ -332,6 +332,9 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     for (const it of items) { const o = document.createElement("option"); o.value = it.value; o.textContent = it.label; sel.appendChild(o); }
     sel.value = value;
   }
+  // 念法（实验，user 2026-10-01「以及为什么不给我开关让我自己来听」）：原样 / 平稳 = 采样噪声小 + 稍慢。默认原样，换不换默认值由 user 听了定。
+  const styleSel = $<HTMLSelectElement>("raStyleSelect");
+  styleSel.addEventListener("change", () => { setPrefs({ steady: styleSel.value === "steady" }); if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); } });
   const modeSel = $<HTMLSelectElement>("raModeSelect");
   function renderMode(): void {
     const have = voiceIds().length > 0 && prefs().have === true;
@@ -347,6 +350,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   });
   function renderSettings(): void {
     renderMode();
+    styleSel.value = prefs().steady ? "steady" : "normal";
     sourceInput.value = prefs().source ?? ""; sourceInput.placeholder = READ_ALOUD_MODEL_SOURCE;
     const id = currentVoice();
     voiceRow.hidden = voiceIds().length <= 1;
