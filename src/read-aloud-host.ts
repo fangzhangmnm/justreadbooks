@@ -30,7 +30,7 @@ const MODES: readonly Mode[] = ["off", "continuous", "sentence"];
 export interface ReadAloudCatalog { voices: Record<string, VoiceDef>; packs: Record<string, EmbeddedPack> }
 /** 每个音色给用户的一句实话（哪种语言是本行、哪种是凑合）：按音色 id 查，没有就不显示。 */
 const VOICE_NOTE: Record<string, Key> = { "tsukuyomi-chan": "ra.voiceNote.tsukuyomi-chan" };
-/** 连续模式自动翻章后，开念下一章之前停这么久（库里同段句间 600、跨段 900）。 */
+/** 连续模式自动翻章后，开念下一章之前停这么久（1 倍速时；库里同段句间 600、跨段 900）。 */
 const CHAPTER_GAP_MS = 1200;
 /** 引擎里空闲这么久就关 worker 归还内存（WASM 堆只涨不缩）。 */
 const DISPOSE_AFTER_MS = 120_000;
@@ -112,7 +112,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
         // 翻到下一章：留一口气再念（章与章之间不该比段与段之间还赶）。这口气里点了别的 / 停了 / 退出了 = 作废（readSeq）。
         marked = null;
         const my = ++readSeq; chapterGap = true; renderBar();
-        setTimeout(() => { if (my !== readSeq) return; chapterGap = false; if (on && continuous) void read(0, false); else renderBar(); }, CHAPTER_GAP_MS);
+        setTimeout(() => { if (my !== readSeq) return; chapterGap = false; if (on && continuous) void read(0, false); else renderBar(); }, CHAPTER_GAP_MS / speed());   // 停顿跟着语速等比例缩（库里句间、小句间的停顿也是）
       });
       ra.on("error", (e) => { deps.logError(e); deps.status(t("ra.error"), { error: true }); renderBar(); });
     }

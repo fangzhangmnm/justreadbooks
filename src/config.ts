@@ -44,7 +44,7 @@ export const FONT_SIZE_RANGE = { min: 14, max: 28 } as const;
 /** 语音包来源（家族模型仓；黄线区登记在 CLAUDE.md）。设置里可改成任何镜像——app 钉的是清单哈希不是网址。 */
 export const READ_ALOUD_MODEL_SOURCE = "https://fangzhangmnm.github.io/pwa-models";
 /** 语速档（1 = 音色自己的正常速度）。 */
-export const READ_ALOUD_SPEEDS = [0.8, 0.9, 1, 1.1, 1.25];
+export const READ_ALOUD_SPEEDS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];   // 0.8 = 学语言用（user 2026-10-01「夸奖一下0.8档，学语言特别有用」）；1.5 = user 同日要加的
 
 /** Quest 浏览器（手柄 D-pad 4 行量化滚动是这个场景）。 */
 export const IS_QUEST_BROWSER = /OculusBrowser|Quest|Wolvic/i.test(globalThis.navigator?.userAgent ?? "");

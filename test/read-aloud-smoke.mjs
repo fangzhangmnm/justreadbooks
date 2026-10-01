@@ -112,7 +112,7 @@ try {
 
   check("朗读态下提示条在控制条上方，不盖住按钮", await page.evaluate(() => { const toast = document.getElementById("toast"), bar = document.getElementById("raBar"); const was = toast.hidden, txt = toast.textContent; toast.hidden = false; if (!txt) toast.textContent = "x"; const tr = toast.getBoundingClientRect(), br = bar.getBoundingClientRect(); toast.hidden = was; toast.textContent = txt; return tr.height > 0 && tr.bottom <= br.top; }));
   // 语速在控制条上：点一下换一档（1 → 1.1 → 1.25 → 0.8）
-  check("控制条上的语速钮：显示 1×，点三下到 0.8×", await page.evaluate(() => document.getElementById("raSpeed").textContent === "1×") && (await page.click("#raSpeed"), await page.click("#raSpeed"), await page.click("#raSpeed"), await page.evaluate(() => document.getElementById("raSpeed").textContent === "0.8×")));
+  check("控制条上的语速钮：显示 1×，一档一档点过 1.1 / 1.25 / 1.5，再点回到 0.8×", await page.evaluate(() => document.getElementById("raSpeed").textContent === "1×") && await page.evaluate(() => { const b = document.getElementById("raSpeed"), seen = []; for (let k = 0; k < 4; k++) { b.click(); seen.push(b.textContent); } return seen.join(" ") === "1.1× 1.25× 1.5× 0.8×"; }));
 
   // ── 逐句模式（学语言用）：点一句念一句 ──
   const pt = await page.evaluate(() => { const node = document.querySelector("#reader .txt-body").firstChild; const i = node.data.indexOf("きつね"); const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1); const q = r.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; });
