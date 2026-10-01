@@ -2,8 +2,10 @@
 // user 2026-10-01「设置分栏 公共字体 逐句朗读 亮屏连续 做」「记得模块化不要bloatware」。评估 = 家族根 ai-docs/20261001-read-aloud-shared-lib-assessment.md。
 //
 // 这里只有接线：库管「分句 / 合成 / 播放 / 读到哪一句」，阅读器管「点在哪个字 / 标出正在读的句子 / 滚过去」，本文件把两头连起来并画控制条和设置栏。
-//   · 逐句：朗读态下轻点一句 = 只读那一句。
-//   · 亮屏连读：▶ = 从标着的那一句（没有就从屏幕上第一句）一路往下读，章末自动翻章，屏幕常亮。锁屏 / 切后台 = 暂停（这一版不承诺后台播放）。
+//   · 开关在设置 →「朗读」（user 2026-10-01「我的想法是你设置里面开启朗读模式，有全文朗读和每行点读」）：开着且装了音色，顶栏才有喇叭钮。
+//   · 点读：朗读态下轻点一句 = 只读那一句。
+//   · 全文朗读：▶ = 从标着的那一句（没有就从屏幕上第一句）一路往下读，章末自动翻章，屏幕常亮；念的过程中轻点别的句子 = 跳到那里接着念
+//     （user「全文一定要有跳转到某一行的功能」）。锁屏 / 切后台 = 暂停（这一版不承诺后台播放）。
 //   · 不 bloat：没进过朗读、没展开过设置里的「朗读」栏 = worker / 引擎 / 语音包一个字节都不动（引擎门面是懒的）。
 //   · 语音包来源 = 家族模型仓（config.ts READ_ALOUD_MODEL_SOURCE，设置里可改成任何镜像，或从本机文件导入）；字节到手逐片对内嵌清单的 sha256。
 //   · 一个音色 = 几个小包（权重 / 运行时 / 每种语言的词典；库的 VoiceDef）。界面只说「音色」；只把这一章的语言装进引擎（日语前端固定占 160 MB 内存）。
@@ -18,8 +20,9 @@ import type { TxtReader } from "./reader/txt.ts";
 
 const KV = "read-aloud";
 /** have = 这台设备上有能用的音色（上次问引擎时的结论）。朗读是可选的：没装音色的人顶栏上看不到喇叭钮，入口只在设置 →「朗读」。
- *  记在偏好里是为了启动时不用为了问这一句去起 worker。 */
-interface Prefs { voice?: string; speaker?: number; speed?: number; source?: string; have?: boolean }
+ *  记在偏好里是为了启动时不用为了问这一句去起 worker。
+ *  off = 用户在设置里把朗读模式关了（音色留着，喇叭钮收起）。 */
+interface Prefs { voice?: string; speaker?: number; speed?: number; source?: string; have?: boolean; off?: boolean }
 /** 随 app 内嵌的音色目录。 */
 export interface ReadAloudCatalog { voices: Record<string, VoiceDef>; packs: Record<string, EmbeddedPack> }
 /** 每个音色给用户的一句实话（哪种语言是本行、哪种是凑合）：按音色 id 查，没有就不显示。 */
@@ -257,7 +260,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     }
   }
   /** 记下「这台设备上有没有能用的音色」；变了就让宿主重画顶栏。 */
-  function noteHave(have: boolean): void { if ((prefs().have === true) !== have) { setPrefs({ have }); deps.availabilityChanged(); } }
+  function noteHave(have: boolean): void { if ((prefs().have === true) !== have) { setPrefs({ have }); deps.availabilityChanged(); } renderMode(); }
   async function refreshStatuses(): Promise<void> {
     let asked = 0;
     for (const id of voiceIds()) { try { const st = await eng().status(id); statuses.set(id, { ready: st.ready, langs: st.langs, bytesCached: st.bytesCached }); asked++; } catch (e) { deps.logError(e); } }
@@ -269,7 +272,15 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     for (const it of items) { const o = document.createElement("option"); o.value = it.value; o.textContent = it.label; sel.appendChild(o); }
     sel.value = value;
   }
+  const modeSel = $<HTMLSelectElement>("raModeSelect");
+  function renderMode(): void {
+    const have = voiceIds().length > 0 && prefs().have === true;
+    modeSel.disabled = !have;   // 没装音色开不了：先在下面下载
+    modeSel.value = have && prefs().off !== true ? "on" : "off";
+  }
+  modeSel.addEventListener("change", () => { const off = modeSel.value !== "on"; setPrefs({ off }); if (off && on) exit(); deps.availabilityChanged(); });
   function renderSettings(): void {
+    renderMode();
     speedSel.value = String(speed());
     sourceInput.value = prefs().source ?? ""; sourceInput.placeholder = READ_ALOUD_MODEL_SOURCE;
     const id = currentVoice();
@@ -288,7 +299,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   sourceInput.addEventListener("change", () => setPrefs({ source: sourceInput.value.trim() || undefined }));
 
   return {
-    available: () => voiceIds().length > 0 && prefs().have === true,
+    available: () => voiceIds().length > 0 && prefs().have === true && prefs().off !== true,
     active: () => on,
     toggle() { if (on) { exit(); return; } sink.unlock(); void enter(); },
     exit,
@@ -296,7 +307,10 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
       if (!on) return false;
       const off = deps.reader.offsetAt(x, y);
       if (off == null) return false;
-      sink.unlock(); void read(off, true);
+      sink.unlock();
+      // 全文朗读进行中（含暂停）：点哪句 = 跳到那一句接着往下念。没在念全文：点哪句 = 只念那一句（点读）。
+      const st = ra?.state() ?? "idle";
+      void read(off, !(continuous && st !== "idle"));
       return true;
     },
     contentChanged() { if (advancing) return; if (ra && ra.state() !== "idle") stopReading(); else { marked = null; } },

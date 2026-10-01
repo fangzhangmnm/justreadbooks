@@ -159,8 +159,11 @@ export const S = {
   // ── 朗读 ──
   "settings.readAloud": { zh: "朗读", en: "Read aloud" },
   "ra.title": { zh: "朗读", en: "Read aloud" },
-  "ra.intro": { zh: "朗读是可选的：在这里下载一个音色之后，顶栏才会出现喇叭钮。开书后点喇叭进入朗读：点一句读一句，按播放键一路往下读；退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。", en: "Read-aloud is optional: the speaker button appears in the top bar only after you download a voice here. Open a book and tap the speaker: tap a sentence to hear it, or press play to read on; leave and the page is as usual. Speech is synthesised on this device; your text never leaves it." },
-  "ra.play": { zh: "从这里连读", en: "Read on from here" },
+  "ra.intro": { zh: "朗读是可选的：下载一个音色并打开朗读模式，顶栏才会出现喇叭钮。开书后点喇叭进入朗读——点读：轻点一句，只念这一句；全文朗读：按播放键从这一句一路往下念，念的时候轻点别的句子就跳到那里接着念。退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。", en: "Read-aloud is optional: the speaker button appears in the top bar only when a voice is downloaded and read-aloud mode is on. Open a book and tap the speaker — tap to hear: tap a sentence to hear just that one; read on: press play to read from that sentence onward, and tap another sentence while it is reading to jump there. Leave and the page is as usual. Speech is synthesised on this device; your text never leaves it." },
+  "ra.mode": { zh: "朗读模式", en: "Read-aloud mode" },
+  "ra.modeOn": { zh: "开", en: "On" },
+  "ra.modeOff": { zh: "关", en: "Off" },
+  "ra.play": { zh: "从这里念全文", en: "Read on from here" },
   "ra.pause": { zh: "暂停", en: "Pause" },
   "ra.prev": { zh: "上一句", en: "Previous sentence" },
   "ra.next": { zh: "下一句", en: "Next sentence" },

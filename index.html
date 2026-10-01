@@ -231,7 +231,8 @@
         </details>
         <details class="settings-section" id="secReadAloud">
         <summary class="settings-section-title" data-i18n="settings.readAloud">朗读</summary>
-        <div class="setting-note" data-i18n="ra.intro">朗读是可选的：在这里下载一个音色之后，顶栏才会出现喇叭钮。开书后点喇叭进入朗读：点一句读一句，按播放键一路往下读；退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。</div>
+        <div class="setting-note" data-i18n="ra.intro">朗读是可选的：下载一个音色并打开朗读模式，顶栏才会出现喇叭钮。开书后点喇叭进入朗读——点读：轻点一句，只念这一句；全文朗读：按播放键从这一句一路往下念，念的时候轻点别的句子就跳到那里接着念。退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。</div>
+        <div class="setting-row"><span data-i18n="ra.mode">朗读模式</span><select id="raModeSelect" disabled><option value="on" data-i18n="ra.modeOn">开</option><option value="off" data-i18n="ra.modeOff" selected>关</option></select></div>
         <div id="raPacks"></div>
         <div class="setting-row" id="raVoiceRow" hidden><span data-i18n="ra.voice">音色</span><select id="raVoiceSelect"></select></div>
         <div class="setting-row" id="raSpeakerRow" hidden><span data-i18n="ra.speaker">说话人</span><select id="raSpeakerSelect"></select></div>
@@ -325,6 +326,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-aa9fe9d0e3ee.mjs"></script>
+    <script type="module" src="./dist/jrb-92c343096385.mjs"></script>
   </body>
 </html>

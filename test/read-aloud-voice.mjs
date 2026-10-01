@@ -13,6 +13,8 @@ const VOICE_DIR = process.env.READ_ALOUD_VOICE_DIR ?? join(process.env.HOME, "ju
 const VOICE = process.env.READ_ALOUD_VOICE ?? "tsukuyomi-chan";
 if (!existsSync(join(VOICE_DIR, "voices", `${VOICE}.json`))) { console.log(`  read-aloud voice smoke: SKIPPED (no ${VOICE}.json under ${VOICE_DIR})`); process.exit(0); }
 const SHOTS = process.env.READ_ALOUD_SHOTS ?? "";
+// READ_ALOUD_EMBEDDED=1：不往 app 里塞目录，用 app 自己内嵌的那份（= 线上用户看到的；要求 VOICE_DIR 里的字节就是内嵌清单钉的那些）。
+const EMBEDDED = process.env.READ_ALOUD_EMBEDDED === "1";
 
 const { chromium } = createRequire(new URL("../../20260524 WeebPaint/package.json", import.meta.url))("playwright");
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -56,7 +58,7 @@ try {
   await page.waitForTimeout(400);
 
   // ── 把这份音色目录当「随 app 内嵌的」装进去（产品里是 tools/gen-read-aloud-packs.mjs 在 build 前生成）；引擎用真的 ──
-  const cat = await page.evaluate(async (voice) => {
+  const cat = await page.evaluate(async ([voice, embedded]) => {
     const hex = async (b) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].map((x) => x.toString(16).padStart(2, "0")).join("");
     const def = await (await fetch(`/__models/voices/${voice}.json`)).json();
     const packs = {};
@@ -64,9 +66,10 @@ try {
       const bytes = new Uint8Array(await (await fetch(`/__models/packs/${slug}/manifest.json`)).arrayBuffer());
       packs[slug] = { packId: await hex(bytes), manifest: JSON.parse(new TextDecoder().decode(bytes)) };
     }
-    window.__jrb.readAloud.debugInstall({ voices: { [def.id]: def }, packs });
+    if (!embedded) window.__jrb.readAloud.debugInstall({ voices: { [def.id]: def }, packs });
     return { ids: Object.entries(def.packIds).every(([s, id]) => packs[s]?.packId === id), n: Object.keys(packs).length, bytes: Object.values(packs).reduce((a, p) => a + p.manifest.totalBytes, 0) };
-  }, VOICE);
+  }, [VOICE, EMBEDDED]);
+  if (EMBEDDED) console.log("  （用的是 app 内嵌的音色目录）");
   check("音色目录：定义里写的 packId 和清单字节的哈希逐个相同", cat.ids && cat.n >= 1, JSON.stringify(cat));
   await page.evaluate(async () => { const n = window.__jrb.book().name; window.__jrb.closeBook(); await window.__jrb.openBook(n, { quiet: true }); });
   await page.waitForTimeout(300);

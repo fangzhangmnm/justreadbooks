@@ -14,6 +14,7 @@ const SKIP_FILES = new Set([
   "src/i18n/strings.ts",   // SSoT 本体
   "src/i18n/index.ts",     // LANG_NAME endonym 表（各语言自称，不翻译）
   "src/chapters/builtin.ts",   // 内建切章正则（字符类里的中文字：是数据不是文案；标签走 i18n chapters.builtin.*）
+  "src/read-aloud-packs.generated.ts",   // 生成物：音色的名字、上游要求原样显示的署名与条款原文、包的出处——是数据不是文案；界面标签走 i18n ra.*
 ]);
 
 function* walk(dir) {
