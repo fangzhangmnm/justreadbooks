@@ -7,7 +7,7 @@
     "test": "node test/run.mjs",
     "build": "bash scripts/build.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "smoke": "node test/boot-smoke.mjs",
+    "smoke": "node test/boot-smoke.mjs && node test/read-aloud-smoke.mjs",
     "api": "bash scripts/gen-api.sh"
   },
   "devDependencies": {
@@ -17,6 +17,7 @@
     "@internal/encryption": "file:./vendor-pkgs/internal-encryption-0.1.0.tgz",
     "@internal/gallery": "file:./vendor-pkgs/internal-gallery-0.4.0.tgz",
     "@internal/store": "file:./vendor-pkgs/internal-store-0.14.0.tgz",
-    "@internal/workbench-elements": "file:./vendor-pkgs/internal-workbench-elements-0.1.0.tgz"
+    "@internal/workbench-elements": "file:./vendor-pkgs/internal-workbench-elements-0.1.0.tgz",
+    "@internal/read-aloud": "file:./vendor-pkgs/internal-read-aloud-0.0.0.tgz"
   }
 }

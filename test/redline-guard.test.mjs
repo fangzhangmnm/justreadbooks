@@ -16,6 +16,7 @@ const ALLOW_CACHES = new Set(["src/pwa-shell.ts"]);
 // 黄线区（家规白名单制，2026-09-03）：JRB 无任何外接服务白名单——src/ 里零非相对 URL 的网络访问（云端全经 @internal/store）。
 const NET_BAD = [
   { re: /\bSpeechRecognition\b|webkitSpeechRecognition/, why: "system speech recognition (audio leaves device)" },
+  { re: /\bspeechSynthesis\b|SpeechSynthesisUtterance/, why: "system speech synthesis (desktop browsers send the text to a server; read-aloud goes through @internal/read-aloud)" },
   { re: /new WebSocket\(|XMLHttpRequest|sendBeacon/, why: "network channel outside whitelist" },
   { re: /\bfetch\(\s*(?!["'`]\.\/)/, why: "fetch to a non-relative URL outside whitelist" },
 ];
@@ -48,15 +49,16 @@ describe("redline-guard", () => {
     }
     assert(hits.length === 0, "yellow-line guard hits:\n" + hits.join("\n"));
   });
-  it("@internal/store 值级 import 只在 src/app-store.ts；@internal/encryption 只在 src/encryption.ts", () => {
+  it("@internal/store 值级 import 只在 src/app-store.ts；@internal/encryption 只在 src/encryption.ts；@internal/read-aloud 只在 src/read-aloud-host.ts", () => {
     const hits = [];
     for (const p of walk("src")) {
       const rel = p.replace(/\\/g, "/");
       const src = readFileSync(p, "utf8");
-      for (const m of src.matchAll(/^import\s+(type\s+)?[^;]*?from\s+["'](@internal\/(store|encryption))["']/gm)) {
+      for (const m of src.matchAll(/^import\s+(type\s+)?[^;]*?from\s+["'](@internal\/(store|encryption|read-aloud))["']/gm)) {
         if (m[1]) continue;
         if (m[2] === "@internal/store" && rel !== "src/app-store.ts") hits.push(`${rel}: ${m[0]}`);
         if (m[2] === "@internal/encryption" && rel !== "src/encryption.ts") hits.push(`${rel}: ${m[0]}`);
+        if (m[2] === "@internal/read-aloud" && rel !== "src/read-aloud-host.ts") hits.push(`${rel}: ${m[0]}`);
       }
     }
     assert(hits.length === 0, "seam violations:\n" + hits.join("\n"));

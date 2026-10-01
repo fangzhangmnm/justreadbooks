@@ -46,3 +46,13 @@ describe("assets", () => {
     if (m[1] !== "jrb-boot.mjs") assert(existsSync(join("dist", m[1])), `bundle missing: dist/${m[1]} (run scripts/build.sh)`);
   });
 });
+
+// 朗读语音包（0.2.1）：内嵌清单 = 信任根，不许和模型仓漂移。created 2026-10-01 by Claude Fable 5.1
+describe("read-aloud packs", () => {
+  it("src/read-aloud-packs.generated.ts 与模型仓现状一致（改了模型仓的朗读包要重跑 tools/gen-read-aloud-packs.mjs）", async () => {
+    const { render, OUT } = await import("../tools/gen-read-aloud-packs.mjs");
+    const want = render();
+    if (want == null) return;   // 模型仓不在这台机子上：跳过（生成物仍在仓里）
+    eq(readFileSync(OUT, "utf8"), want, "generated packs file is stale");
+  });
+});

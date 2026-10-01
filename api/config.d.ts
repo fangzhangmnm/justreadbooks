@@ -41,5 +41,11 @@ export declare const FONT_SIZE_RANGE: {
     readonly min: 14;
     readonly max: 28;
 };
+/** 语音包来源（家族模型仓；黄线区登记在 CLAUDE.md）。设置里可改成任何镜像——app 钉的是清单哈希不是网址。 */
+export declare const READ_ALOUD_MODEL_SOURCE = "https://fangzhangmnm.github.io/pwa-models";
+/** 朗读引擎文件（宿主 vendor）所在目录，相对页面。 */
+export declare const READ_ALOUD_ENGINE_DIR = "./vendor/read-aloud-engine/";
+/** 语速档（1 = 语音包自己的正常速度）。 */
+export declare const READ_ALOUD_SPEEDS: number[];
 /** Quest 浏览器（手柄 D-pad 4 行量化滚动是这个场景）。 */
 export declare const IS_QUEST_BROWSER: boolean;

@@ -53,7 +53,7 @@ try {
   check("版本显示在设置页", (await page.textContent("#settingsBuild")).includes(version));
   // 0.2.0：设置分栏（原生 details）——只有第一栏默认开；点栏名展开
   const secs = await page.evaluate(() => [...document.querySelectorAll("#settingsView details.settings-section")].map((d) => ({ id: d.id, open: d.open })));
-  check("设置分四栏、只有「阅读」默认开", secs.length === 4 && secs[0].id === "secReading" && secs[0].open && secs.slice(1).every((x) => !x.open), JSON.stringify(secs));
+  check("设置分五栏（阅读 / 界面 / 朗读 / 这本书 / 应用）、只有「阅读」默认开", secs.length === 5 && secs[0].id === "secReading" && secs[0].open && secs.slice(1).every((x) => !x.open), JSON.stringify(secs));
   check("收着的栏里的钮点不到（不可见）", !(await page.isVisible("#checkUpdateButton")));
   const before = await page.textContent("#fontSizeValue");
   await page.click("#fontSizeUp"); await page.waitForTimeout(100);

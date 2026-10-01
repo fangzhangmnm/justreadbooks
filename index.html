@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#F6F4EF" />
+    <meta name="read-aloud-worker" content="./dist/read-aloud-worker-27349ba3731c.js" />
     <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -34,7 +35,7 @@
     <!-- ICON-SPRITE:BEGIN — 由 tools/inline-sprites.py 生成，勿手改 -->
 <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none">
 <!--
-  48 icons extracted from the family icon library (../20260708 SVG Icons/icons.svg) by extract-icons.py — do not hand-edit; re-run the script instead.
+  53 icons extracted from the family icon library (../20260708 SVG Icons/icons.svg) by extract-icons.py — do not hand-edit; re-run the script instead.
   Family SVG Icons — MIT License, Copyright (c) 2026 fangzhangmnm.
   Contains work derived from (per-icon provenance in data-src):
     Feather Icons — MIT License, Copyright (c) 2013-2023 Cole Bemis · https://github.com/feathericons/feather
@@ -43,6 +44,17 @@
   <!-- edit -->
   <!-- copy — 两个文件叠放 -->
   <symbol id="copy" data-cat="edit" data-src="own" data-note="两个文件叠放" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2 h5 l4 4 v10 a1 1 0 0 1 -1 1 h-8 a1 1 0 0 1 -1 -1 V3 a1 1 0 0 1 1 -1 z"/><path d="M14 2 v4 h4"/><path d="M6 6 H5 a1 1 0 0 0 -1 1 v13 a1 1 0 0 0 1 1 h8 a1 1 0 0 0 1 -1 v-1"/></symbol>
+  <!-- media -->
+  <!-- play — 播放:实心右向三角 ▶(IEC 60417 磁带机惯例统一实心, 描边同色叠加得圆角); 20260819 media 批入库 -->
+  <symbol id="play" data-cat="media" data-src="own" data-note="播放:实心右向三角 ▶(IEC 60417 磁带机惯例统一实心, 描边同色叠加得圆角); 20260819 media 批入库" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8.2 5.4 L18.8 12 L8.2 18.6 Z" fill="currentColor"/></symbol>
+  <!-- pause — 暂停:双竖杠 ⏸(粗 3.2 圆帽, brush-width 同款加粗手法); 20260819 media 批入库 -->
+  <symbol id="pause" data-cat="media" data-src="own" data-note="暂停:双竖杠 ⏸(粗 3.2 圆帽, brush-width 同款加粗手法); 20260819 media 批入库" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g stroke-width="3.2"><path d="M8.3 5.5 V18.5"/><path d="M15.7 5.5 V18.5"/></g></symbol>
+  <!-- skip-next — 下一曲 ⏭(BR 播放器): 实心右三角+竖杠(stroke 2.8 圆帽), 体量对齐 fast-forward; 与 fast-forward(双三角=快进)分工。20260821 甲方拍板候选1号入库(实心 rect 杠版/轻量版落选) -->
+  <symbol id="skip-next" data-cat="media" data-src="own" data-note="下一曲 ⏭(BR 播放器): 实心右三角+竖杠(stroke 2.8 圆帽), 体量对齐 fast-forward; 与 fast-forward(双三角=快进)分工。20260821 甲方拍板候选1号入库(实心 rect 杠版/轻量版落选)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 6.4 L14.7 12 L5.5 17.6 Z" fill="currentColor"/><path d="M17.9 7.0 V17.0" stroke-width="2.8"/></symbol>
+  <!-- skip-prev — 上一曲 ⏮: skip-next 的精确镜像(translate+scale(-1,1), 同 replay 画法)。20260821 入库 -->
+  <symbol id="skip-prev" data-cat="media" data-src="own" data-note="上一曲 ⏮: skip-next 的精确镜像(translate+scale(-1,1), 同 replay 画法)。20260821 入库" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(24,0) scale(-1,1)"><path d="M5.5 6.4 L14.7 12 L5.5 17.6 Z" fill="currentColor"/><path d="M17.9 7.0 V17.0" stroke-width="2.8"/></g></symbol>
+  <!-- volume — 音量(BR 音量条旁标识): 实心喇叭(箱体+锥单路径)+双声波弧(内 r3.4 ±42°, 外 r6.1 ±52°, 弧间留白 1.0); media 批统一实心, 弧留描边=声波不是实体。20260821 甲方拍板紧凑版+第二道声波入库(空心喇叭版/单弧版落选) -->
+  <symbol id="volume" data-cat="media" data-src="own" data-note="音量(BR 音量条旁标识): 实心喇叭(箱体+锥单路径)+双声波弧(内 r3.4 ±42°, 外 r6.1 ±52°, 弧间留白 1.0); media 批统一实心, 弧留描边=声波不是实体。20260821 甲方拍板紧凑版+第二道声波入库(空心喇叭版/单弧版落选)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 10.3 H8.7 L12.6 6.6 V17.4 L8.7 13.7 H5.5 Z" fill="currentColor"/><path d="M15.13 9.73 A3.4 3.4 0 0 1 15.13 14.27"/><path d="M16.36 7.19 A6.1 6.1 0 0 1 16.36 16.81"/></symbol>
   <!-- file -->
   <!-- bookshelf — 书库入口:两本直立的书共边 + 一本斜靠(倾 16°,顶角贴在直立书的上沿)；每本一道书脊标签线(直立两本错开高度)；不画书架线；与 gallery(图片堆叠)分工=书库 vs 图库。cairosvg 渲 160/20/16px 比过 12 个候选(三本各自独立外框 16px 缝糊、三本等高共边像三扇窗、阶梯共框+书架线)后 user 选定【WebXiaoHeiWu 顶栏最左「书库」钮 + 侧栏顶部「书库」入口（v2.1.8 起替换借用的 gallery）；2026-09-10 fable 自画未过目，user 原话「你那个是图库，画一个几个并列在一起的书看看？」→「use 6 two lean but add the bar in each book like 3 three tabs」→「用6d」】 -->
   <symbol id="bookshelf" data-cat="file" data-src="own" data-note="书库入口:两本直立的书共边 + 一本斜靠(倾 16°,顶角贴在直立书的上沿)；每本一道书脊标签线(直立两本错开高度)；不画书架线；与 gallery(图片堆叠)分工=书库 vs 图库。cairosvg 渲 160/20/16px 比过 12 个候选(三本各自独立外框 16px 缝糊、三本等高共边像三扇窗、阶梯共框+书架线)后 user 选定【WebXiaoHeiWu 顶栏最左「书库」钮 + 侧栏顶部「书库」入口（v2.1.8 起替换借用的 gallery）；2026-09-10 fable 自画未过目，user 原话「你那个是图库，画一个几个并列在一起的书看看？」→「use 6 two lean but add the bar in each book like 3 three tabs」→「用6d」】" data-review="pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.75" width="10.4" height="15" rx="0.8"/><path d="M7.7 4.75 V19.75"/><path d="M2.5 8.25 H7.7"/><path d="M7.7 10.25 H12.9"/><polygon points="12.90,4.75 17.32,3.48 21.62,18.48 17.20,19.75"/><path d="M13.86 8.11 L18.29 6.85"/></symbol>
@@ -153,6 +165,7 @@
           <div class="chapter-line" id="chapterLine"></div>
         </div>
         <span class="top-spacer" aria-hidden="true"></span>
+        <button class="menu-button" id="readAloudButton" type="button" hidden aria-label="朗读" data-i18n-aria="ra.title" data-i18n-title="ra.title"><svg class="ico" aria-hidden="true"><use href="#volume"/></svg></button>
         <button class="menu-button" id="settingsButton" type="button" aria-label="设置" data-i18n-aria="ui.settings" data-i18n-title="ui.settings"><svg class="ico" aria-hidden="true"><use href="#wrench"/></svg></button>
       </header>
 
@@ -216,6 +229,16 @@
         <div class="setting-row"><span data-i18n="settings.theme">主题</span><select id="themeSelect"><option value="auto" data-i18n="settings.themeAuto">跟随系统</option><option value="day" data-i18n="settings.themeDay">象牙白金（日）</option><option value="night" data-i18n="settings.themeNight">黑金（夜）</option></select></div>
         <div class="setting-row"><span data-i18n="settings.lang">语言</span><select id="langSelect"></select></div>
         </details>
+        <details class="settings-section" id="secReadAloud">
+        <summary class="settings-section-title" data-i18n="settings.readAloud">朗读</summary>
+        <div class="setting-note" data-i18n="ra.intro">开书后点顶栏的喇叭进入朗读：点一句读一句，按播放键一路往下读。声音在这台设备上合成，文字不离开设备。</div>
+        <div id="raPacks"></div>
+        <div class="setting-row" id="raVoiceRow" hidden><span data-i18n="ra.voice">音色</span><select id="raVoiceSelect"></select></div>
+        <div class="setting-row"><span data-i18n="ra.speed">语速</span><select id="raSpeedSelect"><option value="0.8">0.8×</option><option value="0.9">0.9×</option><option value="1">1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></div>
+        <div class="setting-row"><span data-i18n="ra.source">语音包来源</span><input id="raSourceInput" class="setting-input" type="url" inputmode="url" autocomplete="off" spellcheck="false" /></div>
+        <div class="setting-note" data-i18n="ra.sourceHint">留空 = 默认来源。可以填任何镜像的网址，也可以用「从本机文件导入」：语音包到手后逐片校验，对不上就拒收。</div>
+        <input type="file" id="raImportInput" multiple hidden />
+        </details>
         <details class="settings-section" id="secBook">
         <summary class="settings-section-title" data-i18n="settings.thisBook">这本书</summary>
         <div class="setting-book" id="chapterRuleBook"></div>
@@ -233,6 +256,14 @@
         </details>
       </div>
     </section>
+
+    <div id="raBar" class="ra-bar" hidden role="toolbar" aria-label="朗读" data-i18n-aria="ra.title">
+      <button class="menu-button" id="raPrev" type="button" aria-label="上一句" data-i18n-aria="ra.prev" data-i18n-title="ra.prev"><svg class="ico" aria-hidden="true"><use href="#skip-prev"/></svg></button>
+      <button class="menu-button ra-play" id="raPlay" type="button" aria-label="连读" data-i18n-aria="ra.play" data-i18n-title="ra.play"><svg class="ico" aria-hidden="true"><use id="raPlayIcon" href="#play"/></svg></button>
+      <button class="menu-button" id="raNext" type="button" aria-label="下一句" data-i18n-aria="ra.next" data-i18n-title="ra.next"><svg class="ico" aria-hidden="true"><use href="#skip-next"/></svg></button>
+      <span class="ra-status" id="raStatus" aria-live="polite"></span>
+      <button class="menu-button" id="raClose" type="button" aria-label="退出朗读" data-i18n-aria="ra.close" data-i18n-title="ra.close"><svg class="ico" aria-hidden="true"><use href="#x"/></svg></button>
+    </div>
 
     <div id="busyOverlay" class="idle-overlay busy-overlay hidden" role="dialog" aria-modal="true" aria-label="处理中" data-i18n-aria="ui.busyAria">
       <div class="idle-card">
@@ -293,6 +324,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-a69bf9f641b4.mjs"></script>
+    <script type="module" src="./dist/jrb-4af0ea8217a8.mjs"></script>
   </body>
 </html>

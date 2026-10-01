@@ -23,6 +23,7 @@ import { holdUntilSettled } from "./settle-hold.ts";
 import { setStoreQuietStatus } from "./store-ui.ts";
 import { deviceKvGet, deviceKvSet, deviceKvGetJson, deviceKvSetJson } from "./device-kv.ts";
 import { loadSansFace } from "./fonts.ts";
+import { initReadAloudHost, type ReadAloudHost } from "./read-aloud-host.ts";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -80,10 +81,11 @@ applyTheme(theme());
 
 // ── 阅读器 ──
 const readerEl = $("reader"), landingEl = $("landing"), titleEl = $("bookTitle"), chapterEl = $("chapterLine");
+let readAloud: ReadAloudHost | null = null;   // 朗读接缝（0.2.1）：阅读器建好之后才接
 const reader = createTxtReader({
   container: readerEl,
   onPosition: (a) => { if (book) notePosition(book.name, a); },
-  onChapter: (_i, title) => { chapterEl.textContent = title; },
+  onChapter: (_i, title) => { chapterEl.textContent = title; readAloud?.contentChanged(); },   // 正文换了：朗读停下（朗读自己翻的章除外，接缝里有数）
   text: { prev: t("rd.prev"), next: t("rd.next"), head: t("rd.head"), whole: t("rd.whole"), chapterN: (n) => t("rd.chapterN", { n }), progress: (i, n) => t("rd.progress", { i, n }) },
 });
 reader.applyPrefs(readerPrefs());
@@ -107,6 +109,7 @@ function setReadingMode(on: boolean): void { if (on) document.body.dataset.readi
     if (!d || !book || e.button !== 0) return;
     if ((e.target as HTMLElement | null)?.closest("button, a, input, select, textarea")) return;
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 350 || Math.abs(readerEl.scrollTop - d.scroll) > 2) return;   // 拖 / 长按 / 滚动都不算轻点
+    if (readAloud?.tapAt(e.clientX, e.clientY)) return;   // 朗读态：点在正文上 = 读这一句
     const r = readerEl.getBoundingClientRect();
     const fx = (e.clientX - r.left) / Math.max(1, r.width);
     if (fx < 1 / 3 || fx > 2 / 3) return;   // 左右 1/3：什么都不做（不翻章，章尾章首有按钮）
@@ -130,6 +133,7 @@ function renderTopbar(): void {
   setReadingMode(!!book);
   titleEl.textContent = book ? stemOf(book.name) : t("ui.appTitle");
   $("chaptersButton").hidden = !book;
+  $("readAloudButton").hidden = !book || !readAloud?.available();
   landingEl.classList.toggle("hidden", !!book);
   readerEl.classList.toggle("hidden", !book);
   if (!book) chapterEl.textContent = "";
@@ -198,7 +202,7 @@ function rememberHeader(st: OpenBookState): void {
   const cur = getBookPref(st.name)?.header;
   if ((st.header ?? undefined) !== cur) setBookPref(st.name, { header: st.header ?? undefined });
 }
-function closeBook(): void { if (!book) return; keepalivePosition(); book = null; setActiveBookName(null); reader.teardown(); closeNotice("book-updated"); renderTopbar(); renderSettings(); }
+function closeBook(): void { if (!book) return; readAloud?.exit(); keepalivePosition(); book = null; setActiveBookName(null); reader.teardown(); closeNotice("book-updated"); renderTopbar(); renderSettings(); }
 
 /** 后台追新（前提 0 ①③）：库快进了字节 → 用户没动就静默换底、动过就出 chip。 */
 let refreshing: Promise<void> | null = null;
@@ -246,7 +250,7 @@ const galleryHost = initGalleryHost({
   flushLocal: async () => { await flushCollections(); void flushPosition(); },   // 只等 IDB（毫秒级）；云端推送丢后台
   setStatus,
   currentDir: () => (book ? splitPath(book.name).dir : galleryHost?.currentFolder() ?? ""),
-  onOpened: () => { $("galleryTrashBar").classList.add("hidden"); renderRecent(); },
+  onOpened: () => { readAloud?.exit(); $("galleryTrashBar").classList.add("hidden"); renderRecent(); },
   onClosed: () => { setChrome(false); },
 });
 function moveReadingPosition(from: string, to: string): void { const v = readingPos.getItem(from); if (v != null) { readingPos.setItem(to, v); readingPos.deleteItem(from); } }
@@ -266,7 +270,7 @@ async function renameActiveBook(): Promise<string | null> {
   setStatus("where" in r ? t("st.renameTaken", { loc: r.where === "local" ? t("st.locLocal") : t("st.locCloud") }) : t("st.renameFail", { e: r.error }), { error: true });
   return book.name;
 }
-$("libraryButton").addEventListener("click", () => { void galleryHost.open(); });
+$("libraryButton").addEventListener("click", () => { readAloud?.exit(); void galleryHost.open(); });
 $("landingOpenShelf").addEventListener("click", () => { void galleryHost.open(); });
 $("galleryBack").addEventListener("click", () => galleryHost.close());
 $("gallerySettingsBtn").addEventListener("click", () => openSettings());
@@ -382,6 +386,17 @@ $("chaptersButton").addEventListener("click", openChapters);
 // ── 设置面板 ──
 const settingsView = $("settingsView");
 function openSettings(): void { renderSettings(); settingsView.hidden = false; }
+// ── 朗读（0.2.1）──
+readAloud = initReadAloudHost({
+  reader,
+  status: (text, opts) => setStatus(text, opts),
+  hasBook: () => !!book,
+  nextChapter: () => { const before = reader.currentIndex(); reader.next(); return reader.currentIndex() !== before; },
+  openSettings: () => { openSettings(); const sec = $<HTMLDetailsElement>("secReadAloud"); sec.open = true; sec.scrollIntoView({ block: "start" }); },
+  confirm: (title, message) => openConfirmSheet(title, message),
+  logError: (e) => reportError(e, "log"),
+});
+$("readAloudButton").addEventListener("click", () => readAloud?.toggle());
 function closeSettings(): void { settingsView.hidden = true; if (book && !galleryHost.isOpen()) setChrome(false); }
 $("settingsButton").addEventListener("click", () => { if (settingsView.hidden) openSettings(); else closeSettings(); });
 $("settingsClose").addEventListener("click", closeSettings);
@@ -411,6 +426,7 @@ function renderSettings(): void {
   const pref = book ? getBookPref(book.name) : null;
   chapterRuleSelect.value = pref?.regexCustom ? "custom" : pref?.regexId ?? "auto";
   void requireStore().files.usage().then((u) => { $("storageInfo").textContent = t("settings.storage", { n: u.count, size: humanSize(u.bytes) }); }).catch(() => {});
+  readAloud?.renderSettings();
 }
 $("fontSizeDown").addEventListener("click", () => setReaderPrefs({ fontSize: Math.max(FONT_SIZE_RANGE.min, readerPrefs().fontSize - 1) }));
 $("fontSizeUp").addEventListener("click", () => setReaderPrefs({ fontSize: Math.min(FONT_SIZE_RANGE.max, readerPrefs().fontSize + 1) }));
@@ -463,7 +479,7 @@ initKeys({
   reader: () => (book ? reader : null),
   readerVisible: () => !!book && !galleryHost.isOpen(),
   modalOpen,
-  toggleShelf: () => { if (galleryHost.isOpen()) galleryHost.close(); else void galleryHost.open(); },
+  toggleShelf: () => { if (galleryHost.isOpen()) galleryHost.close(); else { readAloud?.exit(); void galleryHost.open(); } },
   toggleChapters: () => { if (chaptersView.isOpen()) chaptersView.close(); else openChapters(); },
   chaptersOpen: () => chaptersView.isOpen(),
   toggleSettings: () => { if (settingsView.hidden) openSettings(); else closeSettings(); },
@@ -557,6 +573,7 @@ void boot();
 (window as unknown as { __jrb?: unknown }).__jrb = {
   chaptersView,
   version: APP_VERSION, openBook: openBookByName, closeBook, reader, gallery: galleryHost, store: requireStore, book: () => book, prefs: readerPrefs, confirm: openConfirmSheet, choice: openChoiceSheet,
+  readAloud,
   /** smoke 探针：内置黑体装没装上（宋体档 / 取不到 = false）。 */
   fontReady: () => ensureReadingFont(),
   /** smoke 探针：模拟「远端覆盖后新字节到手」——走与 refreshCurrentBook 完全相同的采纳路径（静默换底 / chip）。 */

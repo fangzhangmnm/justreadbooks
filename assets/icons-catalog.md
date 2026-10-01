@@ -1,6 +1,6 @@
 # 本 app 的图标
 
-48 icons · 提取自家族图标库 `../20260708 SVG Icons/icons.svg` · 由 `extract-icons.py` 生成，别手改。
+53 icons · 提取自家族图标库 `../20260708 SVG Icons/icons.svg` · 由 `extract-icons.py` 生成，别手改。
 
 用法：把 sprite 整段内联到 `<body>` 顶部，然后按 id 引用；
 ⚠ sprite 根自带的隐藏样式（1×1 + `opacity:0`）别换成 `display:none`——
@@ -21,6 +21,16 @@
 | name | 说明 |
 |------|------|
 | `copy` | 两个文件叠放 |
+
+## media
+
+| name | 说明 |
+|------|------|
+| `play` | 播放:实心右向三角 ▶(IEC 60417 磁带机惯例统一实心, 描边同色叠加得圆角); 20260819 media 批入库 |
+| `pause` | 暂停:双竖杠 ⏸(粗 3.2 圆帽, brush-width 同款加粗手法); 20260819 media 批入库 |
+| `skip-next` | 下一曲 ⏭(BR 播放器): 实心右三角+竖杠(stroke 2.8 圆帽), 体量对齐 fast-forward; 与 fast-forward(双三角=快进)分工。20260821 甲方拍板候选1号入库(实心 rect 杠版/轻量版落选) |
+| `skip-prev` | 上一曲 ⏮: skip-next 的精确镜像(translate+scale(-1,1), 同 replay 画法)。20260821 入库 |
+| `volume` | 音量(BR 音量条旁标识): 实心喇叭(箱体+锥单路径)+双声波弧(内 r3.4 ±42°, 外 r6.1 ±52°, 弧间留白 1.0); media 批统一实心, 弧留描边=声波不是实体。20260821 甲方拍板紧凑版+第二道声波入库(空心喇叭版/单弧版落选) |
 
 ## file
 

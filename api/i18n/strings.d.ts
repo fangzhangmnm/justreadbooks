@@ -580,6 +580,122 @@ export declare const S: {
         readonly zh: "界面";
         readonly en: "Appearance";
     };
+    readonly "settings.readAloud": {
+        readonly zh: "朗读";
+        readonly en: "Read aloud";
+    };
+    readonly "ra.title": {
+        readonly zh: "朗读";
+        readonly en: "Read aloud";
+    };
+    readonly "ra.intro": {
+        readonly zh: "开书后点顶栏的喇叭进入朗读：点一句读一句，按播放键一路往下读。声音在这台设备上合成，文字不离开设备。";
+        readonly en: "Open a book and tap the speaker in the top bar: tap a sentence to hear it, or press play to read on. Speech is synthesised on this device; your text never leaves it.";
+    };
+    readonly "ra.play": {
+        readonly zh: "从这里连读";
+        readonly en: "Read on from here";
+    };
+    readonly "ra.pause": {
+        readonly zh: "暂停";
+        readonly en: "Pause";
+    };
+    readonly "ra.prev": {
+        readonly zh: "上一句";
+        readonly en: "Previous sentence";
+    };
+    readonly "ra.next": {
+        readonly zh: "下一句";
+        readonly en: "Next sentence";
+    };
+    readonly "ra.close": {
+        readonly zh: "退出朗读";
+        readonly en: "Leave read-aloud";
+    };
+    readonly "ra.loadingVoice": {
+        readonly zh: "正在准备语音…";
+        readonly en: "Preparing voice…";
+    };
+    readonly "ra.synth": {
+        readonly zh: "合成中…";
+        readonly en: "Synthesising…";
+    };
+    readonly "ra.error": {
+        readonly zh: "朗读出错了（详情在诊断日志里）";
+        readonly en: "Read-aloud failed (details in the diagnostic log)";
+    };
+    readonly "ra.langUnsupported": {
+        readonly zh: "这个语音包不会念这一章的语言";
+        readonly en: "This voice pack cannot read this chapter’s language";
+    };
+    readonly "ra.noPacks": {
+        readonly zh: "这一版还没有随附语音包";
+        readonly en: "No voice pack ships with this version yet";
+    };
+    readonly "ra.needPack": {
+        readonly zh: "先下载语音包";
+        readonly en: "Download a voice pack first";
+    };
+    readonly "ra.voice": {
+        readonly zh: "音色";
+        readonly en: "Voice";
+    };
+    readonly "ra.speed": {
+        readonly zh: "语速";
+        readonly en: "Speed";
+    };
+    readonly "ra.source": {
+        readonly zh: "语音包来源";
+        readonly en: "Voice pack source";
+    };
+    readonly "ra.sourceHint": {
+        readonly zh: "留空 = 默认来源。可以填任何镜像的网址，也可以用「从本机文件导入」：语音包到手后逐片校验，对不上就拒收。";
+        readonly en: "Empty = default source. Any mirror URL works, or use “Import from files”: every chunk is verified and rejected if it does not match.";
+    };
+    readonly "ra.download": {
+        readonly zh: "下载";
+        readonly en: "Download";
+    };
+    readonly "ra.import": {
+        readonly zh: "从本机文件导入…";
+        readonly en: "Import from files…";
+    };
+    readonly "ra.delete": {
+        readonly zh: "删除";
+        readonly en: "Delete";
+    };
+    readonly "ra.deleteTitle": {
+        readonly zh: "删除语音包？";
+        readonly en: "Delete voice pack?";
+    };
+    readonly "ra.deleteMsg": {
+        readonly zh: "「{name}」会从这台设备上删掉，以后要用得重新下载。";
+        readonly en: "“{name}” will be removed from this device; you will need to download it again to use it.";
+    };
+    readonly "ra.ready": {
+        readonly zh: "已下载";
+        readonly en: "Downloaded";
+    };
+    readonly "ra.notDownloaded": {
+        readonly zh: "未下载";
+        readonly en: "Not downloaded";
+    };
+    readonly "ra.starting": {
+        readonly zh: "开始…";
+        readonly en: "Starting…";
+    };
+    readonly "ra.progress": {
+        readonly zh: "{done} / {total}";
+        readonly en: "{done} / {total}";
+    };
+    readonly "ra.packReady": {
+        readonly zh: "语音包就绪";
+        readonly en: "Voice pack ready";
+    };
+    readonly "ra.packFailed": {
+        readonly zh: "语音包没装上：{msg}";
+        readonly en: "Voice pack failed: {msg}";
+    };
     readonly "settings.fontCredit": {
         readonly zh: "正文黑体：思源黑体（Noto Sans SC）© Adobe，SIL 开源字体许可 1.1，随 app 附许可证全文（vendor/fonts/OFL.txt）。";
         readonly en: "Body sans: Noto Sans SC (Source Han Sans) © Adobe, under the SIL Open Font License 1.1; the full license ships with the app (vendor/fonts/OFL.txt).";

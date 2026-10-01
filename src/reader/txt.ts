@@ -5,7 +5,7 @@
 //   · 偏好（字号/行高/字体/行宽档）经 CSS 变量作用在容器上；由 app 从 device-kv 读了传进来
 import type { Chapter, Anchor, LiveUpdate } from "../chapters/index.ts";
 import { resolveAnchor, clampFrac, diff as chapterDiff } from "../chapters/index.ts";
-import { READER_WIDTH_PX } from "../config.ts";
+import { READER_WIDTH_PX, READING_LINE_ANCHOR } from "../config.ts";
 
 export interface ReaderPrefs { fontSize: number; lineHeight: number; fontFamily: "sans" | "serif"; widthTier: "novel" | "classic" }
 export interface TxtReaderDeps {
@@ -39,7 +39,20 @@ export interface TxtReader {
   touched(): boolean;
   isLoaded(): boolean;
   teardown(): void;
+  // ── 朗读要的四件事（0.2.1）：都按「当前章正文里的字符偏移」说话；正文是一整个文本节点，不为朗读改 DOM ──
+  /** 当前章的正文。 */
+  bodyText(): string;
+  /** 屏幕坐标落在正文的第几个字符上；没点在正文上 = null。 */
+  offsetAt(clientX: number, clientY: number): number | null;
+  /** 屏幕上第一行可见正文的字符偏移（「从这里开始读」）。 */
+  firstVisibleOffset(): number;
+  /** 把正文里的一段标成「正在读」（CSS Custom Highlight，画在文本节点上）；null = 清掉。浏览器不支持就不标。 */
+  markReading(span: { start: number; end: number } | null): void;
+  /** 让这一段落在阅读线附近；已经在舒服的范围里就不动。 */
+  revealSpan(span: { start: number; end: number }): void;
 }
+/** 「正在读」高亮在 CSS 里的名字（styles.css `::highlight(jrb-reading)`）。 */
+const READING_HIGHLIGHT = "jrb-reading";
 
 export function createTxtReader(d: TxtReaderDeps): TxtReader {
   const c = d.container;
@@ -50,7 +63,34 @@ export function createTxtReader(d: TxtReaderDeps): TxtReader {
   const titleOf = (i: number): string => { const ch = chapters[i]; if (!ch) return ""; if (ch.synthetic === "head") return d.text.head; if (ch.synthetic === "whole") return d.text.whole; return ch.title || d.text.chapterN(i + 1); };
   const maxScroll = () => Math.max(0, c.scrollHeight - c.clientHeight);
 
+  // ── 朗读：正文文本节点上的偏移 ⇄ 屏幕 ──
+  const bodyNode = (): Text | null => { const n = c.querySelector<HTMLElement>(".txt-body")?.firstChild; return n && n.nodeType === 3 ? (n as Text) : null; };
+  const highlights = (): { set(k: string, v: unknown): void; delete(k: string): void } | null => (globalThis as unknown as { CSS?: { highlights?: { set(k: string, v: unknown): void; delete(k: string): void } } }).CSS?.highlights ?? null;
+  function rangeOf(span: { start: number; end: number }): Range | null {
+    const node = bodyNode(); if (!node) return null;
+    const n = node.length, a = Math.max(0, Math.min(n, span.start)), b = Math.max(a, Math.min(n, span.end));
+    const r = document.createRange(); r.setStart(node, a); r.setEnd(node, b); return r;
+  }
+  function offsetAt(x: number, y: number): number | null {
+    const node = bodyNode(); if (!node) return null;
+    const doc = document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null; caretRangeFromPoint?: (x: number, y: number) => Range | null };
+    let hit: Node | null = null, off = 0;
+    if (doc.caretPositionFromPoint) { const p = doc.caretPositionFromPoint(x, y); if (p) { hit = p.offsetNode; off = p.offset; } }
+    else if (doc.caretRangeFromPoint) { const r = doc.caretRangeFromPoint(x, y); if (r) { hit = r.startContainer; off = r.startOffset; } }
+    if (hit !== node) return null;
+    // 光标落在最近的字缝上：点在一个字的右半边会得到它后面那个缝 → 看前一个字的框是不是真的包住了这一点
+    if (off > 0) { const r = document.createRange(); r.setStart(node, off - 1); r.setEnd(node, off); for (const q of Array.from(r.getClientRects())) if (x >= q.left && x <= q.right && y >= q.top && y <= q.bottom) return off - 1; }
+    return off;
+  }
+  function markReading(span: { start: number; end: number } | null): void {
+    const reg = highlights(); const H = (globalThis as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight;
+    if (!reg || !H) return;
+    const r = span ? rangeOf(span) : null;
+    if (r) reg.set(READING_HIGHLIGHT, new H(r)); else reg.delete(READING_HIGHLIGHT);
+  }
+
   function render(): void {
+    markReading(null);
     c.innerHTML = "";
     const inner = document.createElement("div"); inner.className = "txt-inner";
     inner.appendChild(nav("top"));
@@ -178,6 +218,23 @@ export function createTxtReader(d: TxtReaderDeps): TxtReader {
     },
     touched: () => touchedFlag,
     isLoaded: () => loaded,
-    teardown() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } c.innerHTML = ""; text = ""; chapters = []; pending = null; cur = 0; loaded = false; touchedFlag = false; },
+    bodyText: () => bodyNode()?.data ?? "",
+    offsetAt,
+    firstVisibleOffset() {
+      const body = c.querySelector<HTMLElement>(".txt-body"); if (!body) return 0;
+      const box = c.getBoundingClientRect(), b = body.getBoundingClientRect();
+      const lh = parseFloat(getComputedStyle(body).lineHeight) || 30;
+      return offsetAt(b.left + 4, Math.max(box.top, b.top) + lh * 0.5) ?? 0;
+    },
+    markReading,
+    revealSpan(span) {
+      const r = rangeOf(span); if (!r) return;
+      const q = r.getBoundingClientRect(), box = c.getBoundingClientRect();
+      const top = q.top - box.top, bottom = q.bottom - box.top;
+      if (top >= box.height * 0.12 && bottom <= box.height * 0.72) return;   // 已经在舒服的范围里
+      touchedFlag = true;
+      c.scrollBy({ top: top - box.height * READING_LINE_ANCHOR, behavior: "smooth" });
+    },
+    teardown() { markReading(null); if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } c.innerHTML = ""; text = ""; chapters = []; pending = null; cur = 0; loaded = false; touchedFlag = false; },
   };
 }

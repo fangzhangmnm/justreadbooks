@@ -49,6 +49,8 @@ HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"]@internal/store['
 if [ -n "$HITS" ]; then echo "[build] ✗ value-level @internal/store import outside src/app-store.ts:" >&2; echo "$HITS" >&2; exit 1; fi
 HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"]@internal/encryption['\"]" src --include='*.ts' | grep -v "^src/encryption.ts" | grep -v "import type" || true)
 if [ -n "$HITS" ]; then echo "[build] ✗ value-level @internal/encryption import outside src/encryption.ts:" >&2; echo "$HITS" >&2; exit 1; fi
+HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"]@internal/read-aloud(/[^'\"]*)?['\"]" src --include='*.ts' | grep -v "^src/read-aloud-host.ts" | grep -v "import type" || true)
+if [ -n "$HITS" ]; then echo "[build] ✗ value-level @internal/read-aloud import outside src/read-aloud-host.ts:" >&2; echo "$HITS" >&2; exit 1; fi
 HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"](@internal/(store|encryption|gallery|workbench-elements)/[^'\"]+|(\.{1,2}/)+store/[^'\"]*)['\"]" src test --include='*.ts' --include='*.mjs' | grep -vE "@internal/store/testing['\"]|@internal/gallery/gallery.css|@internal/workbench-elements/workbench-elements.css" || true)
 if [ -n "$HITS" ]; then echo "[build] ✗ deep import into package internals / legacy baked store path:" >&2; echo "$HITS" >&2; exit 1; fi
 #   ③ 读者纪律：既有书永不改写——`.save(` 只准出现在上传模块 src/books.ts（uploadBook，mode:"new"）。
@@ -66,6 +68,19 @@ fi
 
 mkdir -p "$OUT_DIR"
 TMP_OUT="$OUT_DIR/jrb-tmp.mjs"
+
+# 0.9 朗读 worker（第二入口；classic worker 脚本，content-hash，URL 经 index.html <meta name="read-aloud-worker"> 交给主 bundle）。
+#     不预缓存、不随主 bundle 加载：第一次进朗读才取（CLAUDE.md「不 bloat」）。
+WORKER_TMP="$OUT_DIR/read-aloud-worker-tmp.js"
+"$ESBUILD" ./node_modules/@internal/read-aloud/dist/worker/index.js --bundle --format=iife --target=es2020 --minify --sourcemap=linked --outfile="$WORKER_TMP"
+WHASH=$(sha256sum "$WORKER_TMP" | awk '{print substr($1, 1, 12)}')
+WOUT="$OUT_DIR/read-aloud-worker-$WHASH.js"
+mv "$WORKER_TMP" "$WOUT"; mv "$WORKER_TMP.map" "$WOUT.map"
+sed -i "s|sourceMappingURL=$(basename "$WORKER_TMP").map|sourceMappingURL=read-aloud-worker-$WHASH.js.map|" "$WOUT"
+find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-*.js' -not -name "read-aloud-worker-$WHASH.js" -delete
+find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-*.js.map' -not -name "read-aloud-worker-$WHASH.js.map" -delete
+sed -i -E "s|<meta name=\"read-aloud-worker\" content=\"\./dist/read-aloud-worker-[a-z0-9-]+\.js\" />|<meta name=\"read-aloud-worker\" content=\"./dist/read-aloud-worker-$WHASH.js\" />|" index.html
+grep -q "read-aloud-worker-$WHASH.js" index.html || { echo "[build] ✗ index.html read-aloud-worker meta not updated" >&2; exit 1; }
 
 # 1. esbuild bundle
 "$ESBUILD" "$ENTRY" --bundle --format=esm --target=es2020 --minify --sourcemap=linked --tree-shaking=true --outfile="$TMP_OUT"

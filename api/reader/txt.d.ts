@@ -43,5 +43,21 @@ export interface TxtReader {
     touched(): boolean;
     isLoaded(): boolean;
     teardown(): void;
+    /** 当前章的正文。 */
+    bodyText(): string;
+    /** 屏幕坐标落在正文的第几个字符上；没点在正文上 = null。 */
+    offsetAt(clientX: number, clientY: number): number | null;
+    /** 屏幕上第一行可见正文的字符偏移（「从这里开始读」）。 */
+    firstVisibleOffset(): number;
+    /** 把正文里的一段标成「正在读」（CSS Custom Highlight，画在文本节点上）；null = 清掉。浏览器不支持就不标。 */
+    markReading(span: {
+        start: number;
+        end: number;
+    } | null): void;
+    /** 让这一段落在阅读线附近；已经在舒服的范围里就不动。 */
+    revealSpan(span: {
+        start: number;
+        end: number;
+    }): void;
 }
 export declare function createTxtReader(d: TxtReaderDeps): TxtReader;
