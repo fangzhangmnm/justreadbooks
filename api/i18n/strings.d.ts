@@ -576,6 +576,14 @@ export declare const S: {
         readonly zh: "阅读";
         readonly en: "Reading";
     };
+    readonly "settings.look": {
+        readonly zh: "界面";
+        readonly en: "Appearance";
+    };
+    readonly "settings.fontCredit": {
+        readonly zh: "正文黑体：思源黑体（Noto Sans SC）© Adobe，SIL 开源字体许可 1.1，随 app 附许可证全文（vendor/fonts/OFL.txt）。";
+        readonly en: "Body sans: Noto Sans SC (Source Han Sans) © Adobe, under the SIL Open Font License 1.1; the full license ships with the app (vendor/fonts/OFL.txt).";
+    };
     readonly "settings.fontSize": {
         readonly zh: "字号";
         readonly en: "Font size";

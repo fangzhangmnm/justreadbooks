@@ -155,6 +155,8 @@ export const S = {
   // ── 设置 ──
   "settings.title": { zh: "设置", en: "Settings" },
   "settings.reading": { zh: "阅读", en: "Reading" },
+  "settings.look": { zh: "界面", en: "Appearance" },
+  "settings.fontCredit": { zh: "正文黑体：思源黑体（Noto Sans SC）© Adobe，SIL 开源字体许可 1.1，随 app 附许可证全文（vendor/fonts/OFL.txt）。", en: "Body sans: Noto Sans SC (Source Han Sans) © Adobe, under the SIL Open Font License 1.1; the full license ships with the app (vendor/fonts/OFL.txt)." },
   "settings.fontSize": { zh: "字号", en: "Font size" },
   "settings.lineHeight": { zh: "行高", en: "Line height" },
   "settings.font": { zh: "字体", en: "Font" },

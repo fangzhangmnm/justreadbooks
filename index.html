@@ -202,24 +202,35 @@
         <button class="menu-button" id="settingsClose" type="button" aria-label="关闭" data-i18n-aria="common.close"><svg class="ico" aria-hidden="true"><use href="#x"/></svg></button>
       </header>
       <div class="settings-body">
-        <h3 data-i18n="settings.reading">阅读</h3>
+        <!-- 设置分栏（0.2.0，user 2026-10-01「设置能不能做成和wxhw一样分栏目展开的」）：原生 details，零 JS；只有第一栏默认开（同 WXHW） -->
+        <details class="settings-section" id="secReading" open>
+        <summary class="settings-section-title" data-i18n="settings.reading">阅读</summary>
         <div class="setting-row"><span data-i18n="settings.fontSize">字号</span><span class="setting-ctl"><button class="auth-action" id="fontSizeDown" type="button" aria-label="−">−</button><span id="fontSizeValue" class="setting-value">19</span><button class="auth-action" id="fontSizeUp" type="button" aria-label="+">+</button></span></div>
         <div class="setting-row"><span data-i18n="settings.lineHeight">行高</span><select id="lineHeightSelect"><option value="1.5">1.5</option><option value="1.7">1.7</option><option value="1.9">1.9</option><option value="2.1">2.1</option></select></div>
         <div class="setting-row"><span data-i18n="settings.font">字体</span><select id="fontSelect"><option value="sans" data-i18n="settings.fontSans">黑体</option><option value="serif" data-i18n="settings.fontSerif">宋体</option></select></div>
         <div class="setting-row"><span data-i18n="settings.width">行宽</span><select id="widthSelect"><option value="novel" data-i18n="settings.widthNovel">窄（轻小说）</option><option value="classic" data-i18n="settings.widthClassic">宽（纸书）</option></select></div>
+        </details>
+        <details class="settings-section" id="secLook">
+        <summary class="settings-section-title" data-i18n="settings.look">界面</summary>
         <div class="setting-row"><span data-i18n="settings.shelfLayout">书架布局</span><select id="shelfLayoutSelect"><option value="list" data-i18n="settings.shelfList">列表（长书名整行）</option><option value="cards" data-i18n="settings.shelfCards">卡片</option></select></div>
         <div class="setting-row"><span data-i18n="settings.theme">主题</span><select id="themeSelect"><option value="auto" data-i18n="settings.themeAuto">跟随系统</option><option value="day" data-i18n="settings.themeDay">象牙白金（日）</option><option value="night" data-i18n="settings.themeNight">黑金（夜）</option></select></div>
         <div class="setting-row"><span data-i18n="settings.lang">语言</span><select id="langSelect"></select></div>
-        <h3 data-i18n="settings.thisBook">这本书</h3>
+        </details>
+        <details class="settings-section" id="secBook">
+        <summary class="settings-section-title" data-i18n="settings.thisBook">这本书</summary>
         <div class="setting-book" id="chapterRuleBook"></div>
         <div class="setting-header" id="bookHeader"></div>
         <div class="setting-row"><span data-i18n="settings.chapterRule">切章规则</span><select id="chapterRuleSelect"></select></div>
         <div class="setting-note" id="encodingInfo"></div>
-        <h3 data-i18n="settings.app">应用</h3>
+        </details>
+        <details class="settings-section" id="secApp">
+        <summary class="settings-section-title" data-i18n="settings.app">应用</summary>
         <div class="setting-note" id="storageInfo"></div>
         <div class="setting-row"><span data-i18n="settings.build">版本</span><span class="setting-value" id="settingsBuild"></span></div>
         <div class="setting-row"><button class="auth-action" id="checkUpdateButton" type="button" data-i18n="settings.checkUpdate">检查更新</button><button class="auth-action" id="forceUpdateButton" type="button" data-i18n="settings.forceUpdate">清缓存重启</button><button class="auth-action" id="diagButton" type="button" data-i18n="settings.diag">诊断日志</button><button class="auth-action" id="diagCopy" type="button" data-i18n="settings.diagCopy">复制</button></div>
         <pre id="diagLog" class="diag-log" hidden></pre>
+        <div class="setting-note" data-i18n="settings.fontCredit">正文黑体：思源黑体（Noto Sans SC）© Adobe，SIL 开源字体许可 1.1，随 app 附许可证全文（vendor/fonts/OFL.txt）。</div>
+        </details>
       </div>
     </section>
 
@@ -282,6 +293,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-04fe85cd89d7.mjs"></script>
+    <script type="module" src="./dist/jrb-a69bf9f641b4.mjs"></script>
   </body>
 </html>

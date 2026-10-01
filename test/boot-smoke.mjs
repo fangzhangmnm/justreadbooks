@@ -27,6 +27,10 @@ const page = await browser.newPage({ viewport: { width: 375, height: 667 } });  
 const pageErrors = [];
 page.on("pageerror", (e) => pageErrors.push(String(e)));
 page.on("console", (m) => { if (m.type() === "error") pageErrors.push("console.error: " + m.text()); });
+// 0.2.0：把内置字体的请求卡住，等书开好、滚到章中间再放行——验「字体晚到，读到哪还在哪」
+let releaseFont = () => {};
+const fontGate = new Promise((r) => { releaseFont = r; });
+await page.route("**/vendor/fonts/sans.ttf.gz", async (route) => { await fontGate; await route.continue(); });
 try {
   const t0 = Date.now();
   await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: "load" });
@@ -47,11 +51,17 @@ try {
   await page.click("#gallerySettingsBtn"); await page.waitForTimeout(200);
   check("书架设置钮 → 设置面板", await page.evaluate(() => !document.getElementById("settingsView").hidden));
   check("版本显示在设置页", (await page.textContent("#settingsBuild")).includes(version));
+  // 0.2.0：设置分栏（原生 details）——只有第一栏默认开；点栏名展开
+  const secs = await page.evaluate(() => [...document.querySelectorAll("#settingsView details.settings-section")].map((d) => ({ id: d.id, open: d.open })));
+  check("设置分四栏、只有「阅读」默认开", secs.length === 4 && secs[0].id === "secReading" && secs[0].open && secs.slice(1).every((x) => !x.open), JSON.stringify(secs));
+  check("收着的栏里的钮点不到（不可见）", !(await page.isVisible("#checkUpdateButton")));
   const before = await page.textContent("#fontSizeValue");
   await page.click("#fontSizeUp"); await page.waitForTimeout(100);
   const after = await page.textContent("#fontSizeValue");
   check("字号 + 生效（device-kv）", Number(after) === Number(before) + 1, `${before}→${after}`);
   // 0.1.5：「检查更新」按钮——smoke 服的是 dist 静态站（SW 可注册），结果只能是「已是最新」或「此环境无法检查」，绝不许卡在「正在检查」
+  await page.click("#secApp > summary"); await page.waitForTimeout(100);
+  check("点栏名 → 展开「应用」", await page.evaluate(() => document.getElementById("secApp").open) && await page.isVisible("#checkUpdateButton"));
   await page.click("#checkUpdateButton");
   const checkMsg = await page.waitForFunction(() => { const t = document.getElementById("toast").textContent; return /已是最新|无法检查|有新版本/.test(t) ? t : null; }, null, { timeout: 20000 }).then((h) => h.jsonValue()).catch(() => "(timeout)");
   check("「检查更新」→ 明确结论 toast（不卡在检查中）", /已是最新|无法检查/.test(checkMsg) && checkMsg.includes(version), checkMsg);
@@ -75,6 +85,14 @@ try {
   const b1 = await page.evaluate(() => ({ name: window.__jrb.book().name, n: window.__jrb.book().chapters.length, header: window.__jrb.book().header, galleryHidden: document.getElementById("galleryFull").classList.contains("hidden"), title: document.querySelector("#reader .txt-chapter-title")?.textContent, body: document.querySelector("#reader .txt-body")?.textContent?.trim() }));
   check("上传 txt → 阅读器打开（书架关、第 1 章）", b1.name === "冒烟测试.txt" && b1.n === 5 && b1.galleryHidden && b1.title === "第1章 标题1" && b1.body.startsWith("正文1"), JSON.stringify({ ...b1, body: b1.body?.slice(0, 20) }));
   check("状态头 = 第一行", b1.header === "2026-09-19 装订 《冒烟》 · 状态头", String(b1.header));
+  // 0.2.0：内置黑体（家族公共字体）——首帧之后才取；装上后正文用它
+  const mid = await page.evaluate(async () => { const r = document.getElementById("reader"); r.scrollTop = (r.scrollHeight - r.clientHeight) * 0.5; await new Promise((ok) => setTimeout(ok, 120)); return { frac: window.__jrb.reader.current().frac, h: r.scrollHeight, has: [...document.fonts].some((f) => f.family.replace(/"/g, "") === "JRB Sans") }; });
+  check("字体还没到：正文先用系统字体（不挡开书）", mid.has === false && Math.abs(mid.frac - 0.5) < 0.02, JSON.stringify(mid));
+  releaseFont();
+  const font = await page.evaluate(async () => { const ok = await window.__jrb.fontReady(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const rd = document.getElementById("reader"); const body = document.querySelector("#reader .txt-body"); return { ok, has: [...document.fonts].some((f) => f.family.replace(/"/g, "") === "JRB Sans" && f.status === "loaded"), family: getComputedStyle(body).fontFamily.split(",")[0].trim(), frac: window.__jrb.reader.current().frac, h: rd.scrollHeight }; });
+  check("内置黑体装上、正文第一顺位用它", font.ok === true && font.has && /JRB Sans/.test(font.family), JSON.stringify(font));
+  check("字体晚到重排后阅读位置不跳（章内比例不变）", Math.abs(font.frac - mid.frac) < 0.01, JSON.stringify({ before: mid.frac, after: font.frac, hBefore: mid.h, hAfter: font.h }));
+  console.log(`  （字体装上前后正文总高 ${mid.h} → ${font.h}px，章内比例 ${mid.frac.toFixed(4)} → ${font.frac.toFixed(4)}）`);
   await page.evaluate(() => window.__jrb.reader.next()); await page.waitForTimeout(150);
   check("翻到第 2 章", await page.evaluate(() => document.querySelector("#reader .txt-chapter-title")?.textContent === "第2章 标题2"));
   // 沉浸阅读：默认藏顶栏 → 中间轻点露出 → 左边轻点无动作 → 滚动收起

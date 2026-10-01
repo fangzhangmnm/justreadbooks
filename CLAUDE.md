@@ -9,6 +9,7 @@ TXT 网文/轻小说阅读器（0.1 纪元：2026-09-19 在 @internal/store + @i
 - **书架 = `@internal/gallery` 0.4.0**（`src/gallery-host.ts`；列表视图、云图标在书架顶栏、副标题·未读 hook、留离线动词；提案 `../20260909 internal-gallery/ai-docs/20260919-proposal-list-view.md`）。**切分铁律（user 2026-09-19「gallery 是前端」）**：夹里有什么 = store（`createStore({ hiddenName })`）；改名事件 = `store.files.onRenamed`（阅读位置 / 切章规则 / 上次那本指针跟着搬，app.ts 订阅一次）；图库只画、只发起。
 - **PDF 本轮 sunset**（user 2026-09-19）：下一轮出 `@internal/pdf-viewer` 极简无框控件（单页/双页/连续多页，按钮归 app）；JRP 是独立产品不动。
 - **Quest**：手柄 D-pad 4 行量化滚动、Select 目录、Start 书架（`src/reader/keys.ts`）。
+- **0.2 纪元（朗读纪元，2026-10-01 开工；user「jrb决定要加之前记得bump minor」「设置分栏 公共字体 逐句朗读 亮屏连续 做」）**。评估与提案 = 家族根 `ai-docs/20261001-read-aloud-shared-lib-assessment.md`。**0.2.0 = 设置分栏 + 公共字体**：① 设置页 = 原生 `<details class="settings-section">` 四栏（阅读 / 界面 / 这本书 / 应用），零 JS，只有第一栏默认开（照 WXHW；user「设置能不能做成和wxhw一样分栏目展开的」）；「界面」栏（书架布局 / 主题 / 语言）是从原「阅读」里拆出来的，AI 拆的、待 user 过目。② 阅读正文黑体档 = 家族公共字体（思源黑体全量，`vendor/fonts/sans.ttf.gz` 6.3 MB，与 WXHW 同一个文件，sha256 见该目录 README）：唯一入口 `src/fonts.ts loadSansFace()`，family = `JRB Sans`（名字 AI 起的、待 user 过目），`--font-reading-sans` 第一位；**不挡启动**（首帧后的空闲片里才取、只有黑体档取、SW 不预缓存）；装进文档时 `app.ts ensureReadingFont()` 先记章内比例、装完对回去。宋体档照旧系统宋体。逐句朗读 / 亮屏连读在 0.2.x 后续。edited by Claude Fable 5.1 2026-10-01
 
 ## 命令
 `npm test`（node 直跑）· `bash scripts/build.sh`（tsc 门 + 接缝 lint + sprite 对账 + 裸中文扫描 + esbuild → `dist/jrb-<hash>.mjs`）· `npm run smoke`（借 WeebPaint playwright：上传→阅读→覆盖 adopt→刷新回原位）· `bash scripts/gen-api.sh`（api/ 户口）· `./bump.sh vX.Y.Z-YYYY-MM-DD`。

@@ -22,6 +22,7 @@ import { initPwaShell } from "./pwa-shell.ts";
 import { holdUntilSettled } from "./settle-hold.ts";
 import { setStoreQuietStatus } from "./store-ui.ts";
 import { deviceKvGet, deviceKvSet, deviceKvGetJson, deviceKvSetJson } from "./device-kv.ts";
+import { loadSansFace } from "./fonts.ts";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -60,7 +61,21 @@ function readerPrefs(): ReaderPrefs {
     widthTier: p.widthTier === "classic" ? "classic" : "novel",
   };
 }
-function setReaderPrefs(patch: Partial<ReaderPrefs>): void { const next = { ...readerPrefs(), ...patch }; deviceKvSetJson(KV_PREFS, next); reader.applyPrefs(next); renderSettings(); }
+function setReaderPrefs(patch: Partial<ReaderPrefs>): void { const next = { ...readerPrefs(), ...patch }; deviceKvSetJson(KV_PREFS, next); reader.applyPrefs(next); renderSettings(); if (patch.fontFamily === "sans") void ensureReadingFont(); }
+// ── 内置字体（0.2.0）：黑体档 = 家族公共字体（思源黑体全量）。首帧之后才取；宋体档不取。──
+let fontInstall: Promise<boolean> | null = null;
+/** 装内置黑体。装进文档那一下正文会重排（行高、折行都可能变）→ 先记下章内比例，装完按同一比例对回去，读到哪还在哪。 */
+function ensureReadingFont(): Promise<boolean> {
+  if (readerPrefs().fontFamily !== "sans") return Promise.resolve(false);
+  return (fontInstall ??= loadSansFace().then((face) => {
+    if (!face) { fontInstall = null; return false; }
+    const at = book ? reader.current() : null;
+    document.fonts.add(face);
+    if (at) reader.restore(at);
+    diagNote("font", "built-in sans installed");
+    return true;
+  }));
+}
 applyTheme(theme());
 
 // ── 阅读器 ──
@@ -527,6 +542,9 @@ async function boot(): Promise<void> {
   // auth 在首帧之后（不阻塞）：silent probe → onAuthChanged 里 afterSignIn
   auth.initAuth().then((st) => { renderCloudButton(); if (st.signedIn) void afterSignIn(); }).catch((e) => reportError(e, "log")).finally(() => _authBootResolve());
   if (new URLSearchParams(location.search).has("reset")) { setStatus(t("st.forceUpdated", { v: APP_VERSION })); try { history.replaceState(null, "", location.pathname + location.hash); } catch { /* ignore */ } }
+  // 内置字体排在首帧之后的空闲片里（启动速度优先：书 / 书架先出来，字体晚到自己换上）
+  const idle = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }).requestIdleCallback;
+  if (idle) idle(() => { void ensureReadingFont(); }, { timeout: 3000 }); else setTimeout(() => { void ensureReadingFont(); }, 600);
 }
 window.addEventListener("error", (event) => { reportError(new Error(`[window] ${(event.message || "").slice(0, 160)}`)); });
 window.addEventListener("unhandledrejection", (event) => {
@@ -539,6 +557,8 @@ void boot();
 (window as unknown as { __jrb?: unknown }).__jrb = {
   chaptersView,
   version: APP_VERSION, openBook: openBookByName, closeBook, reader, gallery: galleryHost, store: requireStore, book: () => book, prefs: readerPrefs, confirm: openConfirmSheet, choice: openChoiceSheet,
+  /** smoke 探针：内置黑体装没装上（宋体档 / 取不到 = false）。 */
+  fontReady: () => ensureReadingFont(),
   /** smoke 探针：模拟「远端覆盖后新字节到手」——走与 refreshCurrentBook 完全相同的采纳路径（静默换底 / chip）。 */
   simulateFreshText: (text: string) => { if (!book) return false; const { chapters, chosen } = splitFor(book.name, text); adoptFreshBytes({ ...book, text, chapters, chosen, header: statusHeader(text) }); return true; },
 };

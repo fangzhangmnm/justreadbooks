@@ -48,7 +48,7 @@
 
   --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   --font-reading-serif: "Source Han Serif SC", "Songti SC", "PingFang SC", "SimSun", "Noto Serif CJK SC", Georgia, serif;
-  --font-reading-sans: "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-reading-sans: "JRB Sans", "PingFang SC", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, sans-serif;
 
   --top-floor: 4px; --bottom-floor: 14px; --sa-left: 0px; --sa-right: 0px;
 }
@@ -182,7 +182,14 @@ body[data-reading="1"][data-chrome="shown"] .reader { padding-top: calc(var(--to
 .settings-head { display: flex; align-items: center; gap: 8px; padding: max(env(safe-area-inset-top, 0px), 8px) 12px 8px; border-bottom: 1px solid var(--line); }
 .settings-head h2 { margin: 0; font-size: 15px; flex: 1 1 auto; }
 .settings-body { flex: 1 1 auto; overflow: auto; padding: 8px 16px calc(var(--bottom-floor) + 16px); max-width: 560px; width: 100%; margin: 0 auto; }
-.settings-body h3 { font-size: 12px; color: var(--ink-muted); margin: 18px 0 6px; font-weight: 600; letter-spacing: 0.04em; }
+/* 设置分栏（0.2.0）：原生 details / summary，样式抄 WXHW styles.css「.settings-section」（两家同款，是 @internal/workbench-elements 吸收候选） */
+.settings-section { padding: 12px 0 14px; border-bottom: 1px solid var(--line); }
+.settings-section-title { margin: 0; font-size: 12px; font-weight: 600; color: var(--ink-muted); letter-spacing: 0.04em; cursor: pointer; user-select: none; -webkit-user-select: none; display: flex; align-items: center; gap: 6px; list-style: none; }
+.settings-section-title::-webkit-details-marker { display: none; }
+.settings-section-title::before { content: "▸"; font-size: 10px; color: var(--ink-muted); transition: transform 120ms ease; display: inline-block; }
+.settings-section[open] > .settings-section-title::before { transform: rotate(90deg); }
+.settings-section[open] > .settings-section-title + * { margin-top: 6px; }
+.settings-section > .setting-row:last-child { border-bottom: 0; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; flex-wrap: wrap; }
 .setting-ctl { display: inline-flex; align-items: center; gap: 8px; }
 .setting-value { font-variant-numeric: tabular-nums; color: var(--ink-soft); min-width: 2em; text-align: center; }
