@@ -589,8 +589,8 @@ export declare const S: {
         readonly en: "Read aloud";
     };
     readonly "ra.intro": {
-        readonly zh: "开书后点顶栏的喇叭进入朗读：点一句读一句，按播放键一路往下读。声音在这台设备上合成，文字不离开设备。";
-        readonly en: "Open a book and tap the speaker in the top bar: tap a sentence to hear it, or press play to read on. Speech is synthesised on this device; your text never leaves it.";
+        readonly zh: "朗读是可选的：在这里下载一个音色之后，顶栏才会出现喇叭钮。开书后点喇叭进入朗读：点一句读一句，按播放键一路往下读；退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。";
+        readonly en: "Read-aloud is optional: the speaker button appears in the top bar only after you download a voice here. Open a book and tap the speaker: tap a sentence to hear it, or press play to read on; leave and the page is as usual. Speech is synthesised on this device; your text never leaves it.";
     };
     readonly "ra.play": {
         readonly zh: "从这里连读";
@@ -625,20 +625,64 @@ export declare const S: {
         readonly en: "Read-aloud failed (details in the diagnostic log)";
     };
     readonly "ra.langUnsupported": {
-        readonly zh: "这个语音包不会念这一章的语言";
-        readonly en: "This voice pack cannot read this chapter’s language";
+        readonly zh: "这个音色不会念这一章的语言";
+        readonly en: "This voice cannot read this chapter’s language";
+    };
+    readonly "ra.langNotDownloaded": {
+        readonly zh: "这一章的语言还没下载，去设置里补下";
+        readonly en: "This chapter’s language is not downloaded yet; get it in Settings";
     };
     readonly "ra.noPacks": {
-        readonly zh: "这一版还没有随附语音包";
-        readonly en: "No voice pack ships with this version yet";
+        readonly zh: "这一版还没有随附音色";
+        readonly en: "No voice ships with this version yet";
     };
     readonly "ra.needPack": {
         readonly zh: "先下载语音包";
-        readonly en: "Download a voice pack first";
+        readonly en: "Download the voice first";
     };
     readonly "ra.voice": {
         readonly zh: "音色";
         readonly en: "Voice";
+    };
+    readonly "ra.speaker": {
+        readonly zh: "说话人";
+        readonly en: "Speaker";
+    };
+    readonly "ra.lang.ja": {
+        readonly zh: "日语";
+        readonly en: "Japanese";
+    };
+    readonly "ra.lang.en": {
+        readonly zh: "英语";
+        readonly en: "English";
+    };
+    readonly "ra.lang.zh": {
+        readonly zh: "中文";
+        readonly en: "Chinese";
+    };
+    readonly "ra.none": {
+        readonly zh: "无";
+        readonly en: "none";
+    };
+    readonly "ra.partial": {
+        readonly zh: "已下载：{langs}";
+        readonly en: "Downloaded: {langs}";
+    };
+    readonly "ra.packPartial": {
+        readonly zh: "还没下全，现在能念：{langs}";
+        readonly en: "Not complete yet; can read: {langs}";
+    };
+    readonly "ra.importNoMatch": {
+        readonly zh: "选的文件里没有这个音色的语音包分片";
+        readonly en: "None of the chosen files belongs to this voice";
+    };
+    readonly "ra.creditLead": {
+        readonly zh: "音源署名与使用条款（原文，使用这个音色即受其约束）：";
+        readonly en: "Voice credit and terms of use (original text; using this voice means accepting them):";
+    };
+    readonly "ra.voiceNote.tsukuyomi-chan": {
+        readonly zh: "日语是这个音色的训练语言；英语和中文是迁移出来的，带日语口音。";
+        readonly en: "Japanese is the language this voice was trained on; English and Chinese are transferred and carry a Japanese accent.";
     };
     readonly "ra.speed": {
         readonly zh: "语速";
@@ -666,7 +710,7 @@ export declare const S: {
     };
     readonly "ra.deleteTitle": {
         readonly zh: "删除语音包？";
-        readonly en: "Delete voice pack?";
+        readonly en: "Delete voice?";
     };
     readonly "ra.deleteMsg": {
         readonly zh: "「{name}」会从这台设备上删掉，以后要用得重新下载。";

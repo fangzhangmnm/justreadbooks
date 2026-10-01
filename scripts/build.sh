@@ -69,18 +69,21 @@ fi
 mkdir -p "$OUT_DIR"
 TMP_OUT="$OUT_DIR/jrb-tmp.mjs"
 
-# 0.9 朗读 worker（第二入口；classic worker 脚本，content-hash，URL 经 index.html <meta name="read-aloud-worker"> 交给主 bundle）。
-#     不预缓存、不随主 bundle 加载：第一次进朗读才取（CLAUDE.md「不 bloat」）。
-WORKER_TMP="$OUT_DIR/read-aloud-worker-tmp.js"
-"$ESBUILD" ./node_modules/@internal/read-aloud/dist/worker/index.js --bundle --format=iife --target=es2020 --minify --sourcemap=linked --outfile="$WORKER_TMP"
+# 0.9 朗读 worker（第二入口；piper-plus 引擎 = **module** worker 脚本，content-hash，URL 经 index.html
+#     <meta name="read-aloud-worker-piper-plus"> 交给主 bundle）。里面是库的 worker 运行时 + 后端 + 两份第三方 JS 胶水；
+#     引擎的 wasm 和词典不在这里（随语音包来）。不预缓存、不随主 bundle 加载：第一次进朗读才取（CLAUDE.md「不 bloat」）。
+WORKER_TMP="$OUT_DIR/read-aloud-worker-piper-plus-tmp.js"
+"$ESBUILD" ./node_modules/@internal/read-aloud/dist/worker/piper-plus-entry.js --bundle --format=esm --target=es2022 --minify --sourcemap=linked --outfile="$WORKER_TMP"
 WHASH=$(sha256sum "$WORKER_TMP" | awk '{print substr($1, 1, 12)}')
-WOUT="$OUT_DIR/read-aloud-worker-$WHASH.js"
+WNAME="read-aloud-worker-piper-plus-$WHASH.js"
+WOUT="$OUT_DIR/$WNAME"
 mv "$WORKER_TMP" "$WOUT"; mv "$WORKER_TMP.map" "$WOUT.map"
-sed -i "s|sourceMappingURL=$(basename "$WORKER_TMP").map|sourceMappingURL=read-aloud-worker-$WHASH.js.map|" "$WOUT"
-find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-*.js' -not -name "read-aloud-worker-$WHASH.js" -delete
-find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-*.js.map' -not -name "read-aloud-worker-$WHASH.js.map" -delete
-sed -i -E "s|<meta name=\"read-aloud-worker\" content=\"\./dist/read-aloud-worker-[a-z0-9-]+\.js\" />|<meta name=\"read-aloud-worker\" content=\"./dist/read-aloud-worker-$WHASH.js\" />|" index.html
-grep -q "read-aloud-worker-$WHASH.js" index.html || { echo "[build] ✗ index.html read-aloud-worker meta not updated" >&2; exit 1; }
+sed -i "s|sourceMappingURL=$(basename "$WORKER_TMP").map|sourceMappingURL=$WNAME.map|" "$WOUT"
+find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-*.js' -not -name "$WNAME" -delete
+find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-*.js.map' -not -name "$WNAME.map" -delete
+sed -i -E "s|<meta name=\"read-aloud-worker-piper-plus\" content=\"\./dist/read-aloud-worker-piper-plus-[a-z0-9-]+\.js\" />|<meta name=\"read-aloud-worker-piper-plus\" content=\"./dist/$WNAME\" />|" index.html
+grep -q "$WNAME" index.html || { echo "[build] ✗ index.html read-aloud-worker-piper-plus meta not updated" >&2; exit 1; }
+echo "[build] ✓ read-aloud worker (piper-plus): $(( $(stat -c %s "$WOUT") / 1024 )) KB"
 
 # 1. esbuild bundle
 "$ESBUILD" "$ENTRY" --bundle --format=esm --target=es2020 --minify --sourcemap=linked --tree-shaking=true --outfile="$TMP_OUT"

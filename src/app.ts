@@ -394,6 +394,7 @@ readAloud = initReadAloudHost({
   nextChapter: () => { const before = reader.currentIndex(); reader.next(); return reader.currentIndex() !== before; },
   openSettings: () => { openSettings(); const sec = $<HTMLDetailsElement>("secReadAloud"); sec.open = true; sec.scrollIntoView({ block: "start" }); },
   confirm: (title, message) => openConfirmSheet(title, message),
+  availabilityChanged: () => renderTopbar(),
   logError: (e) => reportError(e, "log"),
 });
 $("readAloudButton").addEventListener("click", () => readAloud?.toggle());

@@ -8,6 +8,7 @@
     "build": "bash scripts/build.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "smoke": "node test/boot-smoke.mjs && node test/read-aloud-smoke.mjs",
+    "smoke:voice": "node test/read-aloud-voice.mjs",
     "api": "bash scripts/gen-api.sh"
   },
   "devDependencies": {

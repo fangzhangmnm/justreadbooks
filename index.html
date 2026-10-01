@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#F6F4EF" />
-    <meta name="read-aloud-worker" content="./dist/read-aloud-worker-27349ba3731c.js" />
+    <meta name="read-aloud-worker-piper-plus" content="./dist/read-aloud-worker-piper-plus-9a36aa468074.js" />
     <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -231,9 +231,10 @@
         </details>
         <details class="settings-section" id="secReadAloud">
         <summary class="settings-section-title" data-i18n="settings.readAloud">朗读</summary>
-        <div class="setting-note" data-i18n="ra.intro">开书后点顶栏的喇叭进入朗读：点一句读一句，按播放键一路往下读。声音在这台设备上合成，文字不离开设备。</div>
+        <div class="setting-note" data-i18n="ra.intro">朗读是可选的：在这里下载一个音色之后，顶栏才会出现喇叭钮。开书后点喇叭进入朗读：点一句读一句，按播放键一路往下读；退出后正文和平时一样。声音在这台设备上合成，文字不离开设备。</div>
         <div id="raPacks"></div>
         <div class="setting-row" id="raVoiceRow" hidden><span data-i18n="ra.voice">音色</span><select id="raVoiceSelect"></select></div>
+        <div class="setting-row" id="raSpeakerRow" hidden><span data-i18n="ra.speaker">说话人</span><select id="raSpeakerSelect"></select></div>
         <div class="setting-row"><span data-i18n="ra.speed">语速</span><select id="raSpeedSelect"><option value="0.8">0.8×</option><option value="0.9">0.9×</option><option value="1">1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></div>
         <div class="setting-row"><span data-i18n="ra.source">语音包来源</span><input id="raSourceInput" class="setting-input" type="url" inputmode="url" autocomplete="off" spellcheck="false" /></div>
         <div class="setting-note" data-i18n="ra.sourceHint">留空 = 默认来源。可以填任何镜像的网址，也可以用「从本机文件导入」：语音包到手后逐片校验，对不上就拒收。</div>
@@ -324,6 +325,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-8a58dc8a4ee6.mjs"></script>
+    <script type="module" src="./dist/jrb-aa9fe9d0e3ee.mjs"></script>
   </body>
 </html>
