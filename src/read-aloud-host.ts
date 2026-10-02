@@ -122,7 +122,8 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   }
 
   // ── 控制条 ──
-  const speedBtn = $("raSpeed");
+  const speedSel = $("raSpeed") as HTMLSelectElement;
+  for (const s of READ_ALOUD_SPEEDS) speedSel.add(new Option(`${s}×`, String(s)));
   const bar = $("raBar"), playBtn = $("raPlay"), playIcon = document.getElementById("raPlayIcon"), statusEl = $("raStatus");
   function renderBar(): void {
     const st = ra?.state() ?? "idle";
@@ -131,7 +132,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const label = going ? t("ra.pause") : t("ra.play");
     playBtn.setAttribute("aria-label", label); playBtn.title = label;
     statusEl.textContent = loadingVoice ? t("ra.loadingVoice") : st === "loading" ? t("ra.synth") : "";
-    speedBtn.textContent = `${speed()}×`;
+    speedSel.value = String(speed());
   }
   async function syncWake(): Promise<void> {
     const st = ra?.state() ?? "idle";
@@ -244,10 +245,10 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     if (marked && cur && spans.length) void read(spans[Math.min(spans.length - 1, Math.max(0, cur.index + delta))]!.start, once);
     else void read(deps.reader.firstVisibleOffset(), once);
   };
-  // 语速在胶囊里（user 2026-10-01「调速度放在语音控制的那个胶囊里面」）：点一下换一档；正在念 / 暂停着 = 从标着的这一句按新速度重念
-  speedBtn.addEventListener("click", () => {
-    const i = READ_ALOUD_SPEEDS.indexOf(speed());
-    setPrefs({ speed: READ_ALOUD_SPEEDS[(i + 1) % READ_ALOUD_SPEEDS.length] });
+  // 语速在胶囊里（user 2026-10-01「调速度放在语音控制的那个胶囊里面」→「那么再加0.5，然后做成下拉行吗」）：下拉选一档；正在念 / 暂停着 = 从标着的这一句按新速度重念
+  speedSel.addEventListener("change", () => {
+    const v = Number(speedSel.value);
+    setPrefs({ speed: READ_ALOUD_SPEEDS.includes(v) ? v : 1 });
     renderBar();
     if (marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); }
   });

@@ -197,8 +197,8 @@ body[data-reading="1"][data-chrome="shown"] .reader { padding-top: calc(var(--to
 body[data-read-aloud="1"] .status-toast { bottom: calc(var(--bottom-floor) + 64px); }   /* 朗读控制条占着底部正中：提示条抬到它上面 */
 .ra-bar .menu-button { width: 38px; height: 38px; color: var(--ink-soft); }
 .ra-bar .ra-play { color: var(--accent-strong); }
-.ra-speed { min-width: 44px; height: 38px; padding: 0 6px; border: 0; background: none; color: var(--ink-soft); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; border-radius: 8px; }
-.ra-speed:active { background: var(--bg-2, rgba(0, 0, 0, 0.06)); }
+.ra-speed { min-width: 56px; height: 38px; padding: 0 4px; border: 0; background: none; color: var(--ink-soft); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; border-radius: 8px; }
+.ra-speed:active, .ra-speed:focus-visible { background: var(--bg-2, rgba(0, 0, 0, 0.06)); }
 .ra-status { font-size: 11px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 7em; min-width: 0; flex: 0 1 auto; }
 .ra-status:empty { display: none; }
 body[data-read-aloud="1"] .txt-inner { padding-bottom: 180px; }

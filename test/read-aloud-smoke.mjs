@@ -112,8 +112,10 @@ try {
   check("点朗读 → 进朗读态、控制条出现、引擎开始装语音", await page.evaluate(() => window.__jrb.readAloud.active() && document.body.dataset.readAloud === "1" && !document.getElementById("raBar").hidden && window.__raLog.includes("load:ja")));
 
   check("朗读态下提示条在控制条上方，不盖住按钮", await page.evaluate(() => { const toast = document.getElementById("toast"), bar = document.getElementById("raBar"); const was = toast.hidden, txt = toast.textContent; toast.hidden = false; if (!txt) toast.textContent = "x"; const tr = toast.getBoundingClientRect(), br = bar.getBoundingClientRect(); toast.hidden = was; toast.textContent = txt; return tr.height > 0 && tr.bottom <= br.top; }));
-  // 语速在控制条上：点一下换一档（1 → 1.1 → 1.25 → 0.8）
-  check("控制条上的语速钮：显示 1×，一档一档点过 1.1 / 1.25 / 1.5，再点回到 0.8×", await page.evaluate(() => document.getElementById("raSpeed").textContent === "1×") && await page.evaluate(() => { const b = document.getElementById("raSpeed"), seen = []; for (let k = 0; k < 4; k++) { b.click(); seen.push(b.textContent); } return seen.join(" ") === "1.1× 1.25× 1.5× 0.8×"; }));
+  // 语速在控制条上：一个下拉（0.5 … 3 七档），选了就记住
+  check("控制条上的语速下拉：七档 0.5× … 3×，默认停在 1×", await page.evaluate(() => { const s = document.getElementById("raSpeed"); return s.tagName === "SELECT" && Array.from(s.options, (o) => o.textContent).join(" ") === "0.5× 0.8× 1× 1.25× 1.5× 2× 3×" && s.value === "1" && s.selectedOptions[0].textContent === "1×"; }));
+  await page.selectOption("#raSpeed", "0.8");
+  check("选 0.8× → 记进朗读设置，下拉显示 0.8×", await page.evaluate(() => document.getElementById("raSpeed").value === "0.8" && JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.endsWith(":read-aloud")) ?? "null") ?? "{}").speed === 0.8));
 
   // ── 逐句模式（学语言用）：点一句念一句 ──
   const pt = await page.evaluate(() => { const node = document.querySelector("#reader .txt-body").firstChild; const i = node.data.indexOf("きつね"); const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1); const q = r.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; });
@@ -175,8 +177,8 @@ try {
   await page.waitForTimeout(150);
   await page.click("#raPlay");
   await wait(() => window.__jrb.readAloud.debugState().state === "playing");
-  await page.click("#raSpeed");
-  check("念着的时候点语速钮（0.8 → 0.9）：这一句按新速度重新合成，接着连续念", await wait(() => window.__raLog.some((x) => x.startsWith("synth:ja:0.9:森の中で"))) && await page.evaluate(() => document.getElementById("raSpeed").textContent === "0.9×" && window.__jrb.readAloud.debugState().continuous) && await toEnd());
+  await page.selectOption("#raSpeed", "2");
+  check("念着的时候换语速（0.8 → 2）：这一句按新速度重新合成，接着连续念", await wait(() => window.__raLog.some((x) => x.startsWith("synth:ja:2:森の中で"))) && await page.evaluate(() => document.getElementById("raSpeed").value === "2" && window.__jrb.readAloud.debugState().continuous) && await toEnd());
 
   // ── 念法（实验）：切到「平稳」，引擎收到 steady ──
   await page.evaluate(() => { const el = document.getElementById("raStyleRange"); el.value = "60"; el.dispatchEvent(new Event("change")); });
