@@ -57,9 +57,9 @@ try {
   await page.evaluate(() => {
     const log = (window.__raLog = []);
     const ALL = ["ja", "zh", "en"];
-    let ready = false, asked = false, loaded = null;
-    window.__raFake = { setReady(v) { ready = v; } };
-    const st = (voice) => { asked = true; return { voice, ready, langs: ready ? ALL : [], bytesCached: ready ? 4096 : 0, bytesTotal: 4096, packs: [] }; };
+    let ready = false, asked = false, loaded = null; const missing = new Set();
+    window.__raFake = { setReady(v) { ready = v; }, setMissing(l, on) { if (on) missing.add(l); else missing.delete(l); }, loadedLangs: () => (loaded ? loaded.langs.join("+") : ""), unload() { loaded = null; } };
+    const st = (voice) => { asked = true; const langs = ready ? ALL.filter((l) => !missing.has(l)) : []; return { voice, ready: ready && !missing.size, langs, bytesCached: ready ? 4096 : 0, bytesTotal: 4096, packs: [] }; };
     const engine = {
       status: async (voice) => st(voice),
       download: async (voice, base, opts) => { log.push(`download:${base}`); opts?.onProgress?.({ done: 2048, total: 4096 }); await new Promise((r) => setTimeout(r, 60)); ready = true; return st(voice); },
@@ -67,7 +67,7 @@ try {
       delete: async () => { log.push("delete"); ready = false; loaded = null; },
       load: async (voice, opts) => { const langs = opts?.langs ?? ALL; log.push(`load:${langs.join("+")}`); loaded = { voice, langs }; return { voice, langs, alreadyLoaded: false, createMs: 1, sampleRate: 22050, speakers: 2 }; },
       loaded: () => loaded,
-      isKnownReady: (voice, lang) => (asked ? ready : undefined),
+      isKnownReady: (voice, lang) => (asked ? ready && !(lang && missing.has(lang)) : undefined),
       synth: async (text, o) => { window.__raSteadiness = o.steadiness; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
       dispose() { log.push("dispose"); loaded = null; },
     };
@@ -99,7 +99,7 @@ try {
   check("到这里引擎一次都没装过（开书、开设置、下载都不备引擎）", await page.evaluate(() => !window.__raLog.some((x) => x.startsWith("load"))));
   check("念法（实验）滑块默认在「原样」一端（0）", await page.evaluate(() => document.getElementById("raStyleRange").value === "0"));
   await page.selectOption("#raModeSelect", "sentence");
-  check("把朗读模式调开 = 有意图：后台开始备引擎", await wait(() => window.__raLog.includes("load:ja+en")));
+  check("把朗读模式调开 = 有意图：后台开始备引擎", await wait(() => window.__raLog.includes("load:ja")));
   await page.click("#settingsClose"); await page.waitForTimeout(200);
   await showChrome();
   check("朗读模式不是「关」 + 装了音色 → 顶栏露出朗读钮", await page.evaluate(() => document.getElementById("readAloudButton").hidden === false));
@@ -109,7 +109,7 @@ try {
   // ── 进朗读态 ──
   await showChrome();
   await page.click("#readAloudButton"); await page.waitForTimeout(300);
-  check("点朗读 → 进朗读态、控制条出现、引擎开始装语音", await page.evaluate(() => window.__jrb.readAloud.active() && document.body.dataset.readAloud === "1" && !document.getElementById("raBar").hidden && window.__raLog.includes("load:ja+en")));
+  check("点朗读 → 进朗读态、控制条出现、引擎开始装语音", await page.evaluate(() => window.__jrb.readAloud.active() && document.body.dataset.readAloud === "1" && !document.getElementById("raBar").hidden && window.__raLog.includes("load:ja")));
 
   check("朗读态下提示条在控制条上方，不盖住按钮", await page.evaluate(() => { const toast = document.getElementById("toast"), bar = document.getElementById("raBar"); const was = toast.hidden, txt = toast.textContent; toast.hidden = false; if (!txt) toast.textContent = "x"; const tr = toast.getBoundingClientRect(), br = bar.getBoundingClientRect(); toast.hidden = was; toast.textContent = txt; return tr.height > 0 && tr.bottom <= br.top; }));
   // 语速在控制条上：点一下换一档（1 → 1.1 → 1.25 → 0.8）
@@ -147,7 +147,7 @@ try {
   await page.click("#raPlay");
   check("连续：播放钮变暂停", await wait(() => document.getElementById("raPlayIcon").getAttribute("href") === "#pause"));
   check("连读：章末自动翻章接着读，只有标题的空章直接跳过", await wait(() => document.querySelector("#reader .txt-chapter-title")?.textContent === "第3章 中间" && window.__raLog.some((x) => x.endsWith(":这是第三章的第一句。")), null, 20000), JSON.stringify(await page.evaluate(() => ({ log: window.__raLog, st: window.__jrb.readAloud.debugState(), title: document.querySelector("#reader .txt-chapter-title")?.textContent, body: window.__jrb.reader.bodyText().slice(0, 80), ctx: "n/a" }))));
-  check("翻章后语言跟着这一章变（中文），引擎换装成只装中文", await page.evaluate(() => window.__raLog.some((x) => x.startsWith("synth:zh:") && x.endsWith(":这是第三章的第一句。")) && window.__raLog.indexOf("load:zh") > window.__raLog.indexOf("load:ja+en")));
+  check("翻章后语言跟着这一章变（中文），引擎换装成只装中文", await page.evaluate(() => window.__raLog.some((x) => x.startsWith("synth:zh:") && x.endsWith(":这是第三章的第一句。")) && window.__raLog.indexOf("load:zh") > window.__raLog.indexOf("load:ja")));
   await page.click("#raPlay");
   check("暂停 → 状态 paused；再点 → 继续", await ra(`s.state === "paused"`) && (await page.click("#raPlay"), await ra(`s.state === "playing" || s.state === "loading"`)));
   check("读到书末：停下、还在朗读态、播放钮回到播放", await toEnd() && await page.evaluate(() => document.getElementById("raPlayIcon").getAttribute("href") === "#play"));
@@ -214,6 +214,35 @@ try {
   await page.click("#raPacks .ra-pack-actions button");   // 重新下载
   check("补下回来 → 喇叭钮又露出来", await wait(() => document.getElementById("readAloudButton").hidden === false));
   await page.click("#settingsClose"); await page.waitForTimeout(200);
+
+  // ── 每句自己判语言 + 第二章多了新的语言（user 2026-10-01「碰到没装的会自动…比如第二章多了新的语言」）──
+  //   第一章纯中文 → 引擎只装中文；连续念到第二章（中日英混排）→ 自动换装成日 + 中 + 英，每句按语言分段送进引擎
+  const MIXBOOK = ["第1章 中文", "今天天气很好。", "我们去公园吧。", "", "第2章 混排", "这个词读作「せんせい」，意思是老师。", "他用iPhone拍了照片。", "The end of the story.", "", "第3章 结尾", "再见。", ""].join("\n");
+  await page.setInputFiles("#uploadInput", { name: "混排测试.txt", mimeType: "text/plain", buffer: Buffer.from(MIXBOOK, "utf8") });
+  await page.waitForFunction(() => window.__jrb.book()?.name?.includes("混排测试"), null, { timeout: 8000 });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { window.__jrb.reader.goTo(0); window.__raFake.unload(); window.__raLog.length = 0; });
+  await setMode("continuous");
+  await showChrome();
+  await page.click("#readAloudButton"); await page.waitForTimeout(300);
+  check("纯中文的第一章：引擎只装中文", await wait(() => window.__raFake.loadedLangs() === "zh"), await page.evaluate(() => window.__raFake.loadedLangs() + " | " + window.__raLog.join(" | ")));
+  await page.click("#raPlay");
+  const synthOf = (lang, text) => `window.__raLog.some((x) => x.startsWith("synth:${lang}:") && x.endsWith(":${text}"))`;
+  check("连续念到第二章：自动换装成日 + 中 + 英（这一章多了日语和英语）", await wait(() => window.__raFake.loadedLangs() === "ja+zh+en", null, 20000), await page.evaluate(() => window.__raFake.loadedLangs() + " | " + window.__raLog.join(" | ")));
+  check("中日混排的一句分三段、各带各的语言：中「这个词读作」→ 日「「せんせい」，」→ 中「意思是老师。」", await wait(`${synthOf("zh", "这个词读作")} && ${synthOf("ja", "「せんせい」，")} && ${synthOf("zh", "意思是老师。")}`, null, 20000), await page.evaluate(() => window.__raLog.join(" | ")));
+  check("中文夹英文词的一句整句交给中文（英文词由后端再切）；纯英文一句交给英语", await wait(`${synthOf("zh", "他用iPhone拍了照片。")} && ${synthOf("en", "The end of the story.")}`, null, 20000), await page.evaluate(() => window.__raLog.join(" | ")));
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle" && !window.__jrb.readAloud.debugState().continuous, null, 20000);
+  // 缺一种语言就不念、明说缺哪种（user「主语言替代朗读（日文会念不准）不要这样，这是静默退化」）：假装日语没下载，回到第二章点一句
+  await page.evaluate(() => { window.__raFake.setMissing("ja", true); window.__raFake.unload(); window.__raLog.length = 0; window.__jrb.reader.goTo(1); });
+  await page.waitForTimeout(300);
+  const ptMix = await page.evaluate(() => { const node = document.querySelector("#reader .txt-body").firstChild; const i = node.data.indexOf("意思"); const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1); const q = r.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; });
+  await page.mouse.click(ptMix.x, ptMix.y); await page.waitForTimeout(400);
+  const miss = await page.evaluate(() => ({ toast: document.getElementById("toast").textContent, settings: !document.getElementById("settingsView").hidden, synth: window.__raLog.filter((x) => x.startsWith("synth:")).length, loaded: window.__raFake.loadedLangs() }));
+  check("这一章用到的日语没下载：不念、不拿中文凑合，明说缺日语并带去设置", miss.toast.includes("日语") && miss.toast.includes("不在这台设备上") && miss.settings && miss.synth === 0 && miss.loaded === "", JSON.stringify(miss));
+  await page.evaluate(() => window.__raFake.setMissing("ja", false));
+  await page.click("#settingsClose"); await page.waitForTimeout(200);
+  await showChrome();
+  await page.click("#raClose"); await page.waitForTimeout(150);
 
   // ── 进书架 = 退出朗读 ──
   await showChrome();

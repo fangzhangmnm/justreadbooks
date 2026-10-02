@@ -10,7 +10,7 @@
 //   · 语音包来源 = 家族模型仓（config.ts READ_ALOUD_MODEL_SOURCE，设置里可改成任何镜像，或从本机文件导入）；字节到手逐片对内嵌清单的 sha256。
 //   · 一个音色 = 几个小包（权重 / 运行时 / 每种语言的词典；库的 VoiceDef）。界面只说「音色」；只把这一章的语言装进引擎（日语前端固定占 160 MB 内存）。
 //   · 音色的署名和使用条款（上游要求必须让用户看到的原文）显示在设置的「朗读」栏里：当前选中音色的那一份，可展开的栏，正文字号，不翻译。
-import { createReadAloud, createSpeechEngine, createWebAudioSink, detectLang, splitSentences, voiceLangs, voicePacks, type ReadAloud, type SpeechEngine, type SpeechLang, type EmbeddedPack, type VoiceDef, type PackProgress, type SentenceSpan } from "@internal/read-aloud";
+import { createReadAloud, createSpeechEngine, createWebAudioSink, langsIn, splitSentences, voiceLangs, voicePacks, type ReadAloud, type SpeechEngine, type SpeechLang, type EmbeddedPack, type VoiceDef, type PackProgress, type SentenceSpan } from "@internal/read-aloud";
 import { READ_ALOUD_VOICES, READ_ALOUD_PACKS } from "./read-aloud-packs.generated.ts";
 import { READ_ALOUD_MODEL_SOURCE, READ_ALOUD_SPEEDS } from "./config.ts";
 import { deviceKvGetJson, deviceKvSetJson } from "./device-kv.ts";
@@ -146,14 +146,22 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   });
 
   /** 念 lang 要装进引擎的语言：日语正文里夹的拉丁字母走英语前端，所以日语 + 英语（英语包在才带）。 */
-  function langsFor(id: string, lang: SpeechLang): SpeechLang[] {
-    return lang === "ja" && eng().isKnownReady(id, "en") ? ["ja", "en"] : [lang];
+  /**
+   * 这一章要装哪几种语言（每句自己判语言，库 0.1.11；user 2026-10-01「每句话路由不同的前端」）：库的 langsIn 说这一章里出现了
+   * 哪几种（中文书里夹的日文句子、中文里的英文词都算）。**缺一种都不念、明说缺哪种**，不拿别的语言凑合
+   * （user「主语言替代朗读（日文会念不准）不要这样，这是静默退化」「不过设置里面全下载可以，就这样」）。
+   * 返回 { need: 这一章出现的, unsupported: 这个音色不会念的, missing: 会念但这台设备上没下载的 }。
+   */
+  function langsForChapter(id: string, text: string): { need: SpeechLang[]; unsupported: SpeechLang[]; missing: SpeechLang[] } {
+    const need = langsIn(text), can = voiceLangs(def(id));
+    return { need, unsupported: need.filter((l) => !can.includes(l)), missing: need.filter((l) => can.includes(l) && eng().isKnownReady(id, l) === false) };
   }
-  async function ensureLoaded(id: string, lang: SpeechLang): Promise<void> {
+  const langList = (ls: SpeechLang[]) => ls.map(langName).join(" / ");
+  async function ensureLoaded(id: string, langs: SpeechLang[]): Promise<void> {
     const cur = eng().loaded();
-    if (cur?.voice === id && cur.langs.includes(lang)) return;
+    if (cur?.voice === id && langs.every((l) => cur.langs.includes(l))) return;
     loadingVoice = true; renderBar();
-    try { await eng().load(id, { langs: langsFor(id, lang) }); } finally { loadingVoice = false; renderBar(); }
+    try { await eng().load(id, { langs }); } finally { loadingVoice = false; renderBar(); }
   }
   /** 只认最后一次：点得快、引擎还在装的时候，先发的那几次在等引擎，回来发现自己不是最新的就作废（新点的优先）。 */
   let readSeq = 0;
@@ -168,13 +176,13 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
       if (!moved) { continuous = false; renderBar(); void syncWake(); return; }
       marked = null; from = 0; text = deps.reader.bodyText();
     }
-    const lang = detectLang(text);
-    if (!voiceLangs(def(id)).includes(lang)) { deps.status(t("ra.langUnsupported"), { error: true }); return; }
-    if (eng().isKnownReady(id, lang) === false) { deps.status(t("ra.langNotDownloaded")); deps.openSettings(); return; }
-    try { await ensureLoaded(id, lang); } catch (e) { deps.logError(e); deps.status(t("ra.error"), { error: true }); return; }
+    const { need, unsupported, missing } = langsForChapter(id, text);
+    if (unsupported.length) { deps.status(t("ra.langUnsupported", { langs: langList(unsupported) }), { error: true }); return; }
+    if (missing.length) { deps.status(t("ra.langNotDownloaded", { langs: langList(missing) })); deps.openSettings(); return; }
+    try { await ensureLoaded(id, need); } catch (e) { deps.logError(e); deps.status(t("ra.error"), { error: true }); return; }
     if (my !== readSeq || !on || deps.reader.bodyText() !== text) return;   // 等引擎的工夫里又点了别的 / 退出了 / 翻章了
     continuous = !once;
-    reader_().start(text, from, { once, lang, speaker: speaker(id), speed: speed(), steadiness: steadiness() });
+    reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), steadiness: steadiness() });   // 不给 lang = 每句自己判
     void syncWake();
   }
   function stopReading(): void { readSeq++; chapterGap = false; continuous = false; ra?.stop(); marked = null; deps.reader.markReading(null); void syncWake(); renderBar(); }
@@ -190,8 +198,8 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     if (disposeTimer) { clearTimeout(disposeTimer); disposeTimer = null; }
     on = true; document.body.dataset.readAloud = "1"; bar.hidden = false; renderBar();
     // 进来就先把这一章的语言装上（点第一句时不用等）；这一章的语言没下 / 不会念 → 等用户点了再如实说
-    const lang = detectLang(deps.reader.bodyText());
-    if (eng().isKnownReady(id, lang)) void ensureLoaded(id, lang).catch((e) => { deps.logError(e); deps.status(t("ra.error"), { error: true }); });
+    const ch = langsForChapter(id, deps.reader.bodyText());
+    if (!ch.unsupported.length && !ch.missing.length) void ensureLoaded(id, ch.need).catch((e) => { deps.logError(e); deps.status(t("ra.error"), { error: true }); });
   }
   /** 两分钟没在朗读态就关 worker、放掉喇叭（归还内存）。 */
   function armDispose(): void {
@@ -211,9 +219,9 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
    */
   function prewarm(): void {
     const id = currentVoice(); if (!id || !deps.hasBook()) return;
-    const lang = detectLang(deps.reader.bodyText());
-    if (eng().isKnownReady(id, lang) !== true) return;
-    void ensureLoaded(id, lang).catch((e) => deps.logError(e));
+    const ch = langsForChapter(id, deps.reader.bodyText());
+    if (ch.unsupported.length || ch.missing.length) return;
+    void ensureLoaded(id, ch.need).catch((e) => deps.logError(e));
     if (!on) armDispose();
   }
   $("raClose").addEventListener("click", exit);

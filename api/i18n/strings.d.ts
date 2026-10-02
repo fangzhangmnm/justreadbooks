@@ -661,12 +661,12 @@ export declare const S: {
         readonly en: "Read-aloud failed (details in the diagnostic log)";
     };
     readonly "ra.langUnsupported": {
-        readonly zh: "这个音色不会念这一章的语言";
-        readonly en: "This voice cannot read this chapter’s language";
+        readonly zh: "这一章用到{langs}，这个音色不会念";
+        readonly en: "This chapter uses {langs}, which this voice cannot read";
     };
     readonly "ra.langNotDownloaded": {
-        readonly zh: "这一章的语言还没下载，去设置里补下";
-        readonly en: "This chapter’s language is not downloaded yet; get it in Settings";
+        readonly zh: "这一章用到{langs}，这部分语音包不在这台设备上，去设置里补下";
+        readonly en: "This chapter uses {langs}; that part of the voice is not on this device — get it in Settings";
     };
     readonly "ra.noPacks": {
         readonly zh: "这一版还没有随附音色";
