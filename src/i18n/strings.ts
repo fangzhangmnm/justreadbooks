@@ -164,7 +164,7 @@ export const S = {
   "ra.style": { zh: "念法（实验）", en: "Style (experiment)" },
   "ra.styleNormal": { zh: "原样", en: "As is" },
   "ra.styleSteady": { zh: "平稳", en: "Steady" },
-  "ra.styleHint": { zh: "平稳 = 随机起伏调小、稍慢一点：机器听写的错字少一半以上，但可能更平。两种切着听，告诉我哪个好。", en: "Steady = less random variation, a little slower: the machine transcribes it with less than half the errors, but it may sound flatter. Try both." },
+  "ra.styleHint": { zh: "越往右越平稳：随机起伏越小、稍慢一点，越容易听清，但也越平、越像机翻。正在念的时候拖动，松手后这一句按新念法重念。", en: "Further right = steadier: less random variation and a little slower — easier to follow, but flatter and more machine-like. Drag while it is reading; the sentence is read again with the new style when you let go." },
   "ra.modeOff": { zh: "关", en: "Off" },
   "ra.modeContinuous": { zh: "连续", en: "Continuous" },
   "ra.modeSentence": { zh: "逐句", en: "Sentence" },

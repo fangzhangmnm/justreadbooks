@@ -596,6 +596,22 @@ export declare const S: {
         readonly zh: "朗读模式";
         readonly en: "Read-aloud mode";
     };
+    readonly "ra.style": {
+        readonly zh: "念法（实验）";
+        readonly en: "Style (experiment)";
+    };
+    readonly "ra.styleNormal": {
+        readonly zh: "原样";
+        readonly en: "As is";
+    };
+    readonly "ra.styleSteady": {
+        readonly zh: "平稳";
+        readonly en: "Steady";
+    };
+    readonly "ra.styleHint": {
+        readonly zh: "越往右越平稳：随机起伏越小、稍慢一点，越容易听清，但也越平、越像机翻。正在念的时候拖动，松手后这一句按新念法重念。";
+        readonly en: "Further right = steadier: less random variation and a little slower — easier to follow, but flatter and more machine-like. Drag while it is reading; the sentence is read again with the new style when you let go.";
+    };
     readonly "ra.modeOff": {
         readonly zh: "关";
         readonly en: "Off";

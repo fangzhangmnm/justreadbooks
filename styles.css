@@ -201,6 +201,9 @@ body[data-read-aloud="1"] .txt-inner { padding-bottom: 180px; }
 .ra-pack .setting-note { white-space: pre-line; }
 .ra-terms { padding: 6px 0 2px; border-bottom: 1px solid var(--line); }
 .ra-terms > summary { cursor: pointer; font-size: 14px; padding: 4px 0; color: var(--ink); }
+.ra-style { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; justify-content: flex-end; min-width: 0; }
+.ra-style input[type=range] { flex: 1 1 auto; min-width: 90px; max-width: 220px; accent-color: var(--accent-strong); }
+.ra-style-end { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
 .ra-credit { white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; color: var(--ink); padding: 6px 10px; margin: 2px 0 6px; border-left: 3px solid var(--line-strong); user-select: text; -webkit-user-select: text; }
 .setting-input { flex: 1 1 10em; min-width: 0; font: inherit; font-size: 13px; color: var(--ink); background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: 6px; padding: 5px 8px; }
 /* 设置分栏（0.2.0）：原生 details / summary，样式抄 WXHW styles.css「.settings-section」（两家同款，是 @internal/workbench-elements 吸收候选） */

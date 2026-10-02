@@ -22,7 +22,7 @@ const KV = "read-aloud";
 /** have = 这台设备上有能用的音色（上次问引擎时的结论）。朗读是可选的：没装音色的人顶栏上看不到喇叭钮，入口只在设置 →「朗读」。
  *  记在偏好里是为了启动时不用为了问这一句去起 worker。
  *  mode = 设置里的朗读模式；没设过 = 逐句（这个功能是语言学习逼出来的）。关 = 音色留着，喇叭钮收起。 */
-interface Prefs { voice?: string; speaker?: number; speed?: number; source?: string; have?: boolean; mode?: Mode; steady?: boolean }
+interface Prefs { voice?: string; speaker?: number; speed?: number; source?: string; have?: boolean; mode?: Mode; steady?: boolean; steadiness?: number }
 /** 朗读模式（user 2026-10-01「朗读模式不是有三种吗 关 连续 逐句 逐句是用来语言学习的」）。 */
 type Mode = "off" | "continuous" | "sentence";
 const MODES: readonly Mode[] = ["off", "continuous", "sentence"];
@@ -89,6 +89,8 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   const totalBytes = (id: string) => voicePacks(def(id)).reduce((a, slug) => a + (catalog.packs[slug]?.manifest.totalBytes ?? 0), 0);
   const source = () => (prefs().source ?? "").trim() || READ_ALOUD_MODEL_SOURCE;
   const mode = (): Mode => { const m = prefs().mode; return m && MODES.includes(m) ? m : "sentence"; };
+  /** 念法 0（原样）… 1（平稳）；0.2.4 的开关存的是 steady: true，当 1。 */
+  const steadiness = () => { const p = prefs(); const v = typeof p.steadiness === "number" && Number.isFinite(p.steadiness) ? p.steadiness : p.steady ? 1 : 0; return Math.min(1, Math.max(0, v)); };
   const speed = () => { const s = prefs().speed; return typeof s === "number" && READ_ALOUD_SPEEDS.includes(s) ? s : 1; };
   const speaker = (id: string) => { const v = prefs().speaker, vs = speakers(id); return typeof v === "number" && vs.some((x) => x.id === v) ? v : vs[0]!.id; };
 
@@ -172,7 +174,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     try { await ensureLoaded(id, lang); } catch (e) { deps.logError(e); deps.status(t("ra.error"), { error: true }); return; }
     if (my !== readSeq || !on || deps.reader.bodyText() !== text) return;   // 等引擎的工夫里又点了别的 / 退出了 / 翻章了
     continuous = !once;
-    reader_().start(text, from, { once, lang, speaker: speaker(id), speed: speed(), steady: prefs().steady === true });
+    reader_().start(text, from, { once, lang, speaker: speaker(id), speed: speed(), steadiness: steadiness() });
     void syncWake();
   }
   function stopReading(): void { readSeq++; chapterGap = false; continuous = false; ra?.stop(); marked = null; deps.reader.markReading(null); void syncWake(); renderBar(); }
@@ -332,9 +334,14 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     for (const it of items) { const o = document.createElement("option"); o.value = it.value; o.textContent = it.label; sel.appendChild(o); }
     sel.value = value;
   }
-  // 念法（实验，user 2026-10-01「以及为什么不给我开关让我自己来听」）：原样 / 平稳 = 采样噪声小 + 稍慢。默认原样，换不换默认值由 user 听了定。
-  const styleSel = $<HTMLSelectElement>("raStyleSelect");
-  styleSel.addEventListener("change", () => { setPrefs({ steady: styleSel.value === "steady" }); if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); } });
+  // 念法（实验）：原样 ↔ 平稳的滑块，0…1（库在三个参数之间线性插值）。user 2026-10-01「以及为什么不给我开关让我自己来听」→
+  // 「平稳档是很容易听清楚，就是有点像机翻」「能不能给我一个能调原样平稳的滑块」。默认原样（0），换不换默认值由 user 听了定。
+  // 松手才生效（change，不是 input）：正在念 / 暂停着 = 这一句按新念法重念。
+  const styleRange = $<HTMLInputElement>("raStyleRange");
+  styleRange.addEventListener("change", () => {
+    setPrefs({ steadiness: Math.min(1, Math.max(0, Number(styleRange.value) / 100)), steady: undefined });
+    if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); }
+  });
   const modeSel = $<HTMLSelectElement>("raModeSelect");
   function renderMode(): void {
     const have = voiceIds().length > 0 && prefs().have === true;
@@ -350,7 +357,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   });
   function renderSettings(): void {
     renderMode();
-    styleSel.value = prefs().steady ? "steady" : "normal";
+    styleRange.value = String(Math.round(steadiness() * 100));
     sourceInput.value = prefs().source ?? ""; sourceInput.placeholder = READ_ALOUD_MODEL_SOURCE;
     const id = currentVoice();
     voiceRow.hidden = voiceIds().length <= 1;
