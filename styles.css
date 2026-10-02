@@ -199,6 +199,8 @@ body[data-read-aloud="1"] .status-toast { bottom: calc(var(--bottom-floor) + 64p
 .ra-bar .ra-play { color: var(--accent-strong); }
 .ra-speed { min-width: 56px; height: 38px; padding: 0 4px; border: 0; background: none; color: var(--ink-soft); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; border-radius: 8px; }
 .ra-speed:active, .ra-speed:focus-visible { background: var(--bg-2, rgba(0, 0, 0, 0.06)); }
+.ra-preset { width: 4.2em; height: 30px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--bg-1); color: var(--ink); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+.ra-preset[hidden] { display: none; }
 .ra-status { font-size: 11px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 7em; min-width: 0; flex: 0 1 auto; }
 .ra-status:empty { display: none; }
 body[data-read-aloud="1"] .txt-inner { padding-bottom: 180px; }

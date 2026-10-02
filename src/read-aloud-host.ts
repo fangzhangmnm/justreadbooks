@@ -102,6 +102,9 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   // 装引擎时作为 override 交给库（model.onnx + 可选 config.json），音色的词典和运行时照旧用包里的。
   let local: { model: File; config: File | null } | null = null;
   let loadedTag = "";   // 引擎里现在装的是哪个本地模型（"" = 音色自己的）
+  // 预设（库 0.1.15 的家族约定；user 2026-10-02「输入就是一个用户键盘输入的signed int，然后模型随便解释」）：只在内存里，这次打开有效；
+  // 输入框只在当前装着的模型认预设时露出来（控制条上）。
+  let preset = 0;
   const fileTag = (f: File | null) => (f ? `${f.name}:${f.size}:${f.lastModified}` : "");
   const localTag = () => (local ? `${fileTag(local.model)}|${fileTag(local.config)}` : "");
   /** 装引擎失败时给用户的话：用着本地模型就说本地模型的事（音素表对不上 / 装不上），不笼统地说「出错了」。 */
@@ -143,6 +146,21 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   const speedSel = $("raSpeed") as HTMLSelectElement;
   for (const s of READ_ALOUD_SPEEDS) speedSel.add(new Option(`${s}×`, String(s)));
   const bar = $("raBar"), playBtn = $("raPlay"), playIcon = document.getElementById("raPlayIcon"), statusEl = $("raStatus");
+  const presetInput = $<HTMLInputElement>("raPreset");
+  /** 十进制或 0x 十六进制的带符号整数；不是 = null。 */
+  const parsePreset = (s: string): number | null => {
+    const x = s.trim(); if (!x) return 0;
+    const m = /^([+-]?)(0x[0-9a-f]+|\d+)$/i.exec(x); if (!m) return null;
+    const v = (m[1] === "-" ? -1 : 1) * (/^0x/i.test(m[2]!) ? parseInt(m[2]!.slice(2), 16) : parseInt(m[2]!, 10));
+    return Number.isSafeInteger(v) && Math.abs(v) <= 2147483647 ? v : null;
+  };
+  presetInput.addEventListener("change", () => {
+    const v = parsePreset(presetInput.value);
+    if (v === null) { deps.status(t("ra.presetInvalid"), { error: true }); presetInput.value = String(preset); return; }
+    preset = v;
+    if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); }   // 这一句按新预设重念
+  });
+  presetInput.addEventListener("keydown", (e) => { if (e.key === "Enter") presetInput.blur(); });   // 回车 = 生效（change 在失焦时发）
   function renderBar(): void {
     const st = ra?.state() ?? "idle";
     const going = st === "playing" || st === "loading" || chapterGap;
@@ -150,6 +168,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const label = going ? t("ra.pause") : t("ra.play");
     playBtn.setAttribute("aria-label", label); playBtn.title = label;
     statusEl.textContent = loadingVoice ? t("ra.loadingVoice") : st === "loading" ? t("ra.synth") : local ? t("ra.localBadge") : "";
+    presetInput.hidden = engine?.loaded()?.preset !== true;   // 模型认预设才露
     speedSel.value = String(speed());
   }
   async function syncWake(): Promise<void> {
@@ -204,7 +223,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     try { await ensureLoaded(id, need); } catch (e) { if (my !== readSeq || cancelled(e)) return; deps.logError(e); deps.status(loadErrorText(e), { error: true }); return; }
     if (my !== readSeq || !on || deps.reader.bodyText() !== text) return;   // 等引擎的工夫里又点了别的 / 退出了 / 翻章了
     continuous = !once;
-    reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), steadiness: steadiness(), whole: whole() });   // 不给 lang = 每句自己判
+    reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), steadiness: steadiness(), whole: whole(), preset });   // 不给 lang = 每句自己判
     void syncWake();
   }
   function stopReading(): void { readSeq++; chapterGap = false; continuous = false; ra?.stop(); marked = null; deps.reader.markReading(null); void syncWake(); renderBar(); }

@@ -69,11 +69,11 @@ try {
         const langs = opts?.langs ?? ALL, ov = opts?.override ? Object.keys(opts.override).sort() : [];
         log.push(`load:${langs.join("+")}${ov.length ? `|override:${ov.join(",")}` : ""}`);
         if (opts?.override?.["config.json"]?.name === "bad.json") { loaded = null; throw new Error("override-mismatch: config.json has a different phoneme_id_map than this voice"); }   // 库的真规矩：音素表对不上就拒
-        loaded = { voice, langs, override: ov }; return { voice, langs, alreadyLoaded: false, createMs: 1, sampleRate: 22050, speakers: 2, override: ov };
+        loaded = { voice, langs, override: ov, preset: ov.length > 0 }; return { voice, langs, alreadyLoaded: false, createMs: 1, sampleRate: 22050, speakers: 2, override: ov, preset: ov.length > 0 };   // 假设：本地模型认预设、音色自己的不认
       },
       loaded: () => loaded,
       isKnownReady: (voice, lang) => (asked ? ready && !(lang && missing.has(lang)) : undefined),
-      synth: async (text, o) => { window.__raSteadiness = o.steadiness; window.__raWhole = o.whole; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
+      synth: async (text, o) => { window.__raSteadiness = o.steadiness; window.__raWhole = o.whole; window.__raPreset = o.preset; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
       dispose() { log.push("dispose"); loaded = null; },
     };
     const manifest = { v: 1, slug: "fake-pack", name: "fake", task: "tts", lang: ALL, engine: "fake", engineConfig: {}, files: [], chunkBytes: 1, chunks: [], totalBytes: 4096, sha256: "", license: { name: "test", file: "", sha256: "", attribution: "" } };
@@ -213,19 +213,32 @@ try {
   check("同一句再点：用合成好的、不重算", (await countS()) === c0, `${await countS()} vs ${c0}: ${S}`);
   const nDispose = await page.evaluate(() => window.__raLog.filter((x) => x === "dispose").length);
   const drop = (names) => page.evaluate((ns) => { const dt = new DataTransfer(); for (const n of ns) dt.items.add(new File([n.endsWith(".json") ? "{}" : new Uint8Array(1024)], n)); document.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true })); }, names);
+  check("预设：音色自己的模型不认预设 → 控制条上没有预设框", await page.evaluate(() => document.getElementById("raPreset").hidden));
   await drop(["test-weights.onnx", "test-weights.onnx.json"]);
   await page.waitForTimeout(400);
   check("本地模型：.onnx + .json 拖到页面上 → 提示已换上、不当书上传；设置里写着文件名、有「移除」", await page.evaluate(() => { window.__jrb.readAloud.renderSettings(); return document.getElementById("toast").textContent.includes("已换成本地模型：test-weights.onnx + test-weights.onnx.json") && document.getElementById("raLocalName").textContent.startsWith("test-weights.onnx") && !document.getElementById("raLocalRemove").hidden; }), await page.evaluate(() => document.getElementById("toast").textContent));
   await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
   check("换上本地模型 → 引擎里的旧模型立刻放掉（关 worker）；之前合成过的这一句重新合成，不播旧模型的缓存（user「更换模型之后之前模型的缓存可以去掉了」）", await page.evaluate((n) => window.__raLog.filter((x) => x === "dispose").length > n, nDispose) && await until(async () => (await countS()) > c0), `${await countS()} vs ${c0}: ${S}`);
   check("本地模型：再点一句 → 引擎重新装载，带着 model.onnx + config.json；念完控制条写着「本地模型」", await wait(() => window.__raLog.some((x) => x.endsWith("|override:config.json,model.onnx"))) && await wait(() => window.__jrb.readAloud.debugState().state === "idle" && document.getElementById("raStatus").textContent === "本地模型"), await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("load:")).join(" | ")));
+  // ── 预设（库 0.1.15 的家族约定）：模型认才露输入框；十进制 / 0x / 负数；不是整数 = 明说、退回 ──
+  check("预设：模型认预设 → 控制条上露出预设输入框", await page.evaluate(() => !document.getElementById("raPreset").hidden));
+  await page.evaluate(() => { const el = document.getElementById("raPreset"); el.value = "0xB"; el.dispatchEvent(new Event("change")); window.__jrb.reader.goTo(0); });
+  await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("预设：敲 0xB → 点一句，引擎收到 11", await wait(() => window.__raPreset === 11), String(await page.evaluate(() => window.__raPreset)));
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle");
+  await page.evaluate(() => { const el = document.getElementById("raPreset"); el.value = "-0x3"; el.dispatchEvent(new Event("change")); window.__jrb.reader.goTo(0); });
+  await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("预设：敲 -0x3 → 引擎收到 -3（带符号）", await wait(() => window.__raPreset === -3));
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle");
+  await page.evaluate(() => { const el = document.getElementById("raPreset"); el.value = "abc"; el.dispatchEvent(new Event("change")); });
+  check("预设：敲的不是整数 → 明说、框里退回上一次的值", await page.evaluate(() => document.getElementById("toast").textContent.includes("预设要是一个整数") && document.getElementById("raPreset").value === "-3"));
   const nSynthLocal = await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length);
   await drop(["bad.json"]); await page.waitForTimeout(200);
   await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
   check("本地模型：只拖一个 .json（已经在用本地模型）= 换配置；音素表对不上 → 明说没用它、这一句不念", await wait(() => document.getElementById("toast").textContent.includes("音素表对不上")) && await page.evaluate((n) => window.__raLog.filter((x) => x.startsWith("synth:")).length === n, nSynthLocal), await page.evaluate(() => document.getElementById("toast").textContent));
   const c2 = await countS(), nDispose2 = await page.evaluate(() => window.__raLog.filter((x) => x === "dispose").length);
   await page.evaluate(() => document.getElementById("raLocalRemove").click());
-  check("移除本地模型 → 也把引擎里的本地模型放掉", await page.evaluate((n) => window.__raLog.filter((x) => x === "dispose").length > n, nDispose2));
+  check("移除本地模型 → 也把引擎里的本地模型放掉；预设框收起（引擎里没有认预设的模型了）", await page.evaluate((n) => window.__raLog.filter((x) => x === "dispose").length > n, nDispose2) && await page.evaluate(() => document.getElementById("raPreset").hidden));
   await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
   check("移除之后再点念过的句子：重新合成（不播本地模型念的缓存）", await until(async () => (await countS()) > c2), `${await countS()} vs ${c2}`);
   check("本地模型：移除 → 下一次装载不带替换文件，照常念；控制条不再写「本地模型」", await wait(() => { const l = window.__raLog.filter((x) => x.startsWith("load:")); return !l[l.length - 1].includes("override") && window.__raLog.filter((x) => x.startsWith("synth:")).length > 0; }) && await wait(() => window.__jrb.readAloud.debugState().state === "idle" && document.getElementById("raStatus").textContent === ""));
