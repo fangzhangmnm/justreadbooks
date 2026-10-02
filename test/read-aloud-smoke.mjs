@@ -77,6 +77,7 @@ try {
       isKnownReady: (voice, lang) => (asked ? (ready || lastCov) && !(lang && missing.has(lang)) : undefined),
       synth: async (text, o) => { window.__raSteadiness = o.steadiness; window.__raWhole = o.whole; window.__raPreset = o.preset; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
       dispose() { log.push("dispose"); loaded = null; },
+      cancelPending() { log.push("cancel"); },   // 库 0.1.19：控制器作废句子时扔掉排着的合成；JRB 包的那层要转过来
     };
     const manifest = { v: 1, slug: "fake-pack", name: "fake", task: "tts", lang: ALL, engine: "fake", engineConfig: {}, files: [], chunkBytes: 1, chunks: [], totalBytes: 4096, sha256: "", license: { name: "test", file: "", sha256: "", attribution: "" } };
     const voice = { v: 1, id: "fake-voice", name: "测试音色", engine: "fake", packs: ["fake-pack"], langPacks: { ja: [], zh: [], en: [] }, speakers: [{ id: 0, name: "A" }, { id: 1, name: "B" }], credit: "署名：测试音色", terms: "条款：测试", attribution: ["出处：测试"] };
@@ -131,9 +132,7 @@ try {
   check("正在读的句子被标出来（CSS Highlight）", await wait(() => CSS.highlights.has("jrb-reading")) && await ra(`body.slice(s.marked.start, s.marked.end) === "「お前はだれだ。」と、きつねがたずねました。"`));
   check("逐句：读完一句就停（不往下读）", await wait(() => window.__jrb.readAloud.debugState().state === "idle") && await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length === 1));
   check("朗读态下点正文不切顶栏", (await page.evaluate(() => document.body.dataset.chrome ?? "")) === chromeBefore);
-  await page.click("#raMenu"); await page.waitForTimeout(250);
-  const chromeAfterMenu = await page.evaluate(() => document.body.dataset.chrome ?? "");
-  check("朗读态下从控制条上的「⋯」叫出 / 收起顶栏", chromeAfterMenu !== chromeBefore && (await page.click("#raMenu"), await page.waitForTimeout(250), (await page.evaluate(() => document.body.dataset.chrome ?? "")) === chromeBefore), `${chromeBefore} → ${chromeAfterMenu}`);
+  check("控制条上没有「⋯」了（朗读态下点空白处叫菜单，user 2026-10-02「chip的弹菜单键可以拿掉了」）", await page.evaluate(() => !document.getElementById("raMenu")));
   check("控制条在手机宽度里放得下（不超出屏幕）", await page.evaluate(() => { const r = document.getElementById("raBar").getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth; }));
   await page.click("#raNext");
   check("逐句：下一句 → 只念下一句", await wait(() => window.__raLog.some((x) => x.endsWith(":雨が降ってきました。"))) && await wait(() => { const s = window.__jrb.readAloud.debugState(); return s.state === "idle" && !s.continuous; }));
@@ -184,7 +183,7 @@ try {
   await page.click("#raPlay");
   await wait(() => window.__jrb.readAloud.debugState().state === "playing");
   await page.selectOption("#raSpeed", "2");
-  check("念着的时候换语速（0.8 → 2）：这一句按新速度重新合成，接着连续念", await wait(() => window.__raLog.some((x) => x.startsWith("synth:ja:2:森の中で"))) && await page.evaluate(() => document.getElementById("raSpeed").value === "2" && window.__jrb.readAloud.debugState().continuous) && await toEnd());
+  check("念着的时候换语速（0.8 → 2）：这一句按新速度重新合成，接着连续念；排着的旧合成被扔掉（JRB 把 cancelPending 转给了库，user「ipad上调多了preset会不出声」）", await page.evaluate(() => window.__raLog.includes("cancel")) && await wait(() => window.__raLog.some((x) => x.startsWith("synth:ja:2:森の中で"))) && await page.evaluate(() => document.getElementById("raSpeed").value === "2" && window.__jrb.readAloud.debugState().continuous) && await toEnd());
 
   check("念法滑块已收起（user「念法slider可以sunset了，保持原样」）：设置里没有，引擎收到的念法是原样（0）", await page.evaluate(() => !document.getElementById("raStyleRange") && window.__raSteadiness === 0));
 

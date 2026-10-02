@@ -194,7 +194,6 @@ export const S = {
   "ra.pause": { zh: "暂停", en: "Pause" },
   "ra.prev": { zh: "上一句", en: "Previous sentence" },
   "ra.next": { zh: "下一句", en: "Next sentence" },
-  "ra.menu": { zh: "显示 / 收起顶栏", en: "Show / hide the top bar" },
   "ra.close": { zh: "退出朗读", en: "Leave read-aloud" },
   "ra.loadingVoice": { zh: "正在准备语音…", en: "Preparing voice…" },
   "ra.synth": { zh: "合成中…", en: "Synthesising…" },

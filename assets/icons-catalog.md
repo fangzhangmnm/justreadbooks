@@ -1,6 +1,6 @@
 # 本 app 的图标
 
-53 icons · 提取自家族图标库 `../20260708 SVG Icons/icons.svg` · 由 `extract-icons.py` 生成，别手改。
+55 icons · 提取自家族图标库 `../20260708 SVG Icons/icons.svg` · 由 `extract-icons.py` 生成，别手改。
 
 用法：把 sprite 整段内联到 `<body>` 顶部，然后按 id 引用；
 ⚠ sprite 根自带的隐藏样式（1×1 + `opacity:0`）别换成 `display:none`——
@@ -12,7 +12,7 @@
 <svg width="24" height="24"><use href="#copy"/></svg>
 ```
 
-> 👁 **待过目**（AI 自画、未经人类审阅，`data-review="pending"`）：`bookshelf`、`book`、`forward`、`chevron-left`、`chevron-right`、`settings`、`help`
+> 👁 **待过目**（AI 自画、未经人类审阅，`data-review="pending"`）：`bookshelf`、`book`、`forward`、`chevron-left`、`chevron-right`、`caret-up`、`caret-down`、`settings`、`help`
 > 见库 `index.html` 的「待过目」栏；过目后进库/打回归库 session。
 
 
@@ -69,6 +69,8 @@
 | `chevron-right` 👁待过目 | › chevron-left 的精确镜像【WeebPaint 参考窗翻页 chip；fable 自画未过目】 |
 | `chevron-down` | 下移:竖线 + 底端 ∨ 箭头 |
 | `chevron-up` | 上移:竖线 + 顶端 ∧ 箭头 |
+| `caret-up` 👁待过目 | 上调 ▲:圆角实心扁三角(数字框旁上下叠放的小转盘用,12–16px)；与带竿的 chevron-up(上移)分工【JustReadBooks 朗读控制条预设框右侧小转盘「预设加一」；2026-10-02 Claude Opus 5.5 自画未过目】 |
+| `caret-down` 👁待过目 | 下调 ▼:caret-up 的精确上下镜像【JustReadBooks 朗读控制条预设框右侧小转盘「预设减一」；2026-10-02 Claude Opus 5.5 自画未过目】 |
 
 ## cloud
 

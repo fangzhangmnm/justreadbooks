@@ -84,6 +84,8 @@ body { background: var(--bg-0); color: var(--ink); font-family: var(--font-ui); 
 /* 沉浸阅读：阅读时顶栏默认藏（往上滑出安全区）；露出时**推正文**不盖（user 2026-09-20「到顶的时候再下拉应该出顶栏。主视图也相应能下拉一点而不是被覆盖」）：.reader padding-top 跟着长 36px */
 body[data-reading="1"] .top-bar { transform: translateY(calc(-100% - var(--top-floor) - 2px)); opacity: 0; pointer-events: none; }
 body[data-reading="1"][data-chrome="shown"] .top-bar { transform: none; opacity: 1; pointer-events: auto; background: var(--bg-0); box-shadow: 0 1px 0 var(--line); }
+/* 顶栏从安全区下沿开始：露出时它上面那一道（刘海 / 状态栏区）用同色盖住，不然滚过去的正文从缝里露出来（user 2026-10-02「苹果等有出血线的设备时，弹顶栏的时候上面会露出一道」）；藏起来时跟着一起滑走 */
+.top-bar::before { content: ""; position: absolute; left: calc(-1 * var(--sa-left)); right: calc(-1 * var(--sa-right)); bottom: 100%; height: calc(var(--top-floor) + 2px); background: inherit; pointer-events: none; }
 body[data-reading="1"] .reader { top: 0; padding-top: var(--top-floor); transition: padding-top 160ms ease; }
 body[data-reading="1"][data-chrome="shown"] .reader { padding-top: calc(var(--top-floor) + 36px); }
 .title-block { min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
@@ -199,11 +201,14 @@ body[data-read-aloud="1"] .status-toast { bottom: calc(var(--bottom-floor) + 64p
 .ra-bar .ra-play { color: var(--accent-strong); }
 .ra-speed { min-width: 56px; height: 38px; padding: 0 4px; border: 0; background: none; color: var(--ink-soft); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; border-radius: 8px; }
 .ra-speed:active, .ra-speed:focus-visible { background: var(--bg-2, rgba(0, 0, 0, 0.06)); }
-.ra-preset { width: 4.2em; height: 30px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--bg-1); color: var(--ink); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
-.ra-preset-dial { display: inline-flex; align-items: center; gap: 2px; }
+.ra-preset { width: 2.6em; height: 30px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--bg-1); color: var(--ink); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+/* 预设：窄输入框 + 右侧上下叠放的小转盘（user 2026-10-02「preset能加一个上下箭头的小dial吗」「chip的箭头做的不对」）；一起只占 ~62px，手机宽度放得下 */
+.ra-preset-dial { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--bg-1); height: 30px; overflow: hidden; }
 .ra-preset-dial[hidden] { display: none; }
-.ra-preset-step { width: 26px; height: 30px; padding: 0; border: 0; background: none; color: var(--ink-soft); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-.ra-preset-step .ico { width: 16px; height: 16px; }
+.ra-preset-dial .ra-preset { width: 2.6em; height: 100%; border: 0; border-radius: 0; background: none; padding: 0 2px 0 6px; }
+.ra-preset-steps { display: inline-flex; flex-direction: column; height: 100%; border-left: 1px solid var(--line); }
+.ra-preset-step { flex: 1 1 0; width: 22px; padding: 0; border: 0; background: none; color: var(--ink-soft); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.ra-preset-step .ico { width: 12px; height: 12px; }
 .ra-preset-step:active { background: var(--bg-2, rgba(0, 0, 0, 0.06)); }
 .ra-status { font-size: 11px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 7em; min-width: 0; flex: 0 1 auto; }
 .ra-status:empty { display: none; }

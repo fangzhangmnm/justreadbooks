@@ -35,7 +35,7 @@
     <!-- ICON-SPRITE:BEGIN — 由 tools/inline-sprites.py 生成，勿手改 -->
 <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none">
 <!--
-  53 icons extracted from the family icon library (../20260708 SVG Icons/icons.svg) by extract-icons.py — do not hand-edit; re-run the script instead.
+  55 icons extracted from the family icon library (../20260708 SVG Icons/icons.svg) by extract-icons.py — do not hand-edit; re-run the script instead.
   Family SVG Icons — MIT License, Copyright (c) 2026 fangzhangmnm.
   Contains work derived from (per-icon provenance in data-src):
     Feather Icons — MIT License, Copyright (c) 2013-2023 Cole Bemis · https://github.com/feathericons/feather
@@ -104,6 +104,10 @@
   <symbol id="chevron-down" data-cat="common" data-src="own" data-note="下移:竖线 + 底端 ∨ 箭头" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/> <polyline points="6 13 12 19 18 13"/></symbol>
   <!-- chevron-up — 上移:竖线 + 顶端 ∧ 箭头 -->
   <symbol id="chevron-up" data-cat="common" data-src="own" data-note="上移:竖线 + 顶端 ∧ 箭头" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/> <polyline points="6 11 12 5 18 11"/></symbol>
+  <!-- caret-up — 上调 ▲:圆角实心扁三角(数字框旁上下叠放的小转盘用,12–16px)；与带竿的 chevron-up(上移)分工【JustReadBooks 朗读控制条预设框右侧小转盘「预设加一」；2026-10-02 Claude Opus 5.5 自画未过目】 -->
+  <symbol id="caret-up" data-cat="common" data-src="own" data-note="上调 ▲:圆角实心扁三角(数字框旁上下叠放的小转盘用,12–16px)；与带竿的 chevron-up(上移)分工【JustReadBooks 朗读控制条预设框右侧小转盘「预设加一」；2026-10-02 Claude Opus 5.5 自画未过目】" data-review="pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 15.5 L12 8 L18.5 15.5 Z" fill="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <!-- caret-down — 下调 ▼:caret-up 的精确上下镜像【JustReadBooks 朗读控制条预设框右侧小转盘「预设减一」；2026-10-02 Claude Opus 5.5 自画未过目】 -->
+  <symbol id="caret-down" data-cat="common" data-src="own" data-note="下调 ▼:caret-up 的精确上下镜像【JustReadBooks 朗读控制条预设框右侧小转盘「预设减一」；2026-10-02 Claude Opus 5.5 自画未过目】" data-review="pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 8.5 L12 16 L18.5 8.5 Z" fill="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
   <!-- cloud -->
   <!-- cloud — 云 -->
   <symbol id="cloud" data-cat="cloud" data-src="feather:cloud" data-note="云" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></symbol>
@@ -268,9 +272,8 @@
       <button class="menu-button ra-play" id="raPlay" type="button" aria-label="播放" data-i18n-aria="ra.play" data-i18n-title="ra.play"><svg class="ico" aria-hidden="true"><use id="raPlayIcon" href="#play"/></svg></button>
       <button class="menu-button" id="raNext" type="button" aria-label="下一句" data-i18n-aria="ra.next" data-i18n-title="ra.next"><svg class="ico" aria-hidden="true"><use href="#skip-next"/></svg></button>
       <select class="ra-speed" id="raSpeed" aria-label="语速" data-i18n-aria="ra.speed" data-i18n-title="ra.speed"></select>
-      <span class="ra-preset-dial" id="raPresetDial" hidden><button class="ra-preset-step" id="raPresetDown" type="button" aria-label="预设减一" data-i18n-aria="ra.presetDown" data-i18n-title="ra.presetDown"><svg class="ico" aria-hidden="true"><use href="#chevron-down"/></svg></button><input class="ra-preset" id="raPreset" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="默认" data-i18n-ph="ra.presetDefault" value="" aria-label="预设" data-i18n-aria="ra.preset" data-i18n-title="ra.presetHint" /><button class="ra-preset-step" id="raPresetUp" type="button" aria-label="预设加一" data-i18n-aria="ra.presetUp" data-i18n-title="ra.presetUp"><svg class="ico" aria-hidden="true"><use href="#chevron-up"/></svg></button></span>
+      <span class="ra-preset-dial" id="raPresetDial" hidden><input class="ra-preset" id="raPreset" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="默认" data-i18n-ph="ra.presetDefault" value="" aria-label="预设" data-i18n-aria="ra.preset" data-i18n-title="ra.presetHint" /><span class="ra-preset-steps"><button class="ra-preset-step" id="raPresetUp" type="button" aria-label="预设加一" data-i18n-aria="ra.presetUp" data-i18n-title="ra.presetUp"><svg class="ico" aria-hidden="true"><use href="#caret-up"/></svg></button><button class="ra-preset-step" id="raPresetDown" type="button" aria-label="预设减一" data-i18n-aria="ra.presetDown" data-i18n-title="ra.presetDown"><svg class="ico" aria-hidden="true"><use href="#caret-down"/></svg></button></span></span>
       <span class="ra-status" id="raStatus" aria-live="polite"></span>
-      <button class="menu-button" id="raMenu" type="button" aria-label="显示 / 收起顶栏" data-i18n-aria="ra.menu" data-i18n-title="ra.menu"><svg class="ico" aria-hidden="true"><use href="#more"/></svg></button>
       <button class="menu-button" id="raClose" type="button" aria-label="退出朗读" data-i18n-aria="ra.close" data-i18n-title="ra.close"><svg class="ico" aria-hidden="true"><use href="#x"/></svg></button>
     </div>
 
@@ -333,6 +336,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-419311345477.mjs"></script>
+    <script type="module" src="./dist/jrb-0bf7f907bad2.mjs"></script>
   </body>
 </html>

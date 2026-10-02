@@ -46,8 +46,6 @@ export interface ReadAloudHostDeps {
   confirm: (title: string, message: string) => Promise<boolean>;
   /** available() 的答案变了（装上 / 删掉了音色）：宿主重画顶栏。 */
   availabilityChanged: () => void;
-  /** 显示 / 收起顶栏（朗读态下点正文是点句子，顶栏只能从控制条上叫出来）。 */
-  toggleChrome: () => void;
   logError: (e: unknown) => void;
 }
 export interface ReadAloudHost {
@@ -130,7 +128,8 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   }
   function reader_(): ReadAloud {
     if (!ra) {
-      ra = createReadAloud({ engine: { synth: (text, o) => eng().synth(text, o) }, sink });
+      // cancelPending 也要转过去：控制器作废句子时扔掉排着的合成（库 0.1.19；user 2026-10-02「ipad上调多了preset会不出声」）
+      ra = createReadAloud({ engine: { synth: (text, o) => eng().synth(text, o), cancelPending: () => engine?.cancelPending?.() }, sink });
       ra.on("sentence", (span) => { marked = span; deps.reader.markReading(span); deps.reader.revealSpan(span); });
       ra.on("state", () => { renderBar(); void syncWake(); });
       ra.on("end", () => {
@@ -292,7 +291,6 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     if (!on) armDispose();
   }
   $("raClose").addEventListener("click", exit);
-  $("raMenu").addEventListener("click", () => deps.toggleChrome());
   playBtn.addEventListener("click", () => {
     sink.unlock();
     const r = reader_();

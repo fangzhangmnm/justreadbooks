@@ -404,7 +404,6 @@ readAloud = initReadAloudHost({
   openSettings: () => { openSettings(); const sec = $<HTMLDetailsElement>("secReadAloud"); sec.open = true; sec.scrollIntoView({ block: "start" }); },
   confirm: (title, message) => openConfirmSheet(title, message),
   availabilityChanged: () => renderTopbar(),
-  toggleChrome: () => setChrome(document.body.dataset.chrome !== "shown"),
   logError: (e) => reportError(e, "log"),
 });
 $("readAloudButton").addEventListener("click", () => readAloud?.toggle());
