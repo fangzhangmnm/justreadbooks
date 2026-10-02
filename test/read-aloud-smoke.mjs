@@ -202,18 +202,32 @@ try {
   await page.evaluate(() => { const el = document.getElementById("raWholeSelect"); el.value = "on"; el.dispatchEvent(new Event("change")); });
 
   // ── 本地模型（拖到页面上，只在这次打开有效；user 2026-10-02「改权重可以拖到网页上测试，而不用动远端」）──
+  const until = async (fn, ms = 5000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await page.waitForTimeout(50); } return false; };
+  // 点同一个地方的那一句（是哪句不预设，记下来）：再点一次 = 用合成好的、不重算——这样下面才看得出换模型后缓存作废了
+  await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle" && window.__raLog.some((x) => x.startsWith("synth:")));
+  const S = await page.evaluate(() => { const l = window.__raLog.filter((x) => x.startsWith("synth:")); return l[l.length - 1].split(":").slice(3).join(":"); });
+  const countS = () => page.evaluate((s) => window.__raLog.filter((x) => x.startsWith("synth:") && x.split(":").slice(3).join(":") === s).length, S);
+  const c0 = await countS();
+  await page.mouse.click(pt.x, pt.y); await page.waitForTimeout(600);
+  check("同一句再点：用合成好的、不重算", (await countS()) === c0, `${await countS()} vs ${c0}: ${S}`);
+  const nDispose = await page.evaluate(() => window.__raLog.filter((x) => x === "dispose").length);
   const drop = (names) => page.evaluate((ns) => { const dt = new DataTransfer(); for (const n of ns) dt.items.add(new File([n.endsWith(".json") ? "{}" : new Uint8Array(1024)], n)); document.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true })); }, names);
   await drop(["test-weights.onnx", "test-weights.onnx.json"]);
   await page.waitForTimeout(400);
   check("本地模型：.onnx + .json 拖到页面上 → 提示已换上、不当书上传；设置里写着文件名、有「移除」", await page.evaluate(() => { window.__jrb.readAloud.renderSettings(); return document.getElementById("toast").textContent.includes("已换成本地模型：test-weights.onnx + test-weights.onnx.json") && document.getElementById("raLocalName").textContent.startsWith("test-weights.onnx") && !document.getElementById("raLocalRemove").hidden; }), await page.evaluate(() => document.getElementById("toast").textContent));
   await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("换上本地模型 → 引擎里的旧模型立刻放掉（关 worker）；之前合成过的这一句重新合成，不播旧模型的缓存（user「更换模型之后之前模型的缓存可以去掉了」）", await page.evaluate((n) => window.__raLog.filter((x) => x === "dispose").length > n, nDispose) && await until(async () => (await countS()) > c0), `${await countS()} vs ${c0}: ${S}`);
   check("本地模型：再点一句 → 引擎重新装载，带着 model.onnx + config.json；念完控制条写着「本地模型」", await wait(() => window.__raLog.some((x) => x.endsWith("|override:config.json,model.onnx"))) && await wait(() => window.__jrb.readAloud.debugState().state === "idle" && document.getElementById("raStatus").textContent === "本地模型"), await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("load:")).join(" | ")));
   const nSynthLocal = await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length);
   await drop(["bad.json"]); await page.waitForTimeout(200);
   await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
   check("本地模型：只拖一个 .json（已经在用本地模型）= 换配置；音素表对不上 → 明说没用它、这一句不念", await wait(() => document.getElementById("toast").textContent.includes("音素表对不上")) && await page.evaluate((n) => window.__raLog.filter((x) => x.startsWith("synth:")).length === n, nSynthLocal), await page.evaluate(() => document.getElementById("toast").textContent));
+  const c2 = await countS(), nDispose2 = await page.evaluate(() => window.__raLog.filter((x) => x === "dispose").length);
   await page.evaluate(() => document.getElementById("raLocalRemove").click());
+  check("移除本地模型 → 也把引擎里的本地模型放掉", await page.evaluate((n) => window.__raLog.filter((x) => x === "dispose").length > n, nDispose2));
   await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("移除之后再点念过的句子：重新合成（不播本地模型念的缓存）", await until(async () => (await countS()) > c2), `${await countS()} vs ${c2}`);
   check("本地模型：移除 → 下一次装载不带替换文件，照常念；控制条不再写「本地模型」", await wait(() => { const l = window.__raLog.filter((x) => x.startsWith("load:")); return !l[l.length - 1].includes("override") && window.__raLog.filter((x) => x.startsWith("synth:")).length > 0; }) && await wait(() => window.__jrb.readAloud.debugState().state === "idle" && document.getElementById("raStatus").textContent === ""));
   check("没在用本地模型时单独拖 .json → 不归朗读（照旧当文件上传）；.onnx + .json 一起 → 两个都归朗读", await page.evaluate(() => window.__jrb.readAloud.modelFiles([new File(["{}"], "a.json")]).length === 0 && window.__jrb.readAloud.modelFiles([new File([""], "m.onnx"), new File(["{}"], "m.json"), new File(["x"], "b.txt")]).length === 2));
 

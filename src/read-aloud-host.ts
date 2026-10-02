@@ -201,13 +201,25 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const { need, unsupported, missing } = langsForChapter(id, text);
     if (unsupported.length) { deps.status(t("ra.langUnsupported", { langs: langList(unsupported) }), { error: true }); return; }
     if (missing.length) { deps.status(t("ra.langNotDownloaded", { langs: langList(missing) })); deps.openSettings(); return; }
-    try { await ensureLoaded(id, need); } catch (e) { deps.logError(e); deps.status(loadErrorText(e), { error: true }); return; }
+    try { await ensureLoaded(id, need); } catch (e) { if (my !== readSeq || cancelled(e)) return; deps.logError(e); deps.status(loadErrorText(e), { error: true }); return; }
     if (my !== readSeq || !on || deps.reader.bodyText() !== text) return;   // 等引擎的工夫里又点了别的 / 退出了 / 翻章了
     continuous = !once;
     reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), steadiness: steadiness(), whole: whole() });   // 不给 lang = 每句自己判
     void syncWake();
   }
   function stopReading(): void { readSeq++; chapterGap = false; continuous = false; ra?.stop(); marked = null; deps.reader.markReading(null); void syncWake(); renderBar(); }
+  /**
+   * 换了模型（本地模型换上 / 移除、换音色；user 2026-10-02「更换模型之后之前模型的缓存可以去掉了」）：控制器里合成好的句子是旧模型念的，
+   * 连控制器一起扔掉（否则再点念过的句子播的还是旧模型）；引擎里装着的旧模型也放掉——关 worker 是归还 WASM 堆的唯一办法，下一次念时装新的。
+   */
+  function modelChanged(): void {
+    stopReading();
+    ra = null;
+    engine?.dispose(); loadedTag = "";
+    renderBar();
+  }
+  /** 换模型时被作废的装载（worker 关了）不算出错。 */
+  const cancelled = (e: unknown) => /read-aloud engine disposed|switched to a voice of another engine/.test(e instanceof Error ? e.message : String(e));
 
   async function enter(): Promise<void> {
     if (!deps.hasBook()) return;
@@ -221,7 +233,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     on = true; document.body.dataset.readAloud = "1"; bar.hidden = false; renderBar();
     // 进来就先把这一章的语言装上（点第一句时不用等）；这一章的语言没下 / 不会念 → 等用户点了再如实说
     const ch = langsForChapter(id, deps.reader.bodyText());
-    if (!ch.unsupported.length && !ch.missing.length) void ensureLoaded(id, ch.need).catch((e) => { deps.logError(e); deps.status(loadErrorText(e), { error: true }); });
+    if (!ch.unsupported.length && !ch.missing.length) void ensureLoaded(id, ch.need).catch((e) => { if (cancelled(e)) return; deps.logError(e); deps.status(loadErrorText(e), { error: true }); });
   }
   /** 两分钟没在朗读态就关 worker、放掉喇叭（归还内存）。 */
   function armDispose(): void {
@@ -243,7 +255,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const id = currentVoice(); if (!id || !deps.hasBook()) return;
     const ch = langsForChapter(id, deps.reader.bodyText());
     if (ch.unsupported.length || ch.missing.length) return;
-    void ensureLoaded(id, ch.need).catch((e) => deps.logError(e));
+    void ensureLoaded(id, ch.need).catch((e) => { if (!cancelled(e)) deps.logError(e); });
     if (!on) armDispose();
   }
   $("raClose").addEventListener("click", exit);
@@ -393,7 +405,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const onnx = files.find((f) => /\.onnx$/i.test(f.name)), json = files.find((f) => /\.json$/i.test(f.name)) ?? null;
     if (!onnx && !local) { deps.status(t("ra.localNeedOnnx"), { error: true }); return; }
     local = onnx ? { model: onnx, config: json } : { model: local!.model, config: json ?? local!.config };   // 只给 .json = 换配置、模型不变
-    if (ra && ra.state() !== "idle") stopReading();
+    modelChanged();
     renderLocal(); renderBar();
     deps.status(t("ra.localSet", { name: local.model.name + (local.config ? ` + ${local.config.name}` : "") }));
   }
@@ -402,7 +414,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   localRemove.addEventListener("click", () => {
     if (!local) return;
     local = null;
-    if (ra && ra.state() !== "idle") stopReading();
+    modelChanged();
     renderLocal(); renderBar(); deps.status(t("ra.localRemoved"));
   });
   const modeSel = $<HTMLSelectElement>("raModeSelect");
@@ -434,7 +446,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     if (section.open) void refreshStatuses();   // 只有展开过这一栏才去问引擎（问 = 起 worker）
   }
   section.addEventListener("toggle", () => { if (section.open) void refreshStatuses(); });
-  voiceSel.addEventListener("change", () => { setPrefs({ voice: voiceSel.value, speaker: undefined }); termsOpen = null; if (on) exit(); renderSettings(); });
+  voiceSel.addEventListener("change", () => { setPrefs({ voice: voiceSel.value, speaker: undefined }); termsOpen = null; if (on) exit(); modelChanged(); renderSettings(); });
   speakerSel.addEventListener("change", () => { setPrefs({ speaker: Number(speakerSel.value) }); if (on) stopReading(); });
   sourceInput.addEventListener("change", () => setPrefs({ source: sourceInput.value.trim() || undefined }));
 
