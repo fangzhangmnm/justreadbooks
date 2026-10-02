@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#F6F4EF" />
-    <meta name="read-aloud-worker-piper-plus" content="./dist/read-aloud-worker-piper-plus-ad9003653acb.js" />
+    <meta name="read-aloud-worker-piper-plus" content="./dist/read-aloud-worker-piper-plus-7229f2ec81a9.js" />
     <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -235,6 +235,11 @@
         <div class="setting-row"><span data-i18n="ra.mode">朗读模式</span><select id="raModeSelect" disabled><option value="off" data-i18n="ra.modeOff" selected>关</option><option value="continuous" data-i18n="ra.modeContinuous">连续</option><option value="sentence" data-i18n="ra.modeSentence">逐句</option></select></div>
         <div class="setting-row"><span data-i18n="ra.style">念法（实验）</span><span class="ra-style"><span class="ra-style-end" data-i18n="ra.styleNormal">原样</span><input id="raStyleRange" type="range" min="0" max="100" step="10" value="0" aria-label="念法" data-i18n-aria="ra.style" /><span class="ra-style-end" data-i18n="ra.styleSteady">平稳</span></span></div>
         <div class="setting-note" data-i18n="ra.styleHint">越往右越平稳：随机起伏越小、稍慢一点，越容易听清，但也越平、越像机翻。正在念的时候拖动，松手后这一句按新念法重念。</div>
+        <div class="setting-row"><span data-i18n="ra.whole">整句合成</span><select id="raWholeSelect"><option value="on" data-i18n="ra.wholeOn" selected>开</option><option value="off" data-i18n="ra.wholeOff">关</option></select></div>
+        <div class="setting-note" data-i18n="ra.wholeHint">开：一句话里的几个小句一次交给模型念，逗号处让它自己收一下再补够停顿，听着更连贯。关：在每个逗号处切开、一段一段分别念（以前的做法）。只在换语言和句与句之间切开。</div>
+        <div class="setting-row"><span data-i18n="ra.local">本地模型（测试）</span><span class="setting-ctl"><span id="raLocalName"></span><button class="auth-action" id="raLocalPick" type="button" data-i18n="ra.localPick">选择文件…</button><button class="auth-action" id="raLocalRemove" type="button" data-i18n="ra.localRemove" hidden>移除</button></span></div>
+        <div class="setting-note" data-i18n="ra.localHint">把 .onnx 模型（可以连同它的 .json 配置）拖到页面上，或点「选择文件…」：用它代替当前音色的模型来念，词典和引擎还用音色自己的。只在这次打开有效，文件不上传、不保存。配置的音素表要和音色的一样，不一样就不用它。</div>
+        <input type="file" id="raLocalInput" accept=".onnx,.json" multiple hidden />
         <div id="raPacks"></div>
         <div class="setting-row" id="raVoiceRow" hidden><span data-i18n="ra.voice">音色</span><select id="raVoiceSelect"></select></div>
         <div class="setting-row" id="raSpeakerRow" hidden><span data-i18n="ra.speaker">说话人</span><select id="raSpeakerSelect"></select></div>
@@ -329,6 +334,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-e5805547624e.mjs"></script>
+    <script type="module" src="./dist/jrb-9f9ab160b521.mjs"></script>
   </body>
 </html>

@@ -22,7 +22,7 @@ const KV = "read-aloud";
 /** have = 这台设备上有能用的音色（上次问引擎时的结论）。朗读是可选的：没装音色的人顶栏上看不到喇叭钮，入口只在设置 →「朗读」。
  *  记在偏好里是为了启动时不用为了问这一句去起 worker。
  *  mode = 设置里的朗读模式；没设过 = 逐句（这个功能是语言学习逼出来的）。关 = 音色留着，喇叭钮收起。 */
-interface Prefs { voice?: string; speaker?: number; speed?: number; source?: string; have?: boolean; mode?: Mode; steady?: boolean; steadiness?: number }
+interface Prefs { voice?: string; speaker?: number; speed?: number; source?: string; have?: boolean; mode?: Mode; steady?: boolean; steadiness?: number; whole?: boolean }
 /** 朗读模式（user 2026-10-01「朗读模式不是有三种吗 关 连续 逐句 逐句是用来语言学习的」）。 */
 type Mode = "off" | "continuous" | "sentence";
 const MODES: readonly Mode[] = ["off", "continuous", "sentence"];
@@ -62,6 +62,10 @@ export interface ReadAloudHost {
   /** 正文换了（翻章 / 换书 / 活书换底）：停下、清标记。 */
   contentChanged(): void;
   renderSettings(): void;
+  /** 拖到页面上的文件里，朗读的本地模型要的那几个（.onnx；同一把里有 .onnx 或已经在用本地模型时，连同 .json 配置）。 */
+  modelFiles(files: File[]): File[];
+  /** 换上本地模型（只在这次打开有效，不上传不保存）。 */
+  useLocalModel(files: File[]): void;
   /** smoke 探针：换一份音色目录；给了 engine 就用它（假引擎），不给 = 用真引擎跑这份目录。 */
   debugInstall(catalog: ReadAloudCatalog, engine?: SpeechEngine): void;
   debugState(): { active: boolean; state: string; marked: SentenceSpan | null; continuous: boolean };
@@ -92,6 +96,20 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   /** 念法 0（原样）… 1（平稳）；0.2.4 的开关存的是 steady: true，当 1。 */
   const steadiness = () => { const p = prefs(); const v = typeof p.steadiness === "number" && Number.isFinite(p.steadiness) ? p.steadiness : p.steady ? 1 : 0; return Math.min(1, Math.max(0, v)); };
   const speed = () => { const s = prefs().speed; return typeof s === "number" && READ_ALOUD_SPEEDS.includes(s) ? s : 1; };
+  /** 整句合成（库 0.1.13；user 2026-10-02「加一个整句合成的选项，默认开，可以开关」）：没设过 = 开。 */
+  const whole = () => prefs().whole !== false;
+  // 本地模型（user 2026-10-02「加一个本地上传的模型，这样我们改权重可以拖到网页上测试，而不用动远端」）：只在内存里，这次打开有效；
+  // 装引擎时作为 override 交给库（model.onnx + 可选 config.json），音色的词典和运行时照旧用包里的。
+  let local: { model: File; config: File | null } | null = null;
+  let loadedTag = "";   // 引擎里现在装的是哪个本地模型（"" = 音色自己的）
+  const fileTag = (f: File | null) => (f ? `${f.name}:${f.size}:${f.lastModified}` : "");
+  const localTag = () => (local ? `${fileTag(local.model)}|${fileTag(local.config)}` : "");
+  /** 装引擎失败时给用户的话：用着本地模型就说本地模型的事（音素表对不上 / 装不上），不笼统地说「出错了」。 */
+  const loadErrorText = (e: unknown): string => {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!local) return t("ra.error");
+    return /^override-mismatch/.test(msg) ? t("ra.localMismatch") : t("ra.localFailed", { msg: msg.slice(0, 160) });
+  };
   const speaker = (id: string) => { const v = prefs().speaker, vs = speakers(id); return typeof v === "number" && vs.some((x) => x.id === v) ? v : vs[0]!.id; };
 
   function eng(): SpeechEngine {
@@ -131,7 +149,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     playIcon?.setAttribute("href", going ? "#pause" : "#play");
     const label = going ? t("ra.pause") : t("ra.play");
     playBtn.setAttribute("aria-label", label); playBtn.title = label;
-    statusEl.textContent = loadingVoice ? t("ra.loadingVoice") : st === "loading" ? t("ra.synth") : "";
+    statusEl.textContent = loadingVoice ? t("ra.loadingVoice") : st === "loading" ? t("ra.synth") : local ? t("ra.localBadge") : "";
     speedSel.value = String(speed());
   }
   async function syncWake(): Promise<void> {
@@ -159,10 +177,13 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   }
   const langList = (ls: SpeechLang[]) => ls.map(langName).join(" / ");
   async function ensureLoaded(id: string, langs: SpeechLang[]): Promise<void> {
-    const cur = eng().loaded();
-    if (cur?.voice === id && langs.every((l) => cur.langs.includes(l))) return;
+    const cur = eng().loaded(), tag = localTag();
+    if (cur?.voice === id && loadedTag === tag && langs.every((l) => cur.langs.includes(l))) return;
     loadingVoice = true; renderBar();
-    try { await eng().load(id, { langs }); } finally { loadingVoice = false; renderBar(); }
+    const override = local ? { "model.onnx": local.model, ...(local.config ? { "config.json": local.config } : {}) } : undefined;
+    try { await eng().load(id, { langs, ...(override ? { override } : {}) }); loadedTag = tag; }
+    catch (e) { loadedTag = ""; throw e; }
+    finally { loadingVoice = false; renderBar(); }
   }
   /** 只认最后一次：点得快、引擎还在装的时候，先发的那几次在等引擎，回来发现自己不是最新的就作废（新点的优先）。 */
   let readSeq = 0;
@@ -180,10 +201,10 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const { need, unsupported, missing } = langsForChapter(id, text);
     if (unsupported.length) { deps.status(t("ra.langUnsupported", { langs: langList(unsupported) }), { error: true }); return; }
     if (missing.length) { deps.status(t("ra.langNotDownloaded", { langs: langList(missing) })); deps.openSettings(); return; }
-    try { await ensureLoaded(id, need); } catch (e) { deps.logError(e); deps.status(t("ra.error"), { error: true }); return; }
+    try { await ensureLoaded(id, need); } catch (e) { deps.logError(e); deps.status(loadErrorText(e), { error: true }); return; }
     if (my !== readSeq || !on || deps.reader.bodyText() !== text) return;   // 等引擎的工夫里又点了别的 / 退出了 / 翻章了
     continuous = !once;
-    reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), steadiness: steadiness() });   // 不给 lang = 每句自己判
+    reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), steadiness: steadiness(), whole: whole() });   // 不给 lang = 每句自己判
     void syncWake();
   }
   function stopReading(): void { readSeq++; chapterGap = false; continuous = false; ra?.stop(); marked = null; deps.reader.markReading(null); void syncWake(); renderBar(); }
@@ -200,7 +221,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     on = true; document.body.dataset.readAloud = "1"; bar.hidden = false; renderBar();
     // 进来就先把这一章的语言装上（点第一句时不用等）；这一章的语言没下 / 不会念 → 等用户点了再如实说
     const ch = langsForChapter(id, deps.reader.bodyText());
-    if (!ch.unsupported.length && !ch.missing.length) void ensureLoaded(id, ch.need).catch((e) => { deps.logError(e); deps.status(t("ra.error"), { error: true }); });
+    if (!ch.unsupported.length && !ch.missing.length) void ensureLoaded(id, ch.need).catch((e) => { deps.logError(e); deps.status(loadErrorText(e), { error: true }); });
   }
   /** 两分钟没在朗读态就关 worker、放掉喇叭（归还内存）。 */
   function armDispose(): void {
@@ -351,6 +372,39 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     setPrefs({ steadiness: Math.min(1, Math.max(0, Number(styleRange.value) / 100)), steady: undefined });
     if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); }
   });
+  // 整句合成（默认开）：换了 = 正在念 / 暂停着的这一句按新做法重念
+  const wholeSel = $<HTMLSelectElement>("raWholeSelect");
+  wholeSel.addEventListener("change", () => {
+    setPrefs({ whole: wholeSel.value !== "off" });
+    if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); }
+  });
+  // 本地模型：选择文件 / 拖到页面上（app.ts 的 drop 分流过来）；移除 = 换回音色自己的。换了就停下正在念的，下一次念时重新装引擎。
+  const localName = $("raLocalName"), localRemove = $("raLocalRemove"), localInput = $<HTMLInputElement>("raLocalInput");
+  function renderLocal(): void {
+    localName.textContent = local ? `${local.model.name}（${humanSize(local.model.size)}）${local.config ? ` + ${local.config.name}` : ""}` : t("ra.localNone");
+    localRemove.hidden = !local;
+  }
+  function modelFiles(files: File[]): File[] {
+    const onnx = files.filter((f) => /\.onnx$/i.test(f.name));
+    const json = onnx.length || local ? files.filter((f) => /\.json$/i.test(f.name)) : [];
+    return [...onnx, ...json];
+  }
+  function useLocalModel(files: File[]): void {
+    const onnx = files.find((f) => /\.onnx$/i.test(f.name)), json = files.find((f) => /\.json$/i.test(f.name)) ?? null;
+    if (!onnx && !local) { deps.status(t("ra.localNeedOnnx"), { error: true }); return; }
+    local = onnx ? { model: onnx, config: json } : { model: local!.model, config: json ?? local!.config };   // 只给 .json = 换配置、模型不变
+    if (ra && ra.state() !== "idle") stopReading();
+    renderLocal(); renderBar();
+    deps.status(t("ra.localSet", { name: local.model.name + (local.config ? ` + ${local.config.name}` : "") }));
+  }
+  $("raLocalPick").addEventListener("click", () => localInput.click());
+  localInput.addEventListener("change", () => { const fs = Array.from(localInput.files ?? []); localInput.value = ""; if (fs.length) useLocalModel(fs); });
+  localRemove.addEventListener("click", () => {
+    if (!local) return;
+    local = null;
+    if (ra && ra.state() !== "idle") stopReading();
+    renderLocal(); renderBar(); deps.status(t("ra.localRemoved"));
+  });
   const modeSel = $<HTMLSelectElement>("raModeSelect");
   function renderMode(): void {
     const have = voiceIds().length > 0 && prefs().have === true;
@@ -367,6 +421,8 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   function renderSettings(): void {
     renderMode();
     styleRange.value = String(Math.round(steadiness() * 100));
+    wholeSel.value = whole() ? "on" : "off";
+    renderLocal();
     sourceInput.value = prefs().source ?? ""; sourceInput.placeholder = READ_ALOUD_MODEL_SOURCE;
     const id = currentVoice();
     voiceRow.hidden = voiceIds().length <= 1;
@@ -397,6 +453,8 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     },
     contentChanged() { if (advancing) return; if (ra && ra.state() !== "idle") stopReading(); else { marked = null; } },
     renderSettings,
+    modelFiles,
+    useLocalModel,
     debugInstall(c, e) { engine?.dispose(); catalog = c; engine = e ?? null; ra = null; statuses.clear(); termsOpen = null; noteHave(false); },
     debugState: () => ({ active: on, state: ra?.state() ?? "idle", marked, continuous }),
   };

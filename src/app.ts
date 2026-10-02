@@ -356,7 +356,14 @@ let dragDepth = 0;
 document.addEventListener("dragenter", (e) => { if (e.dataTransfer?.types.includes("Files")) { dragDepth++; dropOverlay.classList.remove("hidden"); } });
 document.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; dropOverlay.classList.add("hidden"); } });
 document.addEventListener("dragover", (e) => { if (e.dataTransfer?.types.includes("Files")) e.preventDefault(); });
-document.addEventListener("drop", (e) => { dragDepth = 0; dropOverlay.classList.add("hidden"); if (!e.dataTransfer?.files.length) return; e.preventDefault(); void uploadFiles(Array.from(e.dataTransfer.files)); });
+document.addEventListener("drop", (e) => {
+  dragDepth = 0; dropOverlay.classList.add("hidden"); if (!e.dataTransfer?.files.length) return; e.preventDefault();
+  // 朗读的本地模型（.onnx + 它的 .json）不是书：交给朗读，只在这次打开有效；别的照旧上传（user 2026-10-02「改权重可以拖到网页上测试」）
+  const all = Array.from(e.dataTransfer.files), model = readAloud?.modelFiles(all) ?? [];
+  if (model.length) readAloud!.useLocalModel(model);
+  const rest = all.filter((f) => !model.includes(f));
+  if (rest.length) void uploadFiles(rest);
+});
 async function uploadFiles(files: File[]): Promise<void> {
   const dir = galleryHost.isOpen() ? galleryHost.currentFolder() : (book ? splitPath(book.name).dir : "");
   let last: string | null = null;

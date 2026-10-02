@@ -65,10 +65,15 @@ try {
       download: async (voice, base, opts) => { log.push(`download:${base}`); opts?.onProgress?.({ done: 2048, total: 4096 }); await new Promise((r) => setTimeout(r, 60)); ready = true; return st(voice); },
       importFiles: async (voice, files) => { log.push(`import:${files.length}`); ready = true; return st(voice); },
       delete: async () => { log.push("delete"); ready = false; loaded = null; },
-      load: async (voice, opts) => { const langs = opts?.langs ?? ALL; log.push(`load:${langs.join("+")}`); loaded = { voice, langs }; return { voice, langs, alreadyLoaded: false, createMs: 1, sampleRate: 22050, speakers: 2 }; },
+      load: async (voice, opts) => {
+        const langs = opts?.langs ?? ALL, ov = opts?.override ? Object.keys(opts.override).sort() : [];
+        log.push(`load:${langs.join("+")}${ov.length ? `|override:${ov.join(",")}` : ""}`);
+        if (opts?.override?.["config.json"]?.name === "bad.json") { loaded = null; throw new Error("override-mismatch: config.json has a different phoneme_id_map than this voice"); }   // 库的真规矩：音素表对不上就拒
+        loaded = { voice, langs, override: ov }; return { voice, langs, alreadyLoaded: false, createMs: 1, sampleRate: 22050, speakers: 2, override: ov };
+      },
       loaded: () => loaded,
       isKnownReady: (voice, lang) => (asked ? ready && !(lang && missing.has(lang)) : undefined),
-      synth: async (text, o) => { window.__raSteadiness = o.steadiness; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
+      synth: async (text, o) => { window.__raSteadiness = o.steadiness; window.__raWhole = o.whole; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
       dispose() { log.push("dispose"); loaded = null; },
     };
     const manifest = { v: 1, slug: "fake-pack", name: "fake", task: "tts", lang: ALL, engine: "fake", engineConfig: {}, files: [], chunkBytes: 1, chunks: [], totalBytes: 4096, sha256: "", license: { name: "test", file: "", sha256: "", attribution: "" } };
@@ -187,6 +192,30 @@ try {
   check("念法滑块拖到 60 %：点一句，引擎收到 steadiness 0.6；设置重画后滑块还在 60", await wait(() => window.__raSteadiness === 0.6) && await page.evaluate(() => { window.__jrb.readAloud.renderSettings(); return document.getElementById("raStyleRange").value === "60"; }));
   await wait(() => window.__jrb.readAloud.debugState().state === "idle");
   await page.evaluate(() => { const el = document.getElementById("raStyleRange"); el.value = "0"; el.dispatchEvent(new Event("change")); });
+
+  // ── 整句合成（库 0.1.13；默认开，可以关）──
+  check("整句合成：设置里默认「开」，引擎收到 whole: true", await page.evaluate(() => document.getElementById("raWholeSelect").value === "on" && window.__raWhole === true));
+  await page.evaluate(() => { const el = document.getElementById("raWholeSelect"); el.value = "off"; el.dispatchEvent(new Event("change")); window.__jrb.reader.goTo(0); });
+  await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("整句合成关：点一句，引擎收到 whole: false；设置重画后还是「关」", await wait(() => window.__raWhole === false) && await page.evaluate(() => { window.__jrb.readAloud.renderSettings(); return document.getElementById("raWholeSelect").value === "off"; }));
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle");
+  await page.evaluate(() => { const el = document.getElementById("raWholeSelect"); el.value = "on"; el.dispatchEvent(new Event("change")); });
+
+  // ── 本地模型（拖到页面上，只在这次打开有效；user 2026-10-02「改权重可以拖到网页上测试，而不用动远端」）──
+  const drop = (names) => page.evaluate((ns) => { const dt = new DataTransfer(); for (const n of ns) dt.items.add(new File([n.endsWith(".json") ? "{}" : new Uint8Array(1024)], n)); document.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true })); }, names);
+  await drop(["test-weights.onnx", "test-weights.onnx.json"]);
+  await page.waitForTimeout(400);
+  check("本地模型：.onnx + .json 拖到页面上 → 提示已换上、不当书上传；设置里写着文件名、有「移除」", await page.evaluate(() => { window.__jrb.readAloud.renderSettings(); return document.getElementById("toast").textContent.includes("已换成本地模型：test-weights.onnx + test-weights.onnx.json") && document.getElementById("raLocalName").textContent.startsWith("test-weights.onnx") && !document.getElementById("raLocalRemove").hidden; }), await page.evaluate(() => document.getElementById("toast").textContent));
+  await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("本地模型：再点一句 → 引擎重新装载，带着 model.onnx + config.json；念完控制条写着「本地模型」", await wait(() => window.__raLog.some((x) => x.endsWith("|override:config.json,model.onnx"))) && await wait(() => window.__jrb.readAloud.debugState().state === "idle" && document.getElementById("raStatus").textContent === "本地模型"), await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("load:")).join(" | ")));
+  const nSynthLocal = await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length);
+  await drop(["bad.json"]); await page.waitForTimeout(200);
+  await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("本地模型：只拖一个 .json（已经在用本地模型）= 换配置；音素表对不上 → 明说没用它、这一句不念", await wait(() => document.getElementById("toast").textContent.includes("音素表对不上")) && await page.evaluate((n) => window.__raLog.filter((x) => x.startsWith("synth:")).length === n, nSynthLocal), await page.evaluate(() => document.getElementById("toast").textContent));
+  await page.evaluate(() => document.getElementById("raLocalRemove").click());
+  await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("本地模型：移除 → 下一次装载不带替换文件，照常念；控制条不再写「本地模型」", await wait(() => { const l = window.__raLog.filter((x) => x.startsWith("load:")); return !l[l.length - 1].includes("override") && window.__raLog.filter((x) => x.startsWith("synth:")).length > 0; }) && await wait(() => window.__jrb.readAloud.debugState().state === "idle" && document.getElementById("raStatus").textContent === ""));
+  check("没在用本地模型时单独拖 .json → 不归朗读（照旧当文件上传）；.onnx + .json 一起 → 两个都归朗读", await page.evaluate(() => window.__jrb.readAloud.modelFiles([new File(["{}"], "a.json")]).length === 0 && window.__jrb.readAloud.modelFiles([new File([""], "m.onnx"), new File(["{}"], "m.json"), new File(["x"], "b.txt")]).length === 2));
 
   // ── 自己翻章 = 停；退出 = 清干净 ──
   await page.evaluate(() => { window.__jrb.reader.goTo(0); });
