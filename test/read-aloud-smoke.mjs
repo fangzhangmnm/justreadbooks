@@ -59,9 +59,11 @@ try {
     const ALL = ["ja", "zh", "en"];
     let ready = false, asked = false, loaded = null; const missing = new Set();
     window.__raFake = { setReady(v) { ready = v; }, setMissing(l, on) { if (on) missing.add(l); else missing.delete(l); }, loadedLangs: () => (loaded ? loaded.langs.join("+") : ""), unload() { loaded = null; } };
-    const st = (voice) => { asked = true; const langs = ready ? ALL.filter((l) => !missing.has(l)) : []; return { voice, ready: ready && !missing.size, langs, bytesCached: ready ? 4096 : 0, bytesTotal: 4096, packs: [] }; };
+    // ready = 官方音色的包都在；本地模型带了 .onnx + .json（整个权重包被顶替）时，只要共用的包在就能念（假设共用的一直在）
+    let lastCov = false;   // 同真库：isKnownReady 答的是最近一次 status 的结论（带不带本地模型，看那一次问的时候）
+    const st = (voice, opts) => { asked = true; const cov = !!opts?.override?.includes("model.onnx") && !!opts?.override?.includes("config.json"); lastCov = cov; const langs = ready || cov ? ALL.filter((l) => !missing.has(l)) : []; return { voice, ready: ready && !missing.size, langs, bytesCached: ready ? 4096 : 0, bytesTotal: 4096, packs: [] }; };
     const engine = {
-      status: async (voice) => st(voice),
+      status: async (voice, opts) => st(voice, opts),
       download: async (voice, base, opts) => { log.push(`download:${base}`); opts?.onProgress?.({ done: 2048, total: 4096 }); await new Promise((r) => setTimeout(r, 60)); ready = true; return st(voice); },
       importFiles: async (voice, files) => { log.push(`import:${files.length}`); ready = true; return st(voice); },
       delete: async () => { log.push("delete"); ready = false; loaded = null; },
@@ -72,7 +74,7 @@ try {
         loaded = { voice, langs, override: ov, preset: ov.length > 0 }; return { voice, langs, alreadyLoaded: false, createMs: 1, sampleRate: 22050, speakers: 2, override: ov, preset: ov.length > 0 };   // 假设：本地模型认预设、音色自己的不认
       },
       loaded: () => loaded,
-      isKnownReady: (voice, lang) => (asked ? ready && !(lang && missing.has(lang)) : undefined),
+      isKnownReady: (voice, lang) => (asked ? (ready || lastCov) && !(lang && missing.has(lang)) : undefined),
       synth: async (text, o) => { window.__raSteadiness = o.steadiness; window.__raWhole = o.whole; window.__raPreset = o.preset; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
       dispose() { log.push("dispose"); loaded = null; },
     };
@@ -206,7 +208,7 @@ try {
   check("同一句再点：用合成好的、不重算", (await countS()) === c0, `${await countS()} vs ${c0}: ${S}`);
   const nDispose = await page.evaluate(() => window.__raLog.filter((x) => x === "dispose").length);
   const drop = (names) => page.evaluate((ns) => { const dt = new DataTransfer(); for (const n of ns) dt.items.add(new File([n.endsWith(".json") ? "{}" : new Uint8Array(1024)], n)); document.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true })); }, names);
-  check("预设：音色自己的模型不认预设 → 控制条上没有预设框", await page.evaluate(() => document.getElementById("raPreset").hidden));
+  check("预设：音色自己的模型不认预设 → 控制条上没有预设框（连上下箭头）", await page.evaluate(() => document.getElementById("raPresetDial").hidden));
   await drop(["test-weights.onnx", "test-weights.onnx.json"]);
   await page.waitForTimeout(400);
   check("本地模型：.onnx + .json 拖到页面上 → 提示已换上、不当书上传；设置里写着文件名、有「移除」", await page.evaluate(() => { window.__jrb.readAloud.renderSettings(); return document.getElementById("toast").textContent.includes("已换成本地模型：test-weights.onnx + test-weights.onnx.json") && document.getElementById("raLocalName").textContent.startsWith("test-weights.onnx") && !document.getElementById("raLocalRemove").hidden; }), await page.evaluate(() => document.getElementById("toast").textContent));
@@ -214,7 +216,7 @@ try {
   check("换上本地模型 → 引擎里的旧模型立刻放掉（关 worker）；之前合成过的这一句重新合成，不播旧模型的缓存（user「更换模型之后之前模型的缓存可以去掉了」）", await page.evaluate((n) => window.__raLog.filter((x) => x === "dispose").length > n, nDispose) && await until(async () => (await countS()) > c0), `${await countS()} vs ${c0}: ${S}`);
   check("本地模型：再点一句 → 引擎重新装载，带着 model.onnx + config.json；念完控制条写着「本地模型」", await wait(() => window.__raLog.some((x) => x.endsWith("|override:config.json,model.onnx"))) && await wait(() => window.__jrb.readAloud.debugState().state === "idle" && document.getElementById("raStatus").textContent === "本地模型"), await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("load:")).join(" | ")));
   // ── 预设（库 0.1.15 的家族约定）：模型认才露输入框；十进制 / 0x / 负数；不是整数 = 明说、退回 ──
-  check("预设：模型认预设 → 控制条上露出预设输入框", await page.evaluate(() => !document.getElementById("raPreset").hidden));
+  check("预设：模型认预设 → 控制条上露出预设框和上下箭头；空着 = 默认（引擎收到 undefined）", await page.evaluate(() => !document.getElementById("raPresetDial").hidden && document.getElementById("raPreset").value === "" && window.__raPreset === undefined));
   await page.evaluate(() => { const el = document.getElementById("raPreset"); el.value = "0xB"; el.dispatchEvent(new Event("change")); window.__jrb.reader.goTo(0); });
   await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
   check("预设：敲 0xB → 点一句，引擎收到 11", await wait(() => window.__raPreset === 11), String(await page.evaluate(() => window.__raPreset)));
@@ -225,13 +227,29 @@ try {
   await wait(() => window.__jrb.readAloud.debugState().state === "idle");
   await page.evaluate(() => { const el = document.getElementById("raPreset"); el.value = "abc"; el.dispatchEvent(new Event("change")); });
   check("预设：敲的不是整数 → 明说、框里退回上一次的值", await page.evaluate(() => document.getElementById("toast").textContent.includes("预设要是一个整数") && document.getElementById("raPreset").value === "-3"));
+  const clickSentence = async () => { await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y); };
+  await page.evaluate(() => { const el = document.getElementById("raPreset"); el.value = ""; el.dispatchEvent(new Event("change")); }); await clickSentence();
+  check("预设：清空 → 回到默认（引擎收到 undefined，由模型按语言取 config 的默认）", await wait(() => window.__raPreset === undefined && window.__jrb.readAloud.debugState().state === "idle"));
+  await page.evaluate(() => document.getElementById("raPresetUp").click()); await clickSentence();
+  check("预设：空着点 ▲ → 从 0 起算 = 1；框里写着 1", await wait(() => window.__raPreset === 1) && await page.evaluate(() => document.getElementById("raPreset").value === "1"));
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle");
+  await page.evaluate(() => { document.getElementById("raPresetDown").click(); document.getElementById("raPresetDown").click(); }); await clickSentence();
+  check("预设：▼ 两下 → -1（带符号，越界由模型自己夹）", await wait(() => window.__raPreset === -1) && await page.evaluate(() => document.getElementById("raPreset").value === "-1"));
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle");
+  // ── 朗读态下点在没有字的地方 = 叫 / 收菜单，不念（user 2026-10-02「语音的时候点没有文字的地方能不能触发菜单而不是触发语音？」）──
+  await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150);
+  const blank = await page.evaluate(() => { const node = document.querySelector("#reader .txt-body").firstChild; const i = node.data.indexOf("雨が降ってきました。") + "雨が降ってきました".length; const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1); const q = r.getBoundingClientRect(), box = document.getElementById("reader").getBoundingClientRect(); return { x: Math.min(box.right - 12, q.right + 80), y: q.top + q.height / 2, room: box.right - q.right }; });
+  const nS = await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length), chromeB = await page.evaluate(() => document.body.dataset.chrome === "shown");
+  await page.mouse.click(blank.x, blank.y); await page.waitForTimeout(300);
+  check("朗读态：点在短行右边的空白 → 菜单切换、不念", blank.room > 90 && await page.evaluate(([n, c]) => window.__raLog.filter((x) => x.startsWith("synth:")).length === n && (document.body.dataset.chrome === "shown") !== c, [nS, chromeB]), JSON.stringify(blank));
+  if (await page.evaluate(() => document.body.dataset.chrome === "shown")) { await page.mouse.click(blank.x, blank.y); await page.waitForTimeout(250); }
   const nSynthLocal = await page.evaluate(() => window.__raLog.filter((x) => x.startsWith("synth:")).length);
   await drop(["bad.json"]); await page.waitForTimeout(200);
   await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
   check("本地模型：只拖一个 .json（已经在用本地模型）= 换配置；音素表对不上 → 明说没用它、这一句不念", await wait(() => document.getElementById("toast").textContent.includes("音素表对不上")) && await page.evaluate((n) => window.__raLog.filter((x) => x.startsWith("synth:")).length === n, nSynthLocal), await page.evaluate(() => document.getElementById("toast").textContent));
   const c2 = await countS(), nDispose2 = await page.evaluate(() => window.__raLog.filter((x) => x === "dispose").length);
   await page.evaluate(() => document.getElementById("raLocalRemove").click());
-  check("移除本地模型 → 也把引擎里的本地模型放掉；预设框收起（引擎里没有认预设的模型了）", await page.evaluate((n) => window.__raLog.filter((x) => x === "dispose").length > n, nDispose2) && await page.evaluate(() => document.getElementById("raPreset").hidden));
+  check("移除本地模型 → 也把引擎里的本地模型放掉；预设框收起（引擎里没有认预设的模型了）", await page.evaluate((n) => window.__raLog.filter((x) => x === "dispose").length > n, nDispose2) && await page.evaluate(() => document.getElementById("raPresetDial").hidden));
   await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
   check("移除之后再点念过的句子：重新合成（不播本地模型念的缓存）", await until(async () => (await countS()) > c2), `${await countS()} vs ${c2}`);
   check("本地模型：移除 → 下一次装载不带替换文件，照常念；控制条不再写「本地模型」", await wait(() => { const l = window.__raLog.filter((x) => x.startsWith("load:")); return !l[l.length - 1].includes("override") && window.__raLog.filter((x) => x.startsWith("synth:")).length > 0; }) && await wait(() => window.__jrb.readAloud.debugState().state === "idle" && document.getElementById("raStatus").textContent === ""));
@@ -262,6 +280,20 @@ try {
   const gone = await page.evaluate(() => ({ settings: !document.getElementById("settingsView").hidden, open: document.getElementById("secReadAloud").open, on: window.__jrb.readAloud.active(), toast: document.getElementById("toast").textContent }));
   check("音色没了还点喇叭 → 打开设置的「朗读」栏、提示先下载、没进朗读态", gone.settings && gone.open && !gone.on && gone.toast.includes("先下载语音包"), JSON.stringify(gone));
   check("…账记对之后喇叭钮收回", await wait(() => document.getElementById("readAloudButton").hidden === true));
+  // ── 官方音色没下（或没了）：拖进 .onnx + .json 的本地模型也能念（user 2026-10-02「没有下载官方模型的时候，本地模型加载了还是没法启用语音」）──
+  await drop(["only-local.onnx", "only-local.onnx.json"]);
+  check("官方音色没了、拖进 .onnx + .json → 喇叭钮回来（这次打开能念）", await wait(() => document.getElementById("readAloudButton").hidden === false));
+  await page.click("#settingsClose"); await page.waitForTimeout(200);
+  await showChrome(); await page.click("#readAloudButton"); await page.waitForTimeout(300);
+  await page.evaluate(() => { window.__raLog.length = 0; window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
+  check("…点一句 → 带着本地模型装载、念出来", await wait(() => window.__raLog.some((x) => x.endsWith("|override:config.json,model.onnx")) && window.__raLog.some((x) => x.startsWith("synth:"))), await page.evaluate(() => window.__raLog.join(" | ")));
+  await wait(() => window.__jrb.readAloud.debugState().state === "idle");
+  await page.click("#raClose"); await page.waitForTimeout(150);
+  await page.evaluate(() => document.getElementById("raLocalRemove").click());
+  check("…移除本地模型 → 喇叭钮又收起（官方的还是没有）", await wait(() => document.getElementById("readAloudButton").hidden === true));
+  await showChrome(); await page.click("#settingsButton"); await page.waitForTimeout(200);
+  await page.evaluate(() => { const sec = document.getElementById("secReadAloud"); if (!sec.open) sec.click?.(); sec.open = true; });
+  await page.waitForTimeout(300);
   await page.click("#raPacks .ra-pack-actions button");   // 重新下载
   check("补下回来 → 喇叭钮又露出来", await wait(() => document.getElementById("readAloudButton").hidden === false));
   await page.click("#settingsClose"); await page.waitForTimeout(200);

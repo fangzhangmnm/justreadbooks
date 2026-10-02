@@ -42,7 +42,7 @@ export interface TxtReader {
   // ── 朗读要的四件事（0.2.1）：都按「当前章正文里的字符偏移」说话；正文是一整个文本节点，不为朗读改 DOM ──
   /** 当前章的正文。 */
   bodyText(): string;
-  /** 屏幕坐标落在正文的第几个字符上；没点在正文上 = null。 */
+  /** 屏幕坐标落在正文的第几个字符上；没点在字上（空白处、行尾、段间）= null。 */
   offsetAt(clientX: number, clientY: number): number | null;
   /** 屏幕上第一行可见正文的字符偏移（「从这里开始读」）。 */
   firstVisibleOffset(): number;
@@ -78,9 +78,17 @@ export function createTxtReader(d: TxtReaderDeps): TxtReader {
     if (doc.caretPositionFromPoint) { const p = doc.caretPositionFromPoint(x, y); if (p) { hit = p.offsetNode; off = p.offset; } }
     else if (doc.caretRangeFromPoint) { const r = doc.caretRangeFromPoint(x, y); if (r) { hit = r.startContainer; off = r.startOffset; } }
     if (hit !== node) return null;
-    // 光标落在最近的字缝上：点在一个字的右半边会得到它后面那个缝 → 看前一个字的框是不是真的包住了这一点
-    if (off > 0) { const r = document.createRange(); r.setStart(node, off - 1); r.setEnd(node, off); for (const q of Array.from(r.getClientRects())) if (x >= q.left && x <= q.right && y >= q.top && y <= q.bottom) return off - 1; }
-    return off;
+    // 浏览器给的是「离这一点最近的字缝」——点在短行右边、段与段之间、正文下面的空白也会落到某个缝上。只认真的点在字上的：
+    // 缝前、缝后那个字的框（上下各放宽框高的三成，点在两行之间的缝里也算）包住这一点；都不包 = 没点在字上（朗读态下 = 叫菜单，
+    // user 2026-10-02「语音的时候点没有文字的地方能不能触发菜单而不是触发语音？」）
+    const on = (i: number): boolean => {
+      if (i < 0 || i >= node.length || /\s/.test(node.data[i]!)) return false;
+      const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + 1);
+      for (const q of Array.from(r.getClientRects())) { const dy = q.height * 0.3; if (x >= q.left - 1 && x <= q.right + 1 && y >= q.top - dy && y <= q.bottom + dy) return true; }
+      return false;
+    };
+    if (on(off - 1)) return off - 1;
+    return on(off) ? off : null;
   }
   function markReading(span: { start: number; end: number } | null): void {
     const reg = highlights(); const H = (globalThis as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight;

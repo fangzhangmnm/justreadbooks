@@ -102,8 +102,14 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   let local: { model: File; config: File | null } | null = null;
   let loadedTag = "";   // 引擎里现在装的是哪个本地模型（"" = 音色自己的）
   // 预设（库 0.1.15 的家族约定；user 2026-10-02「输入就是一个用户键盘输入的signed int，然后模型随便解释」）：只在内存里，这次打开有效；
-  // 输入框只在当前装着的模型认预设时露出来（控制条上）。
-  let preset = 0;
+  // 空着 = 模型的默认（库 0.1.18：config.json 的 preset_default，按每一段的语言取）。输入框 + 上下箭头只在当前装着的模型认预设时露出来。
+  let preset: number | undefined;
+  // 本地模型加上之后「这次能不能念」（库 0.1.18：.onnx + .json 顶替了整个权重包，就不用官方权重；user 2026-10-02「没有下载官方模型的时候，
+  // 本地模型加载了还是没法启用语音」）。偏好里的 have 仍只代表官方音色（本地模型不跨打开）。
+  let localUsable = false;
+  const localNames = (): string[] => (local ? ["model.onnx", ...(local.config ? ["config.json"] : [])] : []);
+  /** 问引擎能念哪些语言：用着本地模型就带上它顶替的文件名。 */
+  const statusOf = (id: string) => eng().status(id, local ? { override: localNames() } : undefined);
   const fileTag = (f: File | null) => (f ? `${f.name}:${f.size}:${f.lastModified}` : "");
   const localTag = () => (local ? `${fileTag(local.model)}|${fileTag(local.config)}` : "");
   /** 装引擎失败时给用户的话：用着本地模型就说本地模型的事（音素表对不上 / 装不上），不笼统地说「出错了」。 */
@@ -145,20 +151,26 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   const speedSel = $("raSpeed") as HTMLSelectElement;
   for (const s of READ_ALOUD_SPEEDS) speedSel.add(new Option(`${s}×`, String(s)));
   const bar = $("raBar"), playBtn = $("raPlay"), playIcon = document.getElementById("raPlayIcon"), statusEl = $("raStatus");
-  const presetInput = $<HTMLInputElement>("raPreset");
-  /** 十进制或 0x 十六进制的带符号整数；不是 = null。 */
-  const parsePreset = (s: string): number | null => {
-    const x = s.trim(); if (!x) return 0;
+  const presetInput = $<HTMLInputElement>("raPreset"), presetDial = $("raPresetDial");
+  /** 十进制或 0x 十六进制的带符号整数；空 = undefined（默认）；不是 = null。 */
+  const parsePreset = (s: string): number | null | undefined => {
+    const x = s.trim(); if (!x) return undefined;
     const m = /^([+-]?)(0x[0-9a-f]+|\d+)$/i.exec(x); if (!m) return null;
     const v = (m[1] === "-" ? -1 : 1) * (/^0x/i.test(m[2]!) ? parseInt(m[2]!.slice(2), 16) : parseInt(m[2]!, 10));
     return Number.isSafeInteger(v) && Math.abs(v) <= 2147483647 ? v : null;
   };
+  function setPreset(v: number | undefined): void {
+    preset = v; presetInput.value = v === undefined ? "" : String(v);
+    if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); }   // 这一句按新预设重念
+  }
   presetInput.addEventListener("change", () => {
     const v = parsePreset(presetInput.value);
-    if (v === null) { deps.status(t("ra.presetInvalid"), { error: true }); presetInput.value = String(preset); return; }
-    preset = v;
-    if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); }   // 这一句按新预设重念
+    if (v === null) { deps.status(t("ra.presetInvalid"), { error: true }); presetInput.value = preset === undefined ? "" : String(preset); return; }
+    setPreset(v);
   });
+  // 上下箭头（user 2026-10-02「preset能加一个上下箭头的小dial吗」）：加一 / 减一；空着（默认）时从 0 起算
+  $("raPresetUp").addEventListener("click", () => setPreset((preset ?? 0) + 1));
+  $("raPresetDown").addEventListener("click", () => setPreset((preset ?? 0) - 1));
   presetInput.addEventListener("keydown", (e) => { if (e.key === "Enter") presetInput.blur(); });   // 回车 = 生效（change 在失焦时发）
   function renderBar(): void {
     const st = ra?.state() ?? "idle";
@@ -167,7 +179,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const label = going ? t("ra.pause") : t("ra.play");
     playBtn.setAttribute("aria-label", label); playBtn.title = label;
     statusEl.textContent = loadingVoice ? t("ra.loadingVoice") : st === "loading" ? t("ra.synth") : local ? t("ra.localBadge") : "";
-    presetInput.hidden = engine?.loaded()?.preset !== true;   // 模型认预设才露
+    presetDial.hidden = engine?.loaded()?.preset !== true;   // 模型认预设才露
     speedSel.value = String(speed());
   }
   async function syncWake(): Promise<void> {
@@ -216,6 +228,8 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
       if (!moved) { continuous = false; renderBar(); void syncWake(); return; }
       marked = null; from = 0; text = deps.reader.bodyText();
     }
+    if (local) { try { await statusOf(id); } catch (e) { deps.logError(e); } }   // 用着本地模型：按「加上本地模型」重算能念哪些语言
+    if (my !== readSeq) return;
     const { need, unsupported, missing } = langsForChapter(id, text);
     if (unsupported.length) { deps.status(t("ra.langUnsupported", { langs: langList(unsupported) }), { error: true }); return; }
     if (missing.length) { deps.status(t("ra.langNotDownloaded", { langs: langList(missing) })); deps.openSettings(); return; }
@@ -244,9 +258,10 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const id = currentVoice();
     if (!id) { deps.status(t("ra.noPacks")); return; }
     let usable = false;
-    try { usable = (await eng().status(id)).langs.length > 0; } catch (e) { deps.logError(e); }
+    try { usable = (await statusOf(id)).langs.length > 0; } catch (e) { deps.logError(e); }
+    if (local) localUsable = usable;
     if (!usable) { deps.status(t("ra.needPack")); deps.openSettings(); return; }   // 记着有、其实没了（浏览器清了缓存 / 兄弟 app 删了共用的包）：带去设置，那里会把账记对
-    noteHave(true);
+    if (!local) noteHave(true);
     if (disposeTimer) { clearTimeout(disposeTimer); disposeTimer = null; }
     on = true; document.body.dataset.readAloud = "1"; bar.hidden = false; renderBar();
     // 进来就先把这一章的语言装上（点第一句时不用等）；这一章的语言没下 / 不会念 → 等用户点了再如实说
@@ -416,8 +431,16 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     if (!onnx && !local) { deps.status(t("ra.localNeedOnnx"), { error: true }); return; }
     local = onnx ? { model: onnx, config: json } : { model: local!.model, config: json ?? local!.config };   // 只给 .json = 换配置、模型不变
     modelChanged();
-    renderLocal(); renderBar();
+    renderLocal(); renderBar(); void recheckLocal();
     deps.status(t("ra.localSet", { name: local.model.name + (local.config ? ` + ${local.config.name}` : "") }));
+  }
+  /** 换上 / 移除本地模型后：问一次「加上它能不能念」，顶栏的喇叭钮和朗读模式跟着变。 */
+  async function recheckLocal(): Promise<void> {
+    const id = currentVoice();
+    let ok = false;
+    if (local && id) { try { ok = (await statusOf(id)).langs.length > 0; } catch (e) { deps.logError(e); } }
+    if (ok !== localUsable) { localUsable = ok; deps.availabilityChanged(); }
+    renderMode();
   }
   $("raLocalPick").addEventListener("click", () => localInput.click());
   localInput.addEventListener("change", () => { const fs = Array.from(localInput.files ?? []); localInput.value = ""; if (fs.length) useLocalModel(fs); });
@@ -425,13 +448,13 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     if (!local) return;
     local = null;
     modelChanged();
-    renderLocal(); renderBar(); deps.status(t("ra.localRemoved"));
+    renderLocal(); renderBar(); void recheckLocal(); deps.status(t("ra.localRemoved"));
   });
   const modeSel = $<HTMLSelectElement>("raModeSelect");
   function renderMode(): void {
     const have = voiceIds().length > 0 && prefs().have === true;
-    modeSel.disabled = !have;   // 没装音色开不了：先在下面下载
-    modeSel.value = have ? mode() : "off";
+    modeSel.disabled = !(have || local);   // 没装音色（也没有本地模型）开不了：先在下面下载
+    modeSel.value = have || local ? mode() : "off";
   }
   modeSel.addEventListener("change", () => {
     const m = MODES.includes(modeSel.value as Mode) ? (modeSel.value as Mode) : "off";
@@ -460,7 +483,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   sourceInput.addEventListener("change", () => setPrefs({ source: sourceInput.value.trim() || undefined }));
 
   return {
-    available: () => voiceIds().length > 0 && prefs().have === true && mode() !== "off",
+    available: () => voiceIds().length > 0 && (prefs().have === true || localUsable) && mode() !== "off",
     active: () => on,
     toggle() { if (on) { exit(); return; } sink.unlock(); void enter(); },
     exit,

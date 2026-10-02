@@ -109,7 +109,7 @@ function setReadingMode(on: boolean): void { if (on) document.body.dataset.readi
     if (!d || !book || e.button !== 0) return;
     if ((e.target as HTMLElement | null)?.closest("button, a, input, select, textarea")) return;
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 350 || Math.abs(readerEl.scrollTop - d.scroll) > 2) return;   // 拖 / 长按 / 滚动都不算轻点
-    if (readAloud?.tapAt(e.clientX, e.clientY)) return;   // 朗读态：点在正文上 = 读这一句
+    if (readAloud?.active()) { if (!readAloud.tapAt(e.clientX, e.clientY)) setChrome(!chromeShown()); return; }   // 朗读态：点在字上 = 读这一句；点在没有字的地方 = 叫 / 收菜单（不分左右；user 2026-10-02）
     const r = readerEl.getBoundingClientRect();
     const fx = (e.clientX - r.left) / Math.max(1, r.width);
     if (fx < 1 / 3 || fx > 2 / 3) return;   // 左右 1/3：什么都不做（不翻章，章尾章首有按钮）
