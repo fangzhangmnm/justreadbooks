@@ -378,6 +378,8 @@ const chaptersView = initChaptersView({
   el: $("chaptersView"),
   chapters: () => reader.chapters(), titleOf: (i) => reader.titleOf(i), currentIndex: () => reader.currentIndex(), goTo: (i) => reader.goTo(i),
   title: (n) => t("rd.chaptersTitle", { n }),
+  levelLabel: (n) => (n === "all" ? t("rd.chaptersLevelAll") : t("rd.chaptersLevelN", { n })),
+  toggleLabel: (open) => t(open ? "rd.chaptersCollapse" : "rd.chaptersExpand"),
   onClosed: () => { if (book && !galleryHost.isOpen()) setChrome(false); },
 });
 function openChapters(): void { if (!book) return; chaptersView.open(); }

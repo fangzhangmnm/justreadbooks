@@ -2,7 +2,7 @@
 import { describe, it, eq as eqRaw, assert } from "./runner.mjs";
 const eq = (a, b, msg) => eqRaw(JSON.stringify(a), JSON.stringify(b), msg);   // runner 的 eq 是 !==，数组/对象走 JSON
 import { tree } from "../src/chapters/index.ts";
-import { flattenOutline, windowRange } from "../src/chapters-view.ts";
+import { flattenOutline, windowRange, outlineDepth, parentMap } from "../src/chapters-view.ts";
 
 // 装订书形状：# 篇 → ## 卡；外加一段散章（无 level）
 const ch = (title, level) => ({ title, start: 0, bodyStart: 0, end: 0, ...(level ? { level } : {}) });
@@ -10,7 +10,7 @@ const bound = [ch("篇一", 1), ch("E1v3", 2), ch("原文", 2), ch("篇二", 1),
 const idx = (rows) => rows.map((r) => r.index);
 
 describe("chapters-view · flattenOutline", () => {
-  it("永远全展开（无折叠无小三角）：组头 + 叶子按深度", () => {
+  it("不限级数（默认参数）= 全展开：组头 + 叶子按深度", () => {
     const rows = flattenOutline(tree(bound), null);
     eq(idx(rows), [0, 1, 2, 3, 4, 5]);
     eq(rows.map((r) => r.depth), [0, 1, 1, 0, 1, 0]);
@@ -29,6 +29,34 @@ describe("chapters-view · flattenOutline", () => {
     const rows = flattenOutline(tree(flat), null);
     eq(rows.length, 20000); eq(rows.every((r) => !r.group && r.depth === 0 && r.groupIndex === -1), true);
     assert(performance.now() - t0 < 200, "flatten 2 万章应 <200ms");
+  });
+});
+
+describe("chapters-view · 展开到几级 + 每组的小三角（2026-10-01）", () => {
+  const folded = (rows) => rows.map((r) => r.folded);
+  it("展开到 1 级：只剩最上一级，收起的组头标底下几章", () => {
+    const rows = flattenOutline(tree(bound), null, 1);
+    eq(idx(rows), [0, 3, 5]); eq(folded(rows), [2, 1, 0]);
+  });
+  it("单独点开一组（在 1 级上）/ 单独收起一组（在全部上）", () => {
+    eq(idx(flattenOutline(tree(bound), null, 1, new Map([[0, true]]))), [0, 1, 2, 3, 5]);
+    const r = flattenOutline(tree(bound), null, Infinity, new Map([[3, false]]));
+    eq(idx(r), [0, 1, 2, 3, 5]); eq(folded(r), [0, 0, 0, 1, 0]);
+  });
+  it("三级的书：展开到 2 级 = 第三级收进第二级；藏起来的章数算整棵子树", () => {
+    const deep = [ch("馆", 1), ch("作品", 2), ch("段1", 3), ch("段2", 3), ch("作品B", 2), ch("段3", 3), ch("馆二", 1)];
+    eq(outlineDepth(tree(deep)), 3);
+    eq(idx(flattenOutline(tree(deep), null, 2)), [0, 1, 4, 6]);
+    eq(folded(flattenOutline(tree(deep), null, 1)), [5, 0]);
+    eq(Array.from(parentMap(tree(deep), deep.length)), [-1, 0, 1, 1, 0, 4, -1]);
+  });
+  it("搜索时不看级数和单独收起：命中的连祖先组头都摊开", () => {
+    eq(idx(flattenOutline(tree(bound), (n) => n.index === 2, 1, new Map([[0, false]]))), [0, 2]);
+    eq(folded(flattenOutline(tree(bound), (n) => n.index === 2, 1)), [0, 0]);
+  });
+  it("扁平的书：1 级，没有可收起的组", () => {
+    eq(outlineDepth(tree([ch("第1章"), ch("第2章")])), 1);
+    eq(outlineDepth(tree(bound)), 2);
   });
 });
 

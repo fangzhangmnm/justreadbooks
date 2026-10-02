@@ -336,6 +336,26 @@ export declare const S: {
         readonly zh: "搜章名";
         readonly en: "Search chapters";
     };
+    readonly "rd.chaptersLevels": {
+        readonly zh: "展开到";
+        readonly en: "Show";
+    };
+    readonly "rd.chaptersLevelN": {
+        readonly zh: "{n} 级";
+        readonly en: "{n} level(s)";
+    };
+    readonly "rd.chaptersLevelAll": {
+        readonly zh: "全部";
+        readonly en: "All";
+    };
+    readonly "rd.chaptersExpand": {
+        readonly zh: "展开这一组";
+        readonly en: "Expand this group";
+    };
+    readonly "rd.chaptersCollapse": {
+        readonly zh: "收起这一组";
+        readonly en: "Collapse this group";
+    };
     readonly "rd.chaptersEmpty": {
         readonly zh: "没有匹配的章";
         readonly en: "No matching chapter";

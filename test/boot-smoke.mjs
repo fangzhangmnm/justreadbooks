@@ -112,6 +112,7 @@ try {
   await page.click("#chaptersButton"); await page.waitForTimeout(200);
   const cv = await page.evaluate(() => { const v = document.getElementById("chaptersView"); return { open: !v.hidden, rows: v.querySelectorAll(".ch-row").length, cur: v.querySelector(".ch-row[aria-current=true] .ch-title")?.textContent, sheetHidden: document.getElementById("sheet").classList.contains("hidden") }; });
   check("目录 = 整屏 view（非 sheet）、5 行、当前章高亮第 2 章", cv.open && cv.rows === 5 && cv.cur === "第2章 标题2" && cv.sheetHidden, JSON.stringify(cv));
+  check("扁平的书：没有「展开到」选择，也没有小三角", await page.evaluate(() => document.getElementById("chaptersLevelRow").hidden && [...document.querySelectorAll("#chaptersView .ch-toggle")].every((b) => getComputedStyle(b).visibility === "hidden")));
   await page.click("#chaptersClose"); await page.waitForTimeout(200);
   check("目录右上 ✕ → 关、顶栏收起", await page.evaluate(() => document.getElementById("chaptersView").hidden && document.body.dataset.chrome !== "shown"));
   await page.evaluate(() => { document.getElementById("reader").scrollTop = 0; }); await page.waitForTimeout(600);
@@ -179,6 +180,25 @@ try {
   await page.waitForTimeout(400);
   const moved = await page.evaluate(() => { const c = window.__jrb.store().collection("reading-position"); return { newHas: !!c.getEntry("冒烟改名.txt"), oldHas: !!c.getEntry("冒烟测试.txt"), chapter: c.getItem("冒烟改名.txt")?.anchor?.chapter, names: [...document.querySelectorAll("#galleryMount .gallery-tile-name")].map((e) => e.textContent.trim()).sort().join("|") }; });
   check("书架改名非活动书 → 阅读位置跟着搬（第 2 章保留）、旧键墓碑", moved.newHas && !moved.oldHas && moved.chapter === 1 && moved.names.includes("冒烟改名"), JSON.stringify(moved));
+  // 2026-10-01：目录的「展开到几级」+ 每组的小三角（user「目录帮我做一个缩进，然后默认全锁进，可以选择展开几级」「per行小三角也要」）
+  const MD = ["# 馆一", "馆一导言。", "## 作品甲", "甲。", "### 段1", "段一。", "### 段2", "段二。", "## 作品乙", "乙。", "### 段3", "段三。", "# 馆二", "馆二导言。", "## 作品丙", "丙。", ""].join("\n");
+  await page.setInputFiles("#uploadInput", { name: "三级目录.md.txt", mimeType: "text/plain", buffer: Buffer.from(MD, "utf8") });
+  await page.waitForFunction(() => window.__jrb.book()?.name?.includes("三级目录"), null, { timeout: 8000 }); await page.waitForTimeout(300);
+  await page.evaluate(() => window.__jrb.reader.goTo(3));   // 段2（0 馆一 / 1 作品甲 / 2 段1 / 3 段2 / 4 作品乙 / 5 段3 / 6 馆二 / 7 作品丙）
+  await page.waitForTimeout(200);
+  await page.evaluate(() => document.getElementById("chaptersButton").click()); await page.waitForTimeout(250);
+  const toc = () => page.evaluate(() => [...document.querySelectorAll("#chaptersView .ch-row")].sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top)).map((r) => `${r.querySelector(".ch-title").textContent}${r.querySelector(".ch-count").textContent ? "(" + r.querySelector(".ch-count").textContent + ")" : ""}${r.getAttribute("aria-current") ? "*" : ""}`).join(" "));
+  check("三级的书：有「展开到」（1 级 / 2 级 / 全部），默认 1 级 = 只剩两个馆，标着底下几章；当前章（段2）被收起 → 高亮它所在的馆", await page.evaluate(() => !document.getElementById("chaptersLevelRow").hidden && [...document.getElementById("chaptersLevels").options].map((o) => o.textContent).join("/") === "1 级/2 级/全部") && (await toc()) === "馆一(5)* 馆二(1)", await toc());
+  await page.evaluate(() => document.querySelector('#chaptersView .ch-row[data-index="0"] .ch-toggle').click()); await page.waitForTimeout(150);
+  check("点馆一的小三角：只展开这一组（作品收着、标章数），高亮落到作品甲；点三角不跳章、目录不关", (await toc()) === "馆一 作品甲(2)* 作品乙(1) 馆二(1)" && await page.evaluate(() => !document.getElementById("chaptersView").hidden), await toc());
+  await page.selectOption("#chaptersLevels", "3"); await page.waitForTimeout(150);
+  check("展开到「全部」：全摊开，高亮落到段2 本身", (await toc()) === "馆一 作品甲 段1 段2* 作品乙 段3 馆二 作品丙", await toc());
+  await page.selectOption("#chaptersLevels", "1"); await page.waitForTimeout(150);
+  await page.fill("#chaptersSearch", "段3"); await page.waitForTimeout(150);
+  check("搜索时不看级数：命中的连祖先一起摊开，小三角藏起来；当前章不在结果里就不高亮", (await toc()) === "馆一 作品乙 段3" && await page.evaluate(() => [...document.querySelectorAll("#chaptersView .ch-toggle")].every((b) => getComputedStyle(b).visibility === "hidden")), await toc());
+  await page.fill("#chaptersSearch", ""); await page.waitForTimeout(100);
+  await page.evaluate(() => document.querySelector('#chaptersView .ch-row[data-index="6"] .ch-jump').click()); await page.waitForTimeout(250);
+  check("点组头那一行（不是三角）照旧跳过去、目录关上", await page.evaluate(() => document.getElementById("chaptersView").hidden && window.__jrb.reader.currentIndex() === 6));
   const benign = /Not signed in|CloudNetworkError|Failed to fetch|net::ERR|msal/i;
   const realErrors = pageErrors.filter((e) => !benign.test(e));
   check("零页面错误（未登录/断网的库日志除外）", realErrors.length === 0, realErrors.join(" | ").slice(0, 400));
