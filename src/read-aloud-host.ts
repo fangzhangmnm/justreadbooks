@@ -29,7 +29,7 @@ const MODES: readonly Mode[] = ["off", "continuous", "sentence"];
 /** 随 app 内嵌的音色目录。 */
 export interface ReadAloudCatalog { voices: Record<string, VoiceDef>; packs: Record<string, EmbeddedPack> }
 /** 每个音色给用户的一句实话（哪种语言是本行、哪种是凑合）：按音色 id 查，没有就不显示。 */
-const VOICE_NOTE: Record<string, Key> = { "tsukuyomi-chan": "ra.voiceNote.tsukuyomi-chan" };
+const VOICE_NOTE: Record<string, Key> = { "tsukuyomi-chan-zhen": "ra.voiceNote.tsukuyomi-chan-zhen" };
 /** 连续模式自动翻章后，开念下一章之前停这么久（1 倍速时；库里同段句间 600、跨段 900）。 */
 const CHAPTER_GAP_MS = 1200;
 /** 引擎里空闲这么久就关 worker 归还内存（WASM 堆只涨不缩）。 */
@@ -93,8 +93,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   const totalBytes = (id: string) => voicePacks(def(id)).reduce((a, slug) => a + (catalog.packs[slug]?.manifest.totalBytes ?? 0), 0);
   const source = () => (prefs().source ?? "").trim() || READ_ALOUD_MODEL_SOURCE;
   const mode = (): Mode => { const m = prefs().mode; return m && MODES.includes(m) ? m : "sentence"; };
-  /** 念法 0（原样）… 1（平稳）；0.2.4 的开关存的是 steady: true，当 1。 */
-  const steadiness = () => { const p = prefs(); const v = typeof p.steadiness === "number" && Number.isFinite(p.steadiness) ? p.steadiness : p.steady ? 1 : 0; return Math.min(1, Math.max(0, v)); };
+  // 念法滑块 0.2.12 收起（user 2026-10-02「念法slider可以sunset了，保持原样」）：一律原样（库的 steadiness 不传 = 0）；偏好里存过的 steadiness / steady 不再读。
   const speed = () => { const s = prefs().speed; return typeof s === "number" && READ_ALOUD_SPEEDS.includes(s) ? s : 1; };
   /** 整句合成（库 0.1.13；user 2026-10-02「加一个整句合成的选项，默认开，可以开关」）：没设过 = 开。 */
   const whole = () => prefs().whole !== false;
@@ -223,7 +222,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     try { await ensureLoaded(id, need); } catch (e) { if (my !== readSeq || cancelled(e)) return; deps.logError(e); deps.status(loadErrorText(e), { error: true }); return; }
     if (my !== readSeq || !on || deps.reader.bodyText() !== text) return;   // 等引擎的工夫里又点了别的 / 退出了 / 翻章了
     continuous = !once;
-    reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), steadiness: steadiness(), whole: whole(), preset });   // 不给 lang = 每句自己判
+    reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), whole: whole(), preset });   // 不给 lang = 每句自己判
     void syncWake();
   }
   function stopReading(): void { readSeq++; chapterGap = false; continuous = false; ra?.stop(); marked = null; deps.reader.markReading(null); void syncWake(); renderBar(); }
@@ -395,14 +394,6 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     for (const it of items) { const o = document.createElement("option"); o.value = it.value; o.textContent = it.label; sel.appendChild(o); }
     sel.value = value;
   }
-  // 念法（实验）：原样 ↔ 平稳的滑块，0…1（库在三个参数之间线性插值）。user 2026-10-01「以及为什么不给我开关让我自己来听」→
-  // 「平稳档是很容易听清楚，就是有点像机翻」「能不能给我一个能调原样平稳的滑块」。默认原样（0），换不换默认值由 user 听了定。
-  // 松手才生效（change，不是 input）：正在念 / 暂停着 = 这一句按新念法重念。
-  const styleRange = $<HTMLInputElement>("raStyleRange");
-  styleRange.addEventListener("change", () => {
-    setPrefs({ steadiness: Math.min(1, Math.max(0, Number(styleRange.value) / 100)), steady: undefined });
-    if (on && marked && ra && ra.state() !== "idle") { sink.unlock(); void read(marked.start, mode() === "sentence"); }
-  });
   // 整句合成（默认开）：换了 = 正在念 / 暂停着的这一句按新做法重念
   const wholeSel = $<HTMLSelectElement>("raWholeSelect");
   wholeSel.addEventListener("change", () => {
@@ -451,7 +442,6 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   });
   function renderSettings(): void {
     renderMode();
-    styleRange.value = String(Math.round(steadiness() * 100));
     wholeSel.value = whole() ? "on" : "off";
     renderLocal();
     sourceInput.value = prefs().source ?? ""; sourceInput.placeholder = READ_ALOUD_MODEL_SOURCE;

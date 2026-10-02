@@ -102,7 +102,6 @@ try {
   await page.selectOption("#raModeSelect", "off");
   check("朗读模式调到「关」：音色留着，顶栏喇叭钮收起", await page.evaluate(() => document.getElementById("readAloudButton").hidden === true && document.querySelector("#raPacks .ra-pack").textContent.includes("已下载")));
   check("到这里引擎一次都没装过（开书、开设置、下载都不备引擎）", await page.evaluate(() => !window.__raLog.some((x) => x.startsWith("load"))));
-  check("念法（实验）滑块默认在「原样」一端（0）", await page.evaluate(() => document.getElementById("raStyleRange").value === "0"));
   await page.selectOption("#raModeSelect", "sentence");
   check("把朗读模式调开 = 有意图：后台开始备引擎", await wait(() => window.__raLog.includes("load:ja")));
   await page.click("#settingsClose"); await page.waitForTimeout(200);
@@ -185,13 +184,7 @@ try {
   await page.selectOption("#raSpeed", "2");
   check("念着的时候换语速（0.8 → 2）：这一句按新速度重新合成，接着连续念", await wait(() => window.__raLog.some((x) => x.startsWith("synth:ja:2:森の中で"))) && await page.evaluate(() => document.getElementById("raSpeed").value === "2" && window.__jrb.readAloud.debugState().continuous) && await toEnd());
 
-  // ── 念法（实验）：切到「平稳」，引擎收到 steady ──
-  await page.evaluate(() => { const el = document.getElementById("raStyleRange"); el.value = "60"; el.dispatchEvent(new Event("change")); });
-  const nSteady = await page.evaluate(() => window.__raLog.length);
-  await setMode("sentence"); await page.evaluate(() => { window.__jrb.reader.goTo(0); }); await page.waitForTimeout(150); await page.mouse.click(pt.x, pt.y);
-  check("念法滑块拖到 60 %：点一句，引擎收到 steadiness 0.6；设置重画后滑块还在 60", await wait(() => window.__raSteadiness === 0.6) && await page.evaluate(() => { window.__jrb.readAloud.renderSettings(); return document.getElementById("raStyleRange").value === "60"; }));
-  await wait(() => window.__jrb.readAloud.debugState().state === "idle");
-  await page.evaluate(() => { const el = document.getElementById("raStyleRange"); el.value = "0"; el.dispatchEvent(new Event("change")); });
+  check("念法滑块已收起（user「念法slider可以sunset了，保持原样」）：设置里没有，引擎收到的念法是原样（0）", await page.evaluate(() => !document.getElementById("raStyleRange") && window.__raSteadiness === 0));
 
   // ── 整句合成（库 0.1.13；默认开，可以关）──
   check("整句合成：设置里默认「开」，引擎收到 whole: true", await page.evaluate(() => document.getElementById("raWholeSelect").value === "on" && window.__raWhole === true));

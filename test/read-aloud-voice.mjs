@@ -10,7 +10,7 @@ import { join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const VOICE_DIR = process.env.READ_ALOUD_VOICE_DIR ?? join(process.env.HOME, "jupyter/third-party/piper-plus/packs-local");
-const VOICE = process.env.READ_ALOUD_VOICE ?? "tsukuyomi-chan";
+const VOICE = process.env.READ_ALOUD_VOICE ?? "tsukuyomi-chan-zhen";
 if (!existsSync(join(VOICE_DIR, "voices", `${VOICE}.json`))) { console.log(`  read-aloud voice smoke: SKIPPED (no ${VOICE}.json under ${VOICE_DIR})`); process.exit(0); }
 const SHOTS = process.env.READ_ALOUD_SHOTS ?? "";
 // READ_ALOUD_EMBEDDED=1：不往 app 里塞目录，用 app 自己内嵌的那份（= 线上用户看到的；要求 VOICE_DIR 里的字节就是内嵌清单钉的那些）。
