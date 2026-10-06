@@ -8,9 +8,13 @@
 //     播放键 = 从标着的那一句（没有就从屏幕上第一句）开始 / 暂停 / 继续。锁屏 / 切后台 = 暂停（这一版不承诺后台播放）。
 //   · 不 bloat：没进过朗读、没展开过设置里的「朗读」栏 = worker / 引擎 / 语音包一个字节都不动（引擎门面是懒的）。
 //   · 语音包来源 = 家族模型仓（config.ts READ_ALOUD_MODEL_SOURCE，设置里可改成任何镜像，或从本机文件导入）；字节到手逐片对内嵌清单的 sha256。
+//   · **库不管持久化（0.2.14，库 0.1.20；user 2026-10-02「库不应该管持久化，让app管，库不知道任何持久化的东西，string in, audio out. app喂」）**：
+//     下载 / 校验 / 缓存 / 导入 / 删除在宿主自己的 `src/model-packs.ts`（字节层）；这里把「音色 = 哪几个包」算清楚、把就绪的包的分片喂给库的 `engine.load`。
+//     「能念哪些语言」= 库的纯函数 `availableLangs`（必装的包齐 + 那种语言的包齐）+ 本地模型顶替掉的包（`coveredPacks`）。
 //   · 一个音色 = 几个小包（权重 / 运行时 / 每种语言的词典；库的 VoiceDef）。界面只说「音色」；只把这一章的语言装进引擎（日语前端固定占 160 MB 内存）。
 //   · 音色的署名和使用条款（上游要求必须让用户看到的原文）显示在设置的「朗读」栏里：当前选中音色的那一份，可展开的栏，正文字号，不翻译。
-import { createReadAloud, createSpeechEngine, createWebAudioSink, langsIn, splitSentences, voiceLangs, voicePacks, type ReadAloud, type SpeechEngine, type SpeechLang, type EmbeddedPack, type VoiceDef, type PackProgress, type SentenceSpan } from "@internal/read-aloud";
+import { availableLangs, coveredPacks, createReadAloud, createSpeechEngine, createWebAudioSink, langsIn, splitSentences, voiceLangs, voicePacks, type ReadAloud, type SpeechEngine, type SpeechLang, type EmbeddedPack, type VoiceDef, type SentenceSpan } from "@internal/read-aloud";
+import { createPackStore, type PackProgress, type PackStore } from "./model-packs.ts";
 import { READ_ALOUD_VOICES, READ_ALOUD_PACKS } from "./read-aloud-packs.generated.ts";
 import { READ_ALOUD_MODEL_SOURCE, READ_ALOUD_SPEEDS } from "./config.ts";
 import { deviceKvGetJson, deviceKvSetJson } from "./device-kv.ts";
@@ -64,8 +68,8 @@ export interface ReadAloudHost {
   modelFiles(files: File[]): File[];
   /** 换上本地模型（只在这次打开有效，不上传不保存）。 */
   useLocalModel(files: File[]): void;
-  /** smoke 探针：换一份音色目录；给了 engine 就用它（假引擎），不给 = 用真引擎跑这份目录。 */
-  debugInstall(catalog: ReadAloudCatalog, engine?: SpeechEngine): void;
+  /** smoke 探针：换一份音色目录；给了 engine / store 就用它们（假引擎 / 假字节层），不给 = 真的跑这份目录。 */
+  debugInstall(catalog: ReadAloudCatalog, engine?: SpeechEngine, store?: PackStore): void;
   debugState(): { active: boolean; state: string; marked: SentenceSpan | null; continuous: boolean };
 }
 
@@ -74,6 +78,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   let catalog: ReadAloudCatalog = { voices: READ_ALOUD_VOICES, packs: READ_ALOUD_PACKS };
   let engine: SpeechEngine | null = null;
+  let store: PackStore | null = null;   // 字节层（src/model-packs.ts）：下载 / 校验 / 缓存 / 导入 / 删除；问它不用起 worker
   let ra: ReadAloud | null = null;
   const sink = createWebAudioSink();
   let on = false, continuous = false, advancing = false, loadingVoice = false, chapterGap = false;
@@ -106,8 +111,28 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   // 本地模型加载了还是没法启用语音」）。偏好里的 have 仍只代表官方音色（本地模型不跨打开）。
   let localUsable = false;
   const localNames = (): string[] => (local ? ["model.onnx", ...(local.config ? ["config.json"] : [])] : []);
-  /** 问引擎能念哪些语言：用着本地模型就带上它顶替的文件名。 */
-  const statusOf = (id: string) => eng().status(id, local ? { override: localNames() } : undefined);
+  const packs = () => (store ??= createPackStore({ packs: catalog.packs }));
+  /** 这个音色现在的状态（算法同库 0.1.19 以前的 engine.status）：被本地模型整个顶替的包算有；ready = 全部语言的包都齐。 */
+  interface VoiceStatus { ready: boolean; langs: SpeechLang[]; bytesCached: number; bytesTotal: number }
+  const known = new Map<string, VoiceStatus>();   // 最近一次问的结论（同步问「能不能念」用；没问过 = 不知道）
+  async function statusOf(id: string): Promise<VoiceStatus> {
+    const d = def(id), covered = coveredPacks(d, catalog.packs, localNames());
+    const ps = await packs().status(voicePacks(d));
+    const has = (slug: string) => covered.has(slug) || ps.find((p) => p.slug === slug)?.ready === true;
+    const st: VoiceStatus = { ready: ps.every((p) => p.ready || covered.has(p.slug)), langs: availableLangs(d, has), bytesCached: ps.reduce((a, p) => a + p.bytesCached, 0), bytesTotal: ps.reduce((a, p) => a + p.bytesTotal, 0) };
+    known.set(id, st);
+    return st;
+  }
+  const isKnownReady = (id: string, lang?: SpeechLang): boolean | undefined => { const st = known.get(id); return st ? (lang ? st.langs.includes(lang) : st.langs.length > 0) : undefined; };
+  /** 喂给库的分片：这个音色点名语言要的包，就绪的从缓存取；没就绪又没被本地模型顶替的 → pack-missing。 */
+  async function chunksFor(id: string, langs: SpeechLang[]): Promise<Record<string, Blob[]>> {
+    const d = def(id), covered = coveredPacks(d, catalog.packs, localNames()), out: Record<string, Blob[]> = {};
+    for (const slug of voicePacks(d, langs)) {
+      try { out[slug] = await packs().chunks(slug); }
+      catch (e) { if (!covered.has(slug) || !(e instanceof Error && e.message === "pack-missing")) throw e; }   // 顶替掉的包没下载 = 不喂（库也不装它）
+    }
+    return out;
+  }
   const fileTag = (f: File | null) => (f ? `${f.name}:${f.size}:${f.lastModified}` : "");
   const localTag = () => (local ? `${fileTag(local.model)}|${fileTag(local.config)}` : "");
   /** 装引擎失败时给用户的话：用着本地模型就说本地模型的事（音素表对不上 / 装不上），不笼统地说「出错了」。 */
@@ -202,7 +227,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
    */
   function langsForChapter(id: string, text: string): { need: SpeechLang[]; unsupported: SpeechLang[]; missing: SpeechLang[] } {
     const need = langsIn(text), can = voiceLangs(def(id));
-    return { need, unsupported: need.filter((l) => !can.includes(l)), missing: need.filter((l) => can.includes(l) && eng().isKnownReady(id, l) === false) };
+    return { need, unsupported: need.filter((l) => !can.includes(l)), missing: need.filter((l) => can.includes(l) && isKnownReady(id, l) === false) };
   }
   const langList = (ls: SpeechLang[]) => ls.map(langName).join(" / ");
   async function ensureLoaded(id: string, langs: SpeechLang[]): Promise<void> {
@@ -210,7 +235,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     if (cur?.voice === id && loadedTag === tag && langs.every((l) => cur.langs.includes(l))) return;
     loadingVoice = true; renderBar();
     const override = local ? { "model.onnx": local.model, ...(local.config ? { "config.json": local.config } : {}) } : undefined;
-    try { await eng().load(id, { langs, ...(override ? { override } : {}) }); loadedTag = tag; }
+    try { const chunks = await chunksFor(id, langs); await eng().load(id, { langs, chunks, ...(override ? { override } : {}) }); loadedTag = tag; }
     catch (e) { loadedTag = ""; throw e; }
     finally { loadingVoice = false; renderBar(); }
   }
@@ -227,12 +252,17 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
       if (!moved) { continuous = false; renderBar(); void syncWake(); return; }
       marked = null; from = 0; text = deps.reader.bodyText();
     }
-    if (local) { try { await statusOf(id); } catch (e) { deps.logError(e); } }   // 用着本地模型：按「加上本地模型」重算能念哪些语言
+    try { await statusOf(id); } catch (e) { deps.logError(e); }   // 每次点读先问一遍字节层（0.2.14 起问的是 Cache Storage，不起 worker）：兄弟 app 删了共用包、浏览器清了缓存都能当场发现
     if (my !== readSeq) return;
     const { need, unsupported, missing } = langsForChapter(id, text);
     if (unsupported.length) { deps.status(t("ra.langUnsupported", { langs: langList(unsupported) }), { error: true }); return; }
     if (missing.length) { deps.status(t("ra.langNotDownloaded", { langs: langList(missing) })); deps.openSettings(); return; }
-    try { await ensureLoaded(id, need); } catch (e) { if (my !== readSeq || cancelled(e)) return; deps.logError(e); deps.status(loadErrorText(e), { error: true }); return; }
+    try { await ensureLoaded(id, need); }
+    catch (e) {
+      if (my !== readSeq || cancelled(e)) return;
+      if (e instanceof Error && e.message === "pack-missing") { void statusOf(id).catch(deps.logError); deps.status(t("ra.langNotDownloaded", { langs: langList(need) })); deps.openSettings(); return; }   // 问完到装之间包没了
+      deps.logError(e); deps.status(loadErrorText(e), { error: true }); return;
+    }
     if (my !== readSeq || !on || deps.reader.bodyText() !== text) return;   // 等引擎的工夫里又点了别的 / 退出了 / 翻章了
     continuous = !once;
     reader_().start(text, from, { once, langs: need, speaker: speaker(id), speed: speed(), whole: whole(), preset });   // 不给 lang = 每句自己判
@@ -330,13 +360,33 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     busyVoices.set(id, t("ra.starting")); renderPacks();
     const onProgress = (p: PackProgress) => { busyVoices.set(id, mb(p)); const el = packsEl.querySelector<HTMLElement>(`[data-voice="${CSS.escape(id)}"] .ra-pack-state`); if (el) el.textContent = busyVoices.get(id)!; };
     try {
-      const st = kind === "download" ? await eng().download(id, source(), { onProgress }) : await eng().importFiles(id, files ?? [], onProgress);
+      const d = def(id);
+      if (kind === "download") { const covered = coveredPacks(d, catalog.packs, localNames()); await packs().download(voicePacks(d).filter((slug) => !covered.has(slug)), source(), onProgress); }   // 被本地模型顶替的包不下
+      else await packs().importFiles(voicePacks(d), files ?? [], onProgress);
+      const st = await statusOf(id);
       deps.status(st.ready ? t("ra.packReady") : t("ra.packPartial", { langs: st.langs.map(langName).join(" / ") || t("ra.none") }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       deps.logError(e); deps.status(msg === "no-matching-file" ? t("ra.importNoMatch") : t("ra.packFailed", { msg }), { error: true });
     }
     finally { busyVoices.delete(id); await refreshStatuses(); }
+  }
+  /** 删掉这个音色的包；内嵌的别的音色里「装着的」（必装包都在）还要用的包留着（运行时、共用的词典）。同源兄弟 app 是否在用看不见：它那边会显示「未下载」，重下即可。 */
+  async function deleteVoice(id: string): Promise<void> {
+    const others = voiceIds().filter((o) => o !== id);
+    const all = [...new Set(others.flatMap((o) => voicePacks(def(o))))];
+    const st = all.length ? await packs().status(all) : [];
+    const ready = (slug: string) => st.find((p) => p.slug === slug)?.ready === true;
+    const keep = new Set<string>();
+    for (const o of others) {
+      const d = def(o);
+      if (!d.packs.every(ready)) continue;
+      for (const slug of d.packs) keep.add(slug);
+      for (const l of voiceLangs(d)) { const lp = d.langPacks[l] ?? []; if (lp.every(ready)) for (const slug of lp) keep.add(slug); }
+    }
+    if (engine?.loaded()?.voice === id) modelChanged();   // 引擎里装着它：放掉（原来库的 delete 顺手卸引擎）
+    await packs().delete(voicePacks(def(id)).filter((slug) => !keep.has(slug)));
+    await statusOf(id);
   }
   let importTarget: string | null = null;
   importInput.addEventListener("change", () => { const files = Array.from(importInput.files ?? []); importInput.value = ""; if (importTarget && files.length) void voiceAction(importTarget, "import", files); });
@@ -363,7 +413,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
         if (st && st.bytesCached > 0) row.appendChild(mk(t("ra.delete"), () => void (async () => {
           if (!(await deps.confirm(t("ra.deleteTitle"), t("ra.deleteMsg", { name: d.name })))) return;
           if (on) exit();
-          try { await eng().delete(id); } catch (e) { deps.logError(e); }
+          try { await deleteVoice(id); } catch (e) { deps.logError(e); }
           await refreshStatuses();
         })()));
       }
@@ -398,7 +448,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   function noteHave(have: boolean): void { if ((prefs().have === true) !== have) { setPrefs({ have }); deps.availabilityChanged(); } renderMode(); }
   async function refreshStatuses(): Promise<void> {
     let asked = 0;
-    for (const id of voiceIds()) { try { const st = await eng().status(id); statuses.set(id, { ready: st.ready, langs: st.langs, bytesCached: st.bytesCached }); asked++; } catch (e) { deps.logError(e); } }
+    for (const id of voiceIds()) { try { const st = await statusOf(id); statuses.set(id, { ready: st.ready, langs: st.langs, bytesCached: st.bytesCached }); asked++; } catch (e) { deps.logError(e); } }
     if (asked === voiceIds().length) noteHave([...statuses.values()].some((st) => st.langs.length > 0));
     renderPacks();
   }
@@ -473,7 +523,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     speakerRow.hidden = sp.length <= 1;
     if (sp.length > 1 && id) fill(speakerSel, sp.map((x) => ({ value: String(x.id), label: x.name })), String(speaker(id)));
     renderPacks();
-    if (section.open) void refreshStatuses();   // 只有展开过这一栏才去问引擎（问 = 起 worker）
+    if (section.open) void refreshStatuses();   // 只有展开过这一栏才去问缓存（0.2.14 起问的是字节层，不起 worker）
   }
   section.addEventListener("toggle", () => { if (section.open) void refreshStatuses(); });
   voiceSel.addEventListener("change", () => { setPrefs({ voice: voiceSel.value, speaker: undefined }); termsOpen = null; if (on) exit(); modelChanged(); renderSettings(); });
@@ -497,7 +547,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     renderSettings,
     modelFiles,
     useLocalModel,
-    debugInstall(c, e) { engine?.dispose(); catalog = c; engine = e ?? null; ra = null; statuses.clear(); termsOpen = null; noteHave(false); },
+    debugInstall(c, e, s) { engine?.dispose(); catalog = c; engine = e ?? null; store = s ?? null; ra = null; statuses.clear(); known.clear(); termsOpen = null; noteHave(false); },
     debugState: () => ({ active: on, state: ra?.state() ?? "idle", marked, continuous }),
   };
 }

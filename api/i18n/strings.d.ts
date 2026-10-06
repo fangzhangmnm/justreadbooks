@@ -616,21 +616,89 @@ export declare const S: {
         readonly zh: "朗读模式";
         readonly en: "Read-aloud mode";
     };
-    readonly "ra.style": {
-        readonly zh: "念法（实验）";
-        readonly en: "Style (experiment)";
+    readonly "ra.whole": {
+        readonly zh: "整句合成";
+        readonly en: "Whole-sentence synthesis";
     };
-    readonly "ra.styleNormal": {
-        readonly zh: "原样";
-        readonly en: "As is";
+    readonly "ra.wholeOn": {
+        readonly zh: "开";
+        readonly en: "On";
     };
-    readonly "ra.styleSteady": {
-        readonly zh: "平稳";
-        readonly en: "Steady";
+    readonly "ra.wholeOff": {
+        readonly zh: "关";
+        readonly en: "Off";
     };
-    readonly "ra.styleHint": {
-        readonly zh: "越往右越平稳：随机起伏越小、稍慢一点，越容易听清，但也越平、越像机翻。正在念的时候拖动，松手后这一句按新念法重念。";
-        readonly en: "Further right = steadier: less random variation and a little slower — easier to follow, but flatter and more machine-like. Drag while it is reading; the sentence is read again with the new style when you let go.";
+    readonly "ra.wholeHint": {
+        readonly zh: "开：一句话里的几个小句一次交给模型念，逗号处让它自己收一下再补够停顿，听着更连贯。关：在每个逗号处切开、一段一段分别念（以前的做法）。只在换语言和句与句之间切开。";
+        readonly en: "On: the clauses of a sentence go to the voice in one pass; at each comma it pauses on its own and the pause is padded to length, so it flows better. Off: each clause is read on its own and joined with silence (the old way). Only a change of language and the end of a sentence still cut.";
+    };
+    readonly "ra.local": {
+        readonly zh: "本地模型（测试）";
+        readonly en: "Local model (testing)";
+    };
+    readonly "ra.localNone": {
+        readonly zh: "没有";
+        readonly en: "None";
+    };
+    readonly "ra.localPick": {
+        readonly zh: "选择文件…";
+        readonly en: "Choose files…";
+    };
+    readonly "ra.localRemove": {
+        readonly zh: "移除";
+        readonly en: "Remove";
+    };
+    readonly "ra.localHint": {
+        readonly zh: "把 .onnx 模型（可以连同它的 .json 配置）拖到页面上，或点「选择文件…」：用它代替当前音色的模型来念，词典和引擎还用音色自己的。只在这次打开有效，文件不上传、不保存。配置的音素表要和音色的一样，不一样就不用它。";
+        readonly en: "Drop an .onnx model (optionally with its .json config) onto the page, or choose the files: it replaces the current voice's model; the dictionaries and the engine stay the voice's own. Only for this session; the files are not uploaded or kept. The config's phoneme table must match the voice's, otherwise it is not used.";
+    };
+    readonly "ra.localSet": {
+        readonly zh: "已换成本地模型：{name}（只在这次打开有效）";
+        readonly en: "Using the local model: {name} (this session only)";
+    };
+    readonly "ra.localRemoved": {
+        readonly zh: "已换回音色自己的模型";
+        readonly en: "Back to the voice's own model";
+    };
+    readonly "ra.localNeedOnnx": {
+        readonly zh: "需要一个 .onnx 模型文件";
+        readonly en: "An .onnx model file is needed";
+    };
+    readonly "ra.localMismatch": {
+        readonly zh: "本地模型的配置和当前音色的音素表对不上，没有用它";
+        readonly en: "The local model's config does not match this voice's phoneme table; it was not used";
+    };
+    readonly "ra.localFailed": {
+        readonly zh: "本地模型装不上：{msg}";
+        readonly en: "The local model could not be loaded: {msg}";
+    };
+    readonly "ra.localBadge": {
+        readonly zh: "本地模型";
+        readonly en: "Local model";
+    };
+    readonly "ra.preset": {
+        readonly zh: "预设";
+        readonly en: "Preset";
+    };
+    readonly "ra.presetHint": {
+        readonly zh: "预设（这个模型认的时候才有）：空着 = 模型的默认；敲一个整数，十进制或 0x 开头的十六进制，可以是负数，回车生效；两边的箭头加一减一。怎么解释由模型决定。只在这次打开有效。";
+        readonly en: "Preset (only for models that read one): empty = the model's default; type an integer, decimal or 0x hex, may be negative, Enter applies it; the arrows step by one. The model decides what it means. This session only.";
+    };
+    readonly "ra.presetDefault": {
+        readonly zh: "默认";
+        readonly en: "default";
+    };
+    readonly "ra.presetUp": {
+        readonly zh: "预设加一";
+        readonly en: "Preset +1";
+    };
+    readonly "ra.presetDown": {
+        readonly zh: "预设减一";
+        readonly en: "Preset −1";
+    };
+    readonly "ra.presetInvalid": {
+        readonly zh: "预设要是一个整数（十进制或 0x 开头）";
+        readonly en: "The preset must be an integer (decimal or 0x hex)";
     };
     readonly "ra.modeOff": {
         readonly zh: "关";
@@ -659,10 +727,6 @@ export declare const S: {
     readonly "ra.next": {
         readonly zh: "下一句";
         readonly en: "Next sentence";
-    };
-    readonly "ra.menu": {
-        readonly zh: "显示 / 收起顶栏";
-        readonly en: "Show / hide the top bar";
     };
     readonly "ra.close": {
         readonly zh: "退出朗读";
@@ -740,9 +804,9 @@ export declare const S: {
         readonly zh: "音源署名与使用条款（原文，使用这个音色即受其约束）：";
         readonly en: "Voice credit and terms of use (original text; using this voice means accepting them):";
     };
-    readonly "ra.voiceNote.tsukuyomi-chan": {
-        readonly zh: "日语是这个音色的训练语言；英语和中文是迁移出来的，带日语口音。";
-        readonly en: "Japanese is the language this voice was trained on; English and Chinese are transferred and carry a Japanese accent.";
+    readonly "ra.voiceNote.tsukuyomi-chan-zhen": {
+        readonly zh: "つくよみちゃん 的衍生模型：日语是她的训练语言，和原版一样；中文、英文改读另一个多说话人模型的语言向量，节奏和发音更像母语一些，仍带口音。";
+        readonly en: "A derivative of Tsukuyomi-chan: Japanese is her trained language, same as the original; Chinese and English read the language vectors of another, multi-speaker model, so their rhythm and pronunciation are closer to native, still with an accent.";
     };
     readonly "ra.speed": {
         readonly zh: "语速";

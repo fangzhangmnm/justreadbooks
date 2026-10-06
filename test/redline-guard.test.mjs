@@ -12,8 +12,11 @@ const BAD = [
   { re: /graph\.microsoft\.com|login\.microsoftonline\.com/, why: "raw Graph/AAD URL" },
   { re: /\bcaches\.(open|keys|delete)\b/, why: "Cache Storage outside SW/pwa-shell" },
 ];
-const ALLOW_CACHES = new Set(["src/pwa-shell.ts"]);
-// 黄线区（家规白名单制，2026-09-03）：JRB 无任何外接服务白名单——src/ 里零非相对 URL 的网络访问（云端全经 @internal/store）。
+// src/model-packs.ts（0.2.14 起）= 语音包的字节层：Cache Storage `pwa-models`（家族共享名，只动自己内嵌清单认得的包）唯一在此。
+const ALLOW_CACHES = new Set(["src/pwa-shell.ts", "src/model-packs.ts"]);
+// 黄线区（家规白名单制，2026-09-03）：JRB 的外接服务白名单只有「模型源」（CLAUDE.md「黄线区」；家族级白名单 ②：只读 GET 分片、逐片 sha256）——
+// 唯一准联网的文件 = src/model-packs.ts（0.2.14 起从 @internal/read-aloud 的 worker 搬进宿主；user 2026-10-02「库不知道任何持久化的东西，string in, audio out. app喂」）。
+const ALLOW_NET = new Set(["src/model-packs.ts"]);
 const NET_BAD = [
   { re: /\bSpeechRecognition\b|webkitSpeechRecognition/, why: "system speech recognition (audio leaves device)" },
   { re: /\bspeechSynthesis\b|SpeechSynthesisUtterance/, why: "system speech synthesis (desktop browsers send the text to a server; read-aloud goes through @internal/read-aloud)" },
@@ -44,7 +47,10 @@ describe("redline-guard", () => {
       const rel = p.replace(/\\/g, "/");
       readFileSync(p, "utf8").split("\n").forEach((line, i) => {
         if (/^\s*\/\//.test(line)) return;
-        for (const { re, why } of NET_BAD) if (re.test(line)) hits.push(`${rel}:${i + 1} [${why}] ${line.trim().slice(0, 100)}`);
+        for (const { re, why } of NET_BAD) {
+          if (why.startsWith("fetch to a non-relative URL") && ALLOW_NET.has(rel)) continue;
+          if (re.test(line)) hits.push(`${rel}:${i + 1} [${why}] ${line.trim().slice(0, 100)}`);
+        }
       });
     }
     assert(hits.length === 0, "yellow-line guard hits:\n" + hits.join("\n"));

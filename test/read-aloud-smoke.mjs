@@ -53,20 +53,24 @@ try {
   // ── 没有随附语音包：朗读钮不露，设置里如实说 ──
   check("没有语音包的版本：顶栏不露朗读钮", await page.evaluate(() => document.getElementById("readAloudButton").hidden === true));
 
-  // ── 装上假音色 + 假引擎（形状同库的 SpeechEngine：说的是「音色」）──
+  // ── 装上假音色 + 假引擎（形状同库的 SpeechEngine）+ 假字节层（形状同 src/model-packs.ts 的 PackStore：说的是「包」）──
+  //    0.2.14 起「能念哪些语言」由宿主按包算：假音色 = 必装包 fake-pack（文件 model.onnx + config.json，这样本地模型顶替整包的逻辑是真的跑）+ 每种语言一个词典包 fake-<lang>
   await page.evaluate(() => {
     const log = (window.__raLog = []);
     const ALL = ["ja", "zh", "en"];
-    let ready = false, asked = false, loaded = null; const missing = new Set();
+    let ready = false, loaded = null; const missing = new Set();
     window.__raFake = { setReady(v) { ready = v; }, setMissing(l, on) { if (on) missing.add(l); else missing.delete(l); }, loadedLangs: () => (loaded ? loaded.langs.join("+") : ""), unload() { loaded = null; } };
-    // ready = 官方音色的包都在；本地模型带了 .onnx + .json（整个权重包被顶替）时，只要共用的包在就能念（假设共用的一直在）
-    let lastCov = false;   // 同真库：isKnownReady 答的是最近一次 status 的结论（带不带本地模型，看那一次问的时候）
-    const st = (voice, opts) => { asked = true; const cov = !!opts?.override?.includes("model.onnx") && !!opts?.override?.includes("config.json"); lastCov = cov; const langs = ready || cov ? ALL.filter((l) => !missing.has(l)) : []; return { voice, ready: ready && !missing.size, langs, bytesCached: ready ? 4096 : 0, bytesTotal: 4096, packs: [] }; };
+    // ready = 官方权重包在；fake-<lang> 词典包在 = 那种语言没被标成 missing（共用的词典假设一直在）
+    const packReady = (slug) => (slug === "fake-pack" ? ready : !missing.has(slug.slice("fake-".length)));
+    const pst = (slug) => ({ slug, ready: packReady(slug), bytesCached: packReady(slug) ? (slug === "fake-pack" ? 4096 : 16) : 0, bytesTotal: slug === "fake-pack" ? 4096 : 16 });
+    const store = {
+      status: async (slugs) => slugs.map(pst),
+      download: async (slugs, base, onProgress) => { log.push(`download:${base}`); onProgress?.({ done: 2048, total: 4096 }); await new Promise((r) => setTimeout(r, 60)); ready = true; return slugs.map(pst); },
+      importFiles: async (slugs, files) => { log.push(`import:${files.length}`); ready = true; return slugs.map(pst); },
+      delete: async (slugs) => { log.push("delete"); if (slugs.includes("fake-pack")) ready = false; },
+      chunks: async (slug) => { if (!packReady(slug)) throw new Error("pack-missing"); return []; },
+    };
     const engine = {
-      status: async (voice, opts) => st(voice, opts),
-      download: async (voice, base, opts) => { log.push(`download:${base}`); opts?.onProgress?.({ done: 2048, total: 4096 }); await new Promise((r) => setTimeout(r, 60)); ready = true; return st(voice); },
-      importFiles: async (voice, files) => { log.push(`import:${files.length}`); ready = true; return st(voice); },
-      delete: async () => { log.push("delete"); ready = false; loaded = null; },
       load: async (voice, opts) => {
         const langs = opts?.langs ?? ALL, ov = opts?.override ? Object.keys(opts.override).sort() : [];
         log.push(`load:${langs.join("+")}${ov.length ? `|override:${ov.join(",")}` : ""}`);
@@ -74,14 +78,16 @@ try {
         loaded = { voice, langs, override: ov, preset: ov.length > 0 }; return { voice, langs, alreadyLoaded: false, createMs: 1, sampleRate: 22050, speakers: 2, override: ov, preset: ov.length > 0 };   // 假设：本地模型认预设、音色自己的不认
       },
       loaded: () => loaded,
-      isKnownReady: (voice, lang) => (asked ? (ready || lastCov) && !(lang && missing.has(lang)) : undefined),
       synth: async (text, o) => { window.__raSteadiness = o.steadiness; window.__raWhole = o.whole; window.__raPreset = o.preset; log.push(`synth:${o.lang}:${o.speed}:${text}`); return { samples: new Float32Array(2646), sampleRate: 22050 }; },
       dispose() { log.push("dispose"); loaded = null; },
       cancelPending() { log.push("cancel"); },   // 库 0.1.19：控制器作废句子时扔掉排着的合成；JRB 包的那层要转过来
     };
-    const manifest = { v: 1, slug: "fake-pack", name: "fake", task: "tts", lang: ALL, engine: "fake", engineConfig: {}, files: [], chunkBytes: 1, chunks: [], totalBytes: 4096, sha256: "", license: { name: "test", file: "", sha256: "", attribution: "" } };
-    const voice = { v: 1, id: "fake-voice", name: "测试音色", engine: "fake", packs: ["fake-pack"], langPacks: { ja: [], zh: [], en: [] }, speakers: [{ id: 0, name: "A" }, { id: 1, name: "B" }], credit: "署名：测试音色", terms: "条款：测试", attribution: ["出处：测试"] };
-    window.__jrb.readAloud.debugInstall({ voices: { "fake-voice": voice }, packs: { "fake-pack": { packId: "fake", manifest } } }, engine);
+    const mk = (slug, files, totalBytes) => ({ v: 1, slug, name: slug, task: "tts", lang: ALL, engine: "fake", engineConfig: {}, files, chunkBytes: 1, chunks: [], totalBytes, sha256: "", license: { name: "test", file: "", sha256: "", attribution: "" } });
+    const manifest = mk("fake-pack", [{ path: "model.onnx", bytes: 4000, offset: 0, sha256: "" }, { path: "config.json", bytes: 96, offset: 4000, sha256: "" }], 4096);
+    const packs = { "fake-pack": { packId: "fake", manifest } };
+    for (const l of ALL) packs[`fake-${l}`] = { packId: `fake-${l}`, manifest: mk(`fake-${l}`, [{ path: `${l}/dict.bin`, bytes: 16, offset: 0, sha256: "" }], 16) };
+    const voice = { v: 1, id: "fake-voice", name: "测试音色", engine: "fake", packs: ["fake-pack"], langPacks: { ja: ["fake-ja"], zh: ["fake-zh"], en: ["fake-en"] }, speakers: [{ id: 0, name: "A" }, { id: 1, name: "B" }], credit: "署名：测试音色", terms: "条款：测试", attribution: ["出处：测试"] };
+    window.__jrb.readAloud.debugInstall({ voices: { "fake-voice": voice }, packs }, engine, store);
   });
   await page.evaluate(async () => { const n = window.__jrb.book().name; window.__jrb.closeBook(); await window.__jrb.openBook(n, { quiet: true }); });
   await page.waitForTimeout(300);

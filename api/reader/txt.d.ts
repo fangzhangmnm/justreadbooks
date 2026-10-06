@@ -45,7 +45,7 @@ export interface TxtReader {
     teardown(): void;
     /** 当前章的正文。 */
     bodyText(): string;
-    /** 屏幕坐标落在正文的第几个字符上；没点在正文上 = null。 */
+    /** 屏幕坐标落在正文的第几个字符上；没点在字上（空白处、行尾、段间）= null。 */
     offsetAt(clientX: number, clientY: number): number | null;
     /** 屏幕上第一行可见正文的字符偏移（「从这里开始读」）。 */
     firstVisibleOffset(): number;

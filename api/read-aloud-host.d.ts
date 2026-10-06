@@ -1,4 +1,5 @@
 import { type SpeechEngine, type EmbeddedPack, type VoiceDef, type SentenceSpan } from "@internal/read-aloud";
+import { type PackStore } from "./model-packs.ts";
 import type { TxtReader } from "./reader/txt.ts";
 /** 随 app 内嵌的音色目录。 */
 export interface ReadAloudCatalog {
@@ -18,8 +19,6 @@ export interface ReadAloudHostDeps {
     confirm: (title: string, message: string) => Promise<boolean>;
     /** available() 的答案变了（装上 / 删掉了音色）：宿主重画顶栏。 */
     availabilityChanged: () => void;
-    /** 显示 / 收起顶栏（朗读态下点正文是点句子，顶栏只能从控制条上叫出来）。 */
-    toggleChrome: () => void;
     logError: (e: unknown) => void;
 }
 export interface ReadAloudHost {
@@ -34,8 +33,12 @@ export interface ReadAloudHost {
     /** 正文换了（翻章 / 换书 / 活书换底）：停下、清标记。 */
     contentChanged(): void;
     renderSettings(): void;
-    /** smoke 探针：换一份音色目录；给了 engine 就用它（假引擎），不给 = 用真引擎跑这份目录。 */
-    debugInstall(catalog: ReadAloudCatalog, engine?: SpeechEngine): void;
+    /** 拖到页面上的文件里，朗读的本地模型要的那几个（.onnx；同一把里有 .onnx 或已经在用本地模型时，连同 .json 配置）。 */
+    modelFiles(files: File[]): File[];
+    /** 换上本地模型（只在这次打开有效，不上传不保存）。 */
+    useLocalModel(files: File[]): void;
+    /** smoke 探针：换一份音色目录；给了 engine / store 就用它们（假引擎 / 假字节层），不给 = 真的跑这份目录。 */
+    debugInstall(catalog: ReadAloudCatalog, engine?: SpeechEngine, store?: PackStore): void;
     debugState(): {
         active: boolean;
         state: string;

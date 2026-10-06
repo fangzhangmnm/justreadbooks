@@ -7,7 +7,7 @@
     "test": "node test/run.mjs",
     "build": "bash scripts/build.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "smoke": "node test/boot-smoke.mjs && node test/read-aloud-smoke.mjs",
+    "smoke": "node test/boot-smoke.mjs && node test/read-aloud-smoke.mjs && node test/model-packs.mjs",
     "smoke:voice": "node test/read-aloud-voice.mjs",
     "api": "bash scripts/gen-api.sh"
   },
@@ -19,6 +19,6 @@
     "@internal/gallery": "file:./vendor-pkgs/internal-gallery-0.4.0.tgz",
     "@internal/store": "file:./vendor-pkgs/internal-store-0.14.0.tgz",
     "@internal/workbench-elements": "file:./vendor-pkgs/internal-workbench-elements-0.1.0.tgz",
-    "@internal/read-aloud": "file:./vendor-pkgs/internal-read-aloud-0.1.19.tgz"
+    "@internal/read-aloud": "file:./vendor-pkgs/internal-read-aloud-0.1.20.tgz"
   }
 }
