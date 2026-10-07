@@ -24,3 +24,8 @@
 - zhen 这一对的「全 0 == 原模型」没验（第 1 步）。
 - 时长接管版比普通版大约 1 万字节（图改动），推理速度没测过差别。
 - 朗读库加补丁后，旧模型（没有 `dur_override` 输入）照旧什么都不喂，行为不变——补丁要带这条测试。
+
+## 补充（2026-10-07，来自当时在 JRB 干活的「opus weekly code audit」session，Claude Opus 5.5 转记）
+
+- JRB 的「本地模型」（`useLocalModel`：把 .onnx + .json 当 override 交给库）走的也是同一个 piper-plus 后端——user 在 JRB 里拖 zhen 时长接管版试，补丁位置同样只有 `vits.js` 这一处。
+- 朗读库是 `@internal/read-aloud`：改它按家规先 escalate，patch 级可做。
