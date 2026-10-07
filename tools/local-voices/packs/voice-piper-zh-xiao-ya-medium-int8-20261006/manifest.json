@@ -1,0 +1,106 @@
+{
+ "chunkBytes": 25165824,
+ "chunks": [
+  {
+   "bytes": 20930051,
+   "name": "chunk-000",
+   "sha256": "1b11e5e67acdf43564afd86f7c6a2ef76dfab64a85b0e51a2a3d7e4b36aa21d2"
+  }
+ ],
+ "createdAt": "2026-10-06",
+ "createdBy": "tools/pack.py (Claude Fable 5.1)",
+ "engine": "sherpa-onnx",
+ "engineConfig": {
+  "config": {
+   "maxNumSentences": 1,
+   "offlineTtsModelConfig": {
+    "debug": 0,
+    "numThreads": 1,
+    "offlineTtsVitsModelConfig": {
+     "dataDir": "",
+     "lengthScale": 1.0,
+     "lexicon": "lexicon.txt",
+     "model": "zh_CN-xiao_ya-medium.onnx",
+     "noiseScale": 0.667,
+     "noiseScaleW": 0.8,
+     "tokens": "tokens.txt"
+    },
+    "provider": "cpu"
+   },
+   "ruleFars": "",
+   "ruleFsts": "date.fst,phone.fst,number.fst"
+  },
+  "kind": "sherpa-offline-tts",
+  "langs": [
+   "zh"
+  ],
+  "unlinkAfterLoad": [
+   "zh_CN-xiao_ya-medium.onnx"
+  ],
+  "voices": [
+   {
+    "id": 0,
+    "name": "小雅"
+   }
+  ]
+ },
+ "files": [
+  {
+   "bytes": 18652795,
+   "offset": 0,
+   "path": "zh_CN-xiao_ya-medium.onnx",
+   "sha256": "d4145488f47914614116e4f77338532d827cfccf5f5d7a58c15c5e54cc5434ba"
+  },
+  {
+   "bytes": 2064505,
+   "offset": 18652795,
+   "path": "lexicon.txt",
+   "sha256": "003e76f89fec389ec109b557f47cc315a1ac31a99091f0cc9d15949f9024416b"
+  },
+  {
+   "bytes": 485,
+   "offset": 20717300,
+   "path": "tokens.txt",
+   "sha256": "e9e6d2838a2676749adbf0376c4cf3c3cd28eb27ed953dcc2adcab8db3c33ba7"
+  },
+  {
+   "bytes": 59154,
+   "offset": 20717785,
+   "path": "date.fst",
+   "sha256": "eb8aa079ae3cb81d8f4404992f39d61a0cb990947512b5b8d1e54d1f6980e718"
+  },
+  {
+   "bytes": 88630,
+   "offset": 20776939,
+   "path": "phone.fst",
+   "sha256": "1ac2b6fa56b1442320c4de7db08353bab8963a2b57f365eebcdd3a2d3562f8d7"
+  },
+  {
+   "bytes": 64482,
+   "offset": 20865569,
+   "path": "number.fst",
+   "sha256": "743f402181fcfebf76cc2f0546b71fa26476e626fbe4e460fb7b4c3a7a8bd5bd"
+  }
+ ],
+ "lang": [
+  "zh"
+ ],
+ "license": {
+  "attribution": "rhasspy/piper-voices zh_CN-xiao_ya (medium); int8 conversion: k2-fsa/sherpa-onnx (vits-piper-zh_CN-xiao_ya-medium-int8); dataset: 标贝 BZNSYP (non-commercial)",
+  "file": "LICENSE.txt",
+  "name": "rhasspy/piper-voices model card: dataset 标贝 BZNSYP non-commercial use only — NOT redistributed by the family (import-only)",
+  "sha256": "740439a6a7a5444e0c17281d57f1dc5c7fa173b885cbbe95f7f2f0aae02cbfe2"
+ },
+ "name": "小雅 — rhasspy Piper zh_CN-xiao_ya medium（int8），sherpa-onnx 跑；只准本机导入，不分发",
+ "notes": "Import-only voice for JustReadBooks: the app embeds this manifest (hash-pinned) but never downloads it; the user picks chunk-000 from local files. sherpa-onnx engine (host-vendored WASM).",
+ "sha256": "1b11e5e67acdf43564afd86f7c6a2ef76dfab64a85b0e51a2a3d7e4b36aa21d2",
+ "slug": "voice-piper-zh-xiao-ya-medium-int8-20261006",
+ "source": {
+  "converted": "https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models (vits-piper-zh_CN-xiao_ya-medium-int8.tar.bz2)",
+  "file": "",
+  "model": "https://huggingface.co/rhasspy/piper-voices/tree/main/zh/zh_CN/xiao_ya/medium"
+ },
+ "task": "tts",
+ "totalBytes": 20930051,
+ "v": 1
+}

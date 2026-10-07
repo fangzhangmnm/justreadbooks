@@ -15,7 +15,7 @@
 //   · 音色的署名和使用条款（上游要求必须让用户看到的原文）显示在设置的「朗读」栏里：当前选中音色的那一份，可展开的栏，正文字号，不翻译。
 import { availableLangs, coveredPacks, createReadAloud, createSpeechEngine, createWebAudioSink, langsIn, splitSentences, voiceLangs, voicePacks, type ReadAloud, type SpeechEngine, type SpeechLang, type EmbeddedPack, type VoiceDef, type SentenceSpan } from "@internal/read-aloud";
 import { createPackStore, type PackProgress, type PackStore } from "./model-packs.ts";
-import { READ_ALOUD_VOICES, READ_ALOUD_PACKS } from "./read-aloud-packs.generated.ts";
+import { READ_ALOUD_VOICES, READ_ALOUD_PACKS, READ_ALOUD_IMPORT_ONLY } from "./read-aloud-packs.generated.ts";
 import { READ_ALOUD_MODEL_SOURCE, READ_ALOUD_SPEEDS } from "./config.ts";
 import { deviceKvGetJson, deviceKvSetJson } from "./device-kv.ts";
 import { t, type Key } from "./i18n/index.ts";
@@ -33,7 +33,11 @@ const MODES: readonly Mode[] = ["off", "continuous", "sentence"];
 /** 随 app 内嵌的音色目录。 */
 export interface ReadAloudCatalog { voices: Record<string, VoiceDef>; packs: Record<string, EmbeddedPack> }
 /** 每个音色给用户的一句实话（哪种语言是本行、哪种是凑合）：按音色 id 查，没有就不显示。 */
-const VOICE_NOTE: Record<string, Key> = { "tsukuyomi-chan-zhen": "ra.voiceNote.tsukuyomi-chan-zhen" };
+const VOICE_NOTE: Record<string, Key> = { "tsukuyomi-chan-zhen": "ra.voiceNote.tsukuyomi-chan-zhen", "piper-xiao-ya": "ra.voiceNote.piper-xiao-ya" };
+/** 只准本机导入的音色（tools/local-voices/，许可证不许再分发）：没有下载钮。 */
+const IMPORT_ONLY = new Set<string>(READ_ALOUD_IMPORT_ONLY);
+/** sherpa-onnx 引擎的二进制 + 胶水（vendor/sherpa-onnx-wasm/，app 自己 vendor；装 sherpa 音色时才取）。 */
+const SHERPA_ENGINE_BASE = "./vendor/sherpa-onnx-wasm/";
 /** 连续模式自动翻章后，开念下一章之前停这么久（1 倍速时；库里同段句间 600、跨段 900）。 */
 const CHAPTER_GAP_MS = 1200;
 /** 引擎里空闲这么久就关 worker 归还内存（WASM 堆只涨不缩）。 */
@@ -147,7 +151,10 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     if (!engine) {
       const url = document.querySelector<HTMLMetaElement>('meta[name="read-aloud-worker-piper-plus"]')?.content;
       if (!url) throw new Error("read-aloud worker url missing (<meta name=read-aloud-worker-piper-plus>)");
-      engine = createSpeechEngine({ workers: { "piper-plus": { url, type: "module" } }, voices: catalog.voices, packs: catalog.packs });
+      const sherpaUrl = document.querySelector<HTMLMetaElement>('meta[name="read-aloud-worker-sherpa"]')?.content;
+      if (!sherpaUrl) throw new Error("read-aloud worker url missing (<meta name=read-aloud-worker-sherpa>)");
+      // 两种引擎各一个 worker（库 README）：piper-plus = module worker、二进制随语音包；sherpa-onnx = classic worker、二进制在 app 的 vendor 目录
+      engine = createSpeechEngine({ workers: { "piper-plus": { url, type: "module" }, "sherpa-onnx": { url: sherpaUrl } }, engineBase: SHERPA_ENGINE_BASE, voices: catalog.voices, packs: catalog.packs });
     }
     return engine;
   }
@@ -234,7 +241,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const cur = eng().loaded(), tag = localTag();
     if (cur?.voice === id && loadedTag === tag && langs.every((l) => cur.langs.includes(l))) return;
     loadingVoice = true; renderBar();
-    const override = local ? { "model.onnx": local.model, ...(local.config ? { "config.json": local.config } : {}) } : undefined;
+    const override = local && def(id).engine !== "sherpa-onnx" ? { "model.onnx": local.model, ...(local.config ? { "config.json": local.config } : {}) } : undefined;   // 本地模型 = 换权重文件，sherpa 音色没有这条路（它的权重连词典一起在一个包里）
     try { const chunks = await chunksFor(id, langs); await eng().load(id, { langs, chunks, ...(override ? { override } : {}) }); loadedTag = tag; }
     catch (e) { loadedTag = ""; throw e; }
     finally { loadingVoice = false; renderBar(); }
@@ -361,7 +368,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     const onProgress = (p: PackProgress) => { busyVoices.set(id, mb(p)); const el = packsEl.querySelector<HTMLElement>(`[data-voice="${CSS.escape(id)}"] .ra-pack-state`); if (el) el.textContent = busyVoices.get(id)!; };
     try {
       const d = def(id);
-      if (kind === "download") { const covered = coveredPacks(d, catalog.packs, localNames()); await packs().download(voicePacks(d).filter((slug) => !covered.has(slug)), source(), onProgress); }   // 被本地模型顶替的包不下
+      if (kind === "download") { if (IMPORT_ONLY.has(id)) throw new Error("import-only voice"); const covered = coveredPacks(d, catalog.packs, localNames()); await packs().download(voicePacks(d).filter((slug) => !covered.has(slug)), source(), onProgress); }   // 被本地模型顶替的包不下
       else await packs().importFiles(voicePacks(d), files ?? [], onProgress);
       const st = await statusOf(id);
       deps.status(st.ready ? t("ra.packReady") : t("ra.packPartial", { langs: st.langs.map(langName).join(" / ") || t("ra.none") }));
@@ -407,7 +414,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
       state.textContent = busy ?? (!st ? "" : st.ready ? t("ra.ready") : st.langs.length ? t("ra.partial", { langs: st.langs.map(langName).join(" / ") }) : t("ra.notDownloaded"));
       if (!busy) {
         if (!st || !st.ready) {
-          row.appendChild(mk(t("ra.download"), () => void voiceAction(id, "download")));
+          if (!IMPORT_ONLY.has(id)) row.appendChild(mk(t("ra.download"), () => void voiceAction(id, "download")));
           row.appendChild(mk(t("ra.import"), () => { importTarget = id; importInput.click(); }));
         }
         if (st && st.bytesCached > 0) row.appendChild(mk(t("ra.delete"), () => void (async () => {
@@ -419,7 +426,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
       }
       box.append(head, row);
       const noteKey = VOICE_NOTE[id];
-      const more = [noteKey ? t(noteKey) : "", ...(d.attribution ?? [])].filter(Boolean).join("\n");
+      const more = [IMPORT_ONLY.has(id) ? t("ra.importOnly") : "", noteKey ? t(noteKey) : "", ...(d.attribution ?? [])].filter(Boolean).join("\n");
       if (more) { const n = document.createElement("div"); n.className = "setting-note"; n.textContent = more; box.appendChild(n); }
       packsEl.appendChild(box);
     }

@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "smoke": "node test/boot-smoke.mjs && node test/read-aloud-smoke.mjs && node test/model-packs.mjs",
     "smoke:voice": "node test/read-aloud-voice.mjs",
-    "api": "bash scripts/gen-api.sh"
+    "api": "bash scripts/gen-api.sh",
+    "smoke:import": "node test/read-aloud-import-voice.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

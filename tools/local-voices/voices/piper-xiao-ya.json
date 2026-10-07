@@ -1,0 +1,28 @@
+{
+ "v": 1,
+ "id": "piper-xiao-ya",
+ "name": "小雅（本机导入）",
+ "engine": "sherpa-onnx",
+ "packs": [
+  "voice-piper-zh-xiao-ya-medium-int8-20261006"
+ ],
+ "langPacks": {
+  "zh": []
+ },
+ "packIds": {
+  "voice-piper-zh-xiao-ya-medium-int8-20261006": "74d5b8ab2ea70905702fdcf2218cf79bebbad858fa4a99a270a107fd3239b402"
+ },
+ "speakers": [
+  {
+   "id": 0,
+   "name": "小雅"
+  }
+ ],
+ "attribution": [
+  "rhasspy/piper-voices zh_CN-xiao_ya (medium) — int8 conversion by k2-fsa/sherpa-onnx",
+  "Dataset: 标贝 BZNSYP — non-commercial use only; this voice is never downloaded by the app, you import your own copy"
+ ],
+ "notes": "Import-only (license): the app embeds this manifest (hash-pinned) but has no download source for it. Engine: sherpa-onnx WASM vendored in the app (vendor/sherpa-onnx-wasm/).",
+ "createdAt": "2026-10-06",
+ "createdBy": "JustReadBooks tools/local-voices (Claude Fable 5.1)"
+}

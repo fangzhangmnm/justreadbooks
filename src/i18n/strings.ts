@@ -219,6 +219,8 @@ export const S = {
   "ra.sourceHint": { zh: "留空 = 默认来源。可以填任何镜像的网址，也可以用「从本机文件导入」：语音包到手后逐片校验，对不上就拒收。", en: "Empty = default source. Any mirror URL works, or use “Import from files”: every chunk is verified and rejected if it does not match." },
   "ra.download": { zh: "下载", en: "Download" },
   "ra.import": { zh: "从本机文件导入…", en: "Import from files…" },
+  "ra.importOnly": { zh: "这个音色只能从本机文件导入（数据集许可证不许再分发，app 不提供下载）：选它的 chunk-000 文件即可。", en: "Import-only voice (its dataset license forbids redistribution, so the app offers no download): pick its chunk-000 file." },
+  "ra.voiceNote.piper-xiao-ya": { zh: "rhasspy Piper 的中文单说话人音色，跑在 sherpa-onnx 引擎上（15 MB，装这个音色时才取）。只会中文。", en: "rhasspy Piper’s single-speaker Chinese voice on the sherpa-onnx engine (15 MB, fetched when this voice is loaded). Chinese only." },
   "ra.delete": { zh: "删除", en: "Delete" },
   "ra.deleteTitle": { zh: "删除语音包？", en: "Delete voice?" },
   "ra.deleteMsg": { zh: "「{name}」会从这台设备上删掉，以后要用得重新下载。", en: "“{name}” will be removed from this device; you will need to download it again to use it." },

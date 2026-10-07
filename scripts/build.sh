@@ -79,11 +79,25 @@ WNAME="read-aloud-worker-piper-plus-$WHASH.js"
 WOUT="$OUT_DIR/$WNAME"
 mv "$WORKER_TMP" "$WOUT"; mv "$WORKER_TMP.map" "$WOUT.map"
 sed -i "s|sourceMappingURL=$(basename "$WORKER_TMP").map|sourceMappingURL=$WNAME.map|" "$WOUT"
-find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-*.js' -not -name "$WNAME" -delete
-find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-*.js.map' -not -name "$WNAME.map" -delete
+find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-piper-plus-*.js' -not -name "$WNAME" -delete
+find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-piper-plus-*.js.map' -not -name "$WNAME.map" -delete
 sed -i -E "s|<meta name=\"read-aloud-worker-piper-plus\" content=\"\./dist/read-aloud-worker-piper-plus-[a-z0-9-]+\.js\" />|<meta name=\"read-aloud-worker-piper-plus\" content=\"./dist/$WNAME\" />|" index.html
 grep -q "$WNAME" index.html || { echo "[build] ✗ index.html read-aloud-worker-piper-plus meta not updated" >&2; exit 1; }
 echo "[build] ✓ read-aloud worker (piper-plus): $(( $(stat -c %s "$WOUT") / 1024 )) KB"
+# 0.95 朗读 worker 之二：sherpa-onnx 引擎（**classic** worker，iife；小雅等本机导入音色用）。引擎二进制 + 胶水在 vendor/sherpa-onnx-wasm/（engineBase），
+#      不预缓存、不随主 bundle 加载：装那种音色时才取。2026-10-06 Claude Fable 5.1。
+SWORKER_TMP="$OUT_DIR/read-aloud-worker-sherpa-tmp.js"
+"$ESBUILD" ./node_modules/@internal/read-aloud/dist/worker/sherpa-entry.js --bundle --format=iife --target=es2020 --minify --sourcemap=linked --outfile="$SWORKER_TMP"
+SWHASH=$(sha256sum "$SWORKER_TMP" | awk '{print substr($1, 1, 12)}')
+SWNAME="read-aloud-worker-sherpa-$SWHASH.js"
+SWOUT="$OUT_DIR/$SWNAME"
+mv "$SWORKER_TMP" "$SWOUT"; mv "$SWORKER_TMP.map" "$SWOUT.map"
+sed -i "s|sourceMappingURL=$(basename "$SWORKER_TMP").map|sourceMappingURL=$SWNAME.map|" "$SWOUT"
+find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-sherpa-*.js' -not -name "$SWNAME" -delete
+find "$OUT_DIR" -maxdepth 1 -name 'read-aloud-worker-sherpa-*.js.map' -not -name "$SWNAME.map" -delete
+sed -i -E "s|<meta name=\"read-aloud-worker-sherpa\" content=\"\./dist/read-aloud-worker-sherpa-[a-z0-9-]+\.js\" />|<meta name=\"read-aloud-worker-sherpa\" content=\"./dist/$SWNAME\" />|" index.html
+grep -q "$SWNAME" index.html || { echo "[build] ✗ index.html read-aloud-worker-sherpa meta not updated" >&2; exit 1; }
+echo "[build] ✓ read-aloud worker (sherpa-onnx): $(( $(stat -c %s "$SWOUT") / 1024 )) KB"
 
 # 1. esbuild bundle
 "$ESBUILD" "$ENTRY" --bundle --format=esm --target=es2020 --minify --sourcemap=linked --tree-shaking=true --outfile="$TMP_OUT"
