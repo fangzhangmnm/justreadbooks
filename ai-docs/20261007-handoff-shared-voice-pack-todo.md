@@ -17,6 +17,7 @@
 ## JRB 要做的（按顺序）
 
 1. **收朗读库 0.1.21**：在 JRB 仓根 `bash "../20261001 internal-read-aloud/scripts/pull-package.sh" 0.1.21` → 跑 JRB 测试。只多了「有 dur_override 就喂 0」这一行，对现在的包没有任何影响。
+   （2026-10-07 稍后：朗读库已发 **0.1.22**（= 0.1.21 + 底层出口 `./backend/piper-plus/*`，给 MoonSinger 用），直接收 0.1.22 也行，对 JRB 没有影响。edited by Claude Opus 5.5）
 2. **收 `@internal/model-packs` 0.1.0**：`bash "../20261007 internal-model-packs/scripts/pull-package.sh"`；删掉 `src/model-packs.ts`、`src/sha256.ts`；`src/read-aloud-host.ts` 的 `import { createPackStore, … } from "./model-packs.ts"` 改成 `from "@internal/model-packs"`（接口一样）。红线守卫里「src/ 唯一联网 / 唯一碰 `pwa-models` 的文件」那条要跟着改（现在指的是 `src/model-packs.ts`）。
    跟着改的还有：JRB `CLAUDE.md` 黄线区那句「发请求的是 `src/model-packs.ts`，`src/` 里唯一准联网的文件」和持久层白名单 Cache Storage `pwa-models` 那一行（改成「经 `@internal/model-packs`」）、「库不管持久化」那条里的 `src/model-packs.ts` / `src/sha256.ts`、「候选抽成 @internal/model-packs…等 user 点头」（user 10-07 已点头）；
    `test/model-packs.mjs`（无头浏览器 17 项）改成测库的入口（或留着当宿主的整链冒烟）。
@@ -28,5 +29,5 @@
 
 ## 注意
 
-- 唱歌的那个 app 是私有孵化项目：往公开仓（模型仓、朗读库、共享库）写东西时别写它的名字。
+- ~~唱歌的那个 app 是私有孵化项目：往公开仓写东西时别写它的名字~~ → 2026-10-07 已公开：MoonSinger（https://github.com/fangzhangmnm/moonsinger ），名字可以写。edited by Claude Opus 5.5
 - WebXiaoHeiWu `src/asr/worker.ts` 是同源的第三份字节层，以后合进 `@internal/model-packs`（没在这次做）。
