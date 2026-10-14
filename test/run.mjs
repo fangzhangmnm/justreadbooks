@@ -8,3 +8,4 @@ import "./valuable-save.test.mjs";
 import { run } from "./runner.mjs";
 console.log("\n  JustReadBooks —— app 域测试（store / gallery 契约在各包 test/）\n");
 await run();
+import "./sw-redirect.test.mjs";   // 2026-10-14 离线壳：跳转响应原样交回（家族周账 F-28）
