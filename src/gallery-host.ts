@@ -45,7 +45,11 @@ const GALLERY_TEXT_OVERRIDES: Record<string, Parameters<typeof t>[0]> = {
   "gal.empty.none": "galx.emptyNone", "gal.empty.folder": "galx.emptyFolder", "gal.empty.trash": "galx.emptyTrash",
   "gal.firstFrameFailed": "galx.firstFrameFailed", "gal.firstFrameTimeout": "galx.firstFrameTimeout",
   "gal.tile.active": "galx.tileActive", "gal.otherFile": "galx.otherFile",
+  // 「只在本机」（user 2026-10-21「标『只在本机』」）：图库包对从没传过的书只画同步态图标 + hover 提示，iPad 上看不见字——提示文案统一成这个词；看得见的字由下面 tile.subtitle 前置。
+  "gv.badge.localOnly": "galx.badgeLocalOnly", "gv.badge.float": "galx.badgeFloat", "gv.badge.localPlain": "galx.localOnly",
 };
+/** 从没传到云端的书：local-only = 云端确认没有；float = 没登录 / 离线、云端不可知。syncState 是 store 给的事实，这里只翻成字，不重推导。 */
+const neverUploaded = (item: GItem): boolean => item.syncState === "local-only" || item.syncState === "float";
 
 // gallery 0.8.7：图库包这台设备的记事本（多库登记）库名归宿主——不配会写进包里写死的 WeebPaint GUID 名下。第一次开库之前配一次（import 期即可，包是懒开库）。
 configureGalleryRegistry({ dbName: GALLERY_REGISTRY_DB });
@@ -82,7 +86,12 @@ export function initGalleryHost(d: GalleryHostDeps) {
     // 没有图片、没有缩略图（txt 书）；哪些是书由 store 的种类表说（src/identifiers.ts 一行）。
     policy: { isImage: () => false },
     // list = 长书名整行；副标题 = 状态头（开书时记进 book-prefs，跨设备可见、不用读字节）；未读点 = reading-position 无条目。卡片布局时竖版 2:3。
-    tile: { aspect: 2 / 3, layout: shelfLayout(), subtitle: (item) => getBookPref(item.identifier)?.header ?? null, marker: (item) => (isUnread(item.identifier) ? "unread" : null) },
+    //   副标题前置「只在本机」（0.2.25）：没登录 / 离线时拖进来、从没传过的书一眼能认；出路 = ⋯ →「处理…」或登录后那一问。
+    tile: {
+      aspect: 2 / 3, layout: shelfLayout(),
+      subtitle: (item) => { const header = getBookPref(item.identifier)?.header ?? null; const mark = neverUploaded(item) ? t("galx.localOnly") : null; return mark && header ? `${mark} · ${header}` : (mark ?? header); },
+      marker: (item) => (isUnread(item.identifier) ? "unread" : null),
+    },
     folderMemory: { get: () => deviceKvGet(KV_FOLDER) ?? "", set: (p) => deviceKvSet(KV_FOLDER, p || null) },
     isGalleryVisible: () => document.body.dataset.mode === "gallery",
     reportError: (e, level) => reportError(e, level ?? "error"),

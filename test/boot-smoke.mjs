@@ -165,6 +165,8 @@ try {
   await page.waitForTimeout(800);
   const tiles = await page.evaluate(() => ({ n: document.querySelectorAll("#galleryMount .gallery-tile:not(.folder)").length, recent: document.getElementById("galleryRecent").hidden, names: [...document.querySelectorAll("#galleryMount .gallery-tile-name")].map((e) => e.textContent) }));
   check("书架有这本书（显示名去 .txt）", tiles.n === 1 && tiles.names[0] === "冒烟测试", JSON.stringify(tiles));
+  const sub = await page.evaluate(() => document.querySelector("#galleryMount .gallery-tile .gallery-tile-sub")?.textContent?.trim() ?? "");
+  check("没登录时拖进来的书：书架副标题标「只在本机」（user 2026-10-21）", sub.includes("只在本机"), sub);
   await page.screenshot({ path: process.env.JRB_SHOT_DIR ? `${process.env.JRB_SHOT_DIR}/shelf.png` : "tmp/shelf.png" }).catch(() => {});
   // 0.1.3：书架菜单改名**非活动**书 → 阅读位置 / 规则跟着搬（gallery 0.3.1 onRenamed）。先上传第二本让它成为活动书
   await page.setInputFiles("#uploadInput", { name: "另一本.txt", mimeType: "text/plain", buffer: Buffer.from(mk(3), "utf8") });

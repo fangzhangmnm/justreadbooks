@@ -46,6 +46,9 @@ export const S = {
   "galx.firstFrameFailed": { zh: "书架读取失败（详见诊断日志）", en: "Shelf listing failed (see diagnostic log)" },
   "galx.firstFrameTimeout": { zh: "书架读取超时：本地存储没有响应", en: "Shelf listing timed out: local storage did not respond" },
   "galx.recent": { zh: "继续读", en: "Continue" },
+  "galx.localOnly": { zh: "只在本机", en: "Only on this device" },
+  "galx.badgeLocalOnly": { zh: "只在本机（还没传到云端；⋯ →「处理…」可传上去）", en: "Only on this device (not in the cloud yet; use ⋯ → Resolve… to upload)" },
+  "galx.badgeFloat": { zh: "只在本机（从没传过；现在离线或未登录，登录后会问要不要传）", en: "Only on this device (never uploaded; offline or signed out now — you will be asked after sign-in)" },
   // ── 云端 / 登录 ──
   "cloud.account": { zh: "云端：{who}", en: "Cloud: {who}" },
   "cloud.accountOffline": { zh: "云端：{who}（离线）", en: "Cloud: {who} (offline)" },

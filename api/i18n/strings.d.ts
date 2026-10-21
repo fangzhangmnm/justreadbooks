@@ -164,6 +164,18 @@ export declare const S: {
         readonly zh: "继续读";
         readonly en: "Continue";
     };
+    readonly "galx.localOnly": {
+        readonly zh: "只在本机";
+        readonly en: "Only on this device";
+    };
+    readonly "galx.badgeLocalOnly": {
+        readonly zh: "只在本机（还没传到云端；⋯ →「处理…」可传上去）";
+        readonly en: "Only on this device (not in the cloud yet; use ⋯ → Resolve… to upload)";
+    };
+    readonly "galx.badgeFloat": {
+        readonly zh: "只在本机（从没传过；现在离线或未登录，登录后会问要不要传）";
+        readonly en: "Only on this device (never uploaded; offline or signed out now — you will be asked after sign-in)";
+    };
     readonly "cloud.account": {
         readonly zh: "云端：{who}";
         readonly en: "Cloud: {who}";
