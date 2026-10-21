@@ -11,7 +11,8 @@
 //   · autoCacheOpenedFile:true：读者 = 开即留本地（离线可读；首帧秒开的前提）。
 //   · readOnlyFiles:false：有上传（拖 txt 进来）；但 app 永不 save 到既有书（lint：save 只在 books.ts）。
 //   · offlineUploadReplay:"ask"：推到一半断网的上传回线问一次再推。⚠ 库的这条队列只收「推过但没落地」的（save() 里 tryPush:false 直接返回、不入队）——
-//     未登录时拖进来的书是本机唯一副本，回线**不会**被问；出路 = 书架卡片「处理…」→ 库的面里选「本地覆盖云端」（cloudState never = 第一次上传）。要不要登录后问一次再 pushAll = 等 user（迁库 doc §5-1）。
+//     未登录时拖进来的书是本机唯一副本，库那条队列**不会**问它——所以 app.ts offerPushLocalOnly 在登录后 / 回线问一次再 files.dirty.pushAll()（0.2.20，user 2026-10-21「同意」）；
+//     逐本的出路照旧 = 书架卡片「处理…」→ 库的面里选「本地覆盖云端」（cloudState never = 第一次上传）。
 //   · encryption：零 codec 表态（0.1 不做加密书）。
 
 import { createStore, createOneDriveProvider, requestStoragePersistence, isCached, isDirty } from "@internal/store";

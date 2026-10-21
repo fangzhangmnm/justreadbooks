@@ -528,6 +528,7 @@ setInterval(() => { if (document.visibilityState === "visible") { void refreshCu
 async function resumeSync(): Promise<void> {
   await flushPosition();
   await requireStore().files.drainOfflineQueue().catch((e) => reportError(e, "log"));
+  void offerPushLocalOnly();   // 离线时拖进来的书（已登录但没网 → tryPush:false）回线同样问一次
   await reconcileCollections();
   await refreshCurrentBook({ askCloud: true });
   if (galleryHost.isOpen()) { galleryHost.refresh(); renderRecent(); }
@@ -562,12 +563,34 @@ function afterSignIn(): Promise<void> {
     try {
       diagNote("auth", "afterSignIn: reconcile collections + drain offline queue + refresh current book");
       await reconcileCollections();
-      void requireStore().files.drainOfflineQueue().catch((e) => reportError(e, "log"));
+      void requireStore().files.drainOfflineQueue().catch((e) => reportError(e, "log")).then(() => offerPushLocalOnly());   // 队列回放之后再问「只在本机的书」
       await refreshCurrentBook({ askCloud: true });
       if (galleryHost.isOpen()) { galleryHost.refresh(); renderRecent(); }
     } catch (e) { reportError(e, "warning"); }
   })().finally(() => { afterSignInInFlight = null; });
   return afterSignInInFlight;
+}
+// ── 只在本机的书：登录后 / 回线问一次再补推（0.2.20，user 2026-10-21「同意」；迁库 doc §5-1）──
+//   为什么要它：未登录 / 离线时拖进来的书 tryPush:false → 库 save() 直接返回、不进离线补推队列（那队列只收「推过但没落地」的），所以这些书永远只在本机，
+//   以前靠卡片「推送到云端」，那个按钮 gallery 0.8.1 起没了。这里 = ADR-0018 的 consent 语义接到这批书上：问一次、人点了才 files.dirty.pushAll()。
+//   每次打开 app 最多问一次（「先不传」= 这次不再问，下次打开再问）；pushAll 不带基准、撞名不覆盖（库 If-Match / conflictBehavior:fail 守着），撞上的留在书架上「处理…」。
+//   不上遮罩：库推送的 busy 键 sync.pushing 走安静状态行（store-ui QUIET_KEYS），读者照读。
+let askedPushLocalOnly = false;
+async function offerPushLocalOnly(): Promise<void> {
+  if (askedPushLocalOnly || !auth.isSignedIn() || navigator.onLine === false) return;
+  const files = requireStore().files;
+  const n = await files.dirty.count().catch((e) => { reportError(e, "log"); return 0; });
+  if (n <= 0) return;
+  askedPushLocalOnly = true;
+  diagNote("sync", `local-only books after sign-in: ${n} → ask`);
+  if (!(await openConfirmSheet(t("pushAll.askTitle"), t("pushAll.askMsg", { n }), { okLabel: t("pushAll.ok"), cancelLabel: t("pushAll.later") }))) { diagNote("sync", "local-only books: user said not now"); return; }
+  try {
+    const r = await files.dirty.pushAll();
+    diagNote("sync", `dirty.pushAll: pushed=${r.pushed} failed=${r.failed.length}${r.failed.length ? " [" + r.failed.join(", ") + "]" : ""}`);
+    if (r.failed.length) setStatus(t("pushAll.failed", { n: r.failed.length }), { error: true });
+    else if (r.pushed) setStatus(t("pushAll.done", { n: r.pushed }));
+  } catch (e) { reportError(e, "warning"); }
+  galleryHost.refresh();
 }
 auth.onAuthChanged((st) => { renderCloudButton(); diagNote("auth", `changed signedIn=${st.signedIn} reason=${st.reason ?? "?"}`); if (st.signedIn) void afterSignIn(); });
 

@@ -616,6 +616,30 @@ export declare const S: {
         readonly zh: "有 {n} 本是离线时存到本机的，现在推到云端？";
         readonly en: "{n} book(s) were saved locally while offline. Push them to the cloud now?";
     };
+    readonly "pushAll.askTitle": {
+        readonly zh: "有书只在本机";
+        readonly en: "Books only on this device";
+    };
+    readonly "pushAll.askMsg": {
+        readonly zh: "有 {n} 本书拖进来时没登录（或没网），还没传到云端。现在传上去吗？云端已有同名的不会覆盖，会留在书架上等你点「处理…」。";
+        readonly en: "{n} book(s) were added while signed out (or offline) and are not in the cloud yet. Upload them now? A name already taken in the cloud is never overwritten; that book stays on the shelf for “Resolve…”.";
+    };
+    readonly "pushAll.ok": {
+        readonly zh: "传上去";
+        readonly en: "Upload";
+    };
+    readonly "pushAll.later": {
+        readonly zh: "先不传";
+        readonly en: "Not now";
+    };
+    readonly "pushAll.done": {
+        readonly zh: "已传到云端：{n} 本";
+        readonly en: "Uploaded {n} book(s)";
+    };
+    readonly "pushAll.failed": {
+        readonly zh: "{n} 本没传上去（云端有同名或网络问题），在书架里点「处理…」";
+        readonly en: "{n} book(s) not uploaded (name taken in the cloud, or network); use “Resolve…” on the shelf";
+    };
     readonly "settings.title": {
         readonly zh: "设置";
         readonly en: "Settings";
