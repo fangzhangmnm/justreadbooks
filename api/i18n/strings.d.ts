@@ -609,12 +609,12 @@ export declare const S: {
         readonly en: "Some reading records were written by a newer app version; this version will neither read nor overwrite them (update the app to use them).";
     };
     readonly "pushAll.askTitle": {
-        readonly zh: "有书只在本机";
-        readonly en: "Books only on this device";
+        readonly zh: "有书还没传上去";
+        readonly en: "Books not uploaded yet";
     };
     readonly "pushAll.askMsg": {
-        readonly zh: "有 {n} 本书拖进来时没登录（或没网），还没传到云端。现在传上去吗？云端已有同名的不会覆盖，会留在书架上等你点「处理…」。";
-        readonly en: "{n} book(s) were added while signed out (or offline) and are not in the cloud yet. Upload them now? A name already taken in the cloud is never overwritten; that book stays on the shelf for “Resolve…”.";
+        readonly zh: "有 {n} 本书还没传上去（拖进来时没登录或没网）。现在传吗？云端已有同名的不会覆盖，会留在书架上等你点「处理…」。";
+        readonly en: "{n} book(s) are not uploaded yet (added while signed out or offline). Upload now? A name already taken in the cloud is never overwritten; that book stays on the shelf for “Resolve…”.";
     };
     readonly "pushAll.ok": {
         readonly zh: "传上去";
@@ -1049,8 +1049,8 @@ export declare const S: {
         readonly en: "All data this app keeps on this device will be wiped, as if freshly installed. Books and reading records in OneDrive are not affected and come back when you sign in again. No book exists only on this device right now.";
     };
     readonly "fr.introMsgUnsynced": {
-        readonly zh: "这台设备上本 app 的全部数据会被清掉，变成刚安装的样子。⚠ 有 {n} 本书只在本机、还没传到云端——会一起删掉，不会另存副本。想留的话先取消，去书架点那本书的「处理…」传上去。OneDrive 上的书不受影响。";
-        readonly en: "All data this app keeps on this device will be wiped, as if freshly installed. ⚠ {n} book(s) exist only on this device and were never uploaded — they will be deleted too, with no copy kept. To keep them, cancel and use “Resolve…” on the shelf first. Books in OneDrive are not affected.";
+        readonly zh: "这台设备上本 app 的全部数据会被清掉，变成刚安装的样子。⚠ 有 {n} 本书还没传上去——会一起删掉，不会另存副本。想留的话先取消，去书架点那本书的「处理…」传上去。OneDrive 上的书不受影响。";
+        readonly en: "All data this app keeps on this device will be wiped, as if freshly installed. ⚠ {n} book(s) are not uploaded yet — they will be deleted too, with no copy kept. To keep them, cancel and use “Resolve…” on the shelf first. Books in OneDrive are not affected.";
     };
     readonly "fr.continue": {
         readonly zh: "继续";
