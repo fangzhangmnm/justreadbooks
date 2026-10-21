@@ -3,8 +3,6 @@ export declare const CLIENT_ID = "691bf41b-349a-46e1-8296-f0a644005421";
 export declare const AUTHORITY = "https://login.microsoftonline.com/consumers";
 export declare const SCOPES: string[];
 export declare const MSAL_URL = "./vendor/msal/msal-browser.min.js";
-/** 书的扩展名（0.1 只做 txt；pdf 下一轮出 @internal/pdf-viewer 控件时加入）。身份 = `[夹/]<文件名>.txt`（路径即身份，MASTER §A）。 */
-export declare const BOOK_EXTS: readonly [".txt"];
 /** 书架里不当书、也不当杂物显示的名字：v1 遗留的两个 json（只读遗留，不迁不删）与写入方的半成品（handoff §4.7 约定）。 */
 export declare const HIDDEN_NAME_RE: RegExp;
 /** 非 trivial 滚动重置的防抖。 */

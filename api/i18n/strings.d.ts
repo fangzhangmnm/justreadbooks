@@ -112,6 +112,14 @@ export declare const S: {
         readonly zh: "回收站";
         readonly en: "Trash";
     };
+    readonly "gal.aside": {
+        readonly zh: "回收站和备份箱";
+        readonly en: "Trash and backups";
+    };
+    readonly "gal.backup": {
+        readonly zh: "备份箱";
+        readonly en: "Backups";
+    };
     readonly "gal.trashBack": {
         readonly zh: "回到书架";
         readonly en: "Back to shelf";
@@ -119,6 +127,14 @@ export declare const S: {
     readonly "gal.emptyTrash": {
         readonly zh: "清空回收站";
         readonly en: "Empty trash";
+    };
+    readonly "gal.emptyBackup": {
+        readonly zh: "清空备份箱";
+        readonly en: "Empty backups";
+    };
+    readonly "gal.empty": {
+        readonly zh: "清空";
+        readonly en: "Empty";
     };
     readonly "gal.emptyTrashWhich": {
         readonly zh: "清空哪一边？";
@@ -424,14 +440,6 @@ export declare const S: {
         readonly zh: "已移除本机副本：{name}";
         readonly en: "Removed local copy: {name}";
     };
-    readonly "st.pushed": {
-        readonly zh: "已推送到云端：{name}";
-        readonly en: "Pushed to cloud: {name}";
-    };
-    readonly "st.pushFail": {
-        readonly zh: "推送失败（离线或未登录）";
-        readonly en: "Push failed (offline or not signed in)";
-    };
     readonly "st.renamed": {
         readonly zh: "已改名：{name}";
         readonly en: "Renamed: {name}";
@@ -479,6 +487,10 @@ export declare const S: {
     readonly "st.fileRenaming": {
         readonly zh: "正在改名…";
         readonly en: "Renaming…";
+    };
+    readonly "st.fileUploading": {
+        readonly zh: "正在上传…";
+        readonly en: "Uploading…";
     };
     readonly "st.filePulling": {
         readonly zh: "正在拉取云端新版…";
@@ -553,12 +565,28 @@ export declare const S: {
         readonly en: "Open local for now";
     };
     readonly "cf.cloudWins": {
-        readonly zh: "用云端的";
-        readonly en: "Use cloud";
+        readonly zh: "云端覆盖本地";
+        readonly en: "Cloud overwrites local";
     };
     readonly "cf.localWins": {
-        readonly zh: "用本机的";
-        readonly en: "Use local";
+        readonly zh: "本地覆盖云端";
+        readonly en: "Local overwrites cloud";
+    };
+    readonly "cf.cloudGoneTitle": {
+        readonly zh: "云端没有这份";
+        readonly en: "Not in the cloud";
+    };
+    readonly "cf.bodyAbsent": {
+        readonly zh: "「{name}」在云端已经不在了（别的设备删了，或移进了回收站），本机还有一份。云端覆盖本地 = 跟着云端，本机这份移到回收站；本地覆盖云端 = 把本机的传回去。";
+        readonly en: "“{name}” is no longer in the cloud (deleted or trashed on another device); this device still has a copy. Cloud overwrites local = follow the cloud, this copy goes to the trash; Local overwrites cloud = upload this copy again.";
+    };
+    readonly "cf.bodyNever": {
+        readonly zh: "「{name}」从没传到云端过，只在本机。本地覆盖云端 = 第一次上传；云端覆盖本地 = 云端没有这份，本机这份移到回收站。";
+        readonly en: "“{name}” has never been uploaded; it only exists on this device. Local overwrites cloud = upload it for the first time; Cloud overwrites local = the cloud has none, so this copy goes to the trash.";
+    };
+    readonly "cf.bodyUnchanged": {
+        readonly zh: "「{name}」云端还是上次同步的那一版，本机有改动没上传。";
+        readonly en: "“{name}” in the cloud is still the last synced version; this device has changes not uploaded yet.";
     };
     readonly "cf.checkingCloud": {
         readonly zh: "正在检查云端…";
@@ -827,6 +855,14 @@ export declare const S: {
     readonly "ra.import": {
         readonly zh: "从本机文件导入…";
         readonly en: "Import from files…";
+    };
+    readonly "ra.importOnly": {
+        readonly zh: "这个音色只能从本机文件导入（数据集许可证不许再分发，app 不提供下载）：选它的 chunk-000 文件即可。";
+        readonly en: "Import-only voice (its dataset license forbids redistribution, so the app offers no download): pick its chunk-000 file.";
+    };
+    readonly "ra.voiceNote.piper-xiao-ya": {
+        readonly zh: "rhasspy Piper 的中文单说话人音色，跑在 sherpa-onnx 引擎上（15 MB，装这个音色时才取）。只会中文。";
+        readonly en: "rhasspy Piper’s single-speaker Chinese voice on the sherpa-onnx engine (15 MB, fetched when this voice is loaded). Chinese only.";
     };
     readonly "ra.delete": {
         readonly zh: "删除";

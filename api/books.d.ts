@@ -1,10 +1,12 @@
 import type { FreshResult } from "@internal/store";
+/** 是不是书：种类表认得（`.txt`，大小写不敏感、主干非空）∧ 不是隐藏名（写入方半成品 / v1 遗留 json）。 */
 export declare function isBookName(path: string): boolean;
 export declare function splitPath(path: string): {
     dir: string;
     base: string;
 };
 export declare function joinPath(dir: string, base: string): string;
+/** 显示名 = 主干（去夹、去 .txt）；不是书的名字退回最后一段。 */
 export declare function stemOf(path: string): string;
 export type OpenBookResult = {
     kind: "ok";
@@ -22,9 +24,12 @@ export declare function openBook(name: string, opts?: {
     allowBig?: boolean;
     onProgress?: (done: number, total: number) => void;
 }): Promise<OpenBookResult>;
-/** 后台追新（前提 0 ①③）：本地 clean ∧ 云端有新版 → 拉新版覆盖本地缓存；返回库的 FreshResult（status "fast-forwarded" = 换了字节，调用方决定静默换底还是出 chip）。 */
+/** 后台追新（前提 0 ①③）：本地 clean ∧ 云端有新版 → 拉新版覆盖本地缓存；返回库的 FreshResult（status "fast-forwarded" = 换了字节，调用方决定静默换底还是出 chip）。
+ *  askCloud（store 0.18.1 `trustHints:false`）：回前台 / 回线 / 登录后 / 手动刷新 = app 怀疑自己过期的时刻，这次一定问云端、不采信 30 s 内刚列过的清单
+ *  （别的设备可能就在这 30 s 里推过）；开书后那次和 60 s 轮询不传，照旧信清单（启动速度优先）。 */
 export declare function refreshBookInBackground(name: string, opts?: {
     onReplaceStart?: () => void;
+    askCloud?: boolean;
 }): Promise<FreshResult>;
 export declare function isBookKeptOffline(name: string): Promise<boolean>;
 export declare function keepBookOffline(name: string, onProgress?: (done: number, total: number) => void): Promise<void>;
@@ -35,10 +40,8 @@ export interface UploadResult {
     pushed: boolean;
     encoding: string;
 }
-/** 拖进来的 txt：探测编码，非 UTF-8 先转码（别的设备拿到不乱码）；撞名自动追加 " 1"…；未登录/离线只落本机（local-only，回线 ask 补推）。 */
+/** 拖进来的 txt：探测编码，非 UTF-8 先转码（别的设备拿到不乱码）；撞名自动追加 " 1"…；未登录/离线只落本机（local-only；回线**不会**自动推——见 app-store.ts 头注释，出路 = 书架「处理…」）。 */
 export declare function uploadBook(src: File, dir: string): Promise<UploadResult>;
-/** 本机唯一副本的书补推云端（卡片「推送到云端」）：字节不变，只是把 local-only 变 synced。 */
-export declare function pushBook(name: string): Promise<boolean>;
 export type RenameResult = {
     ok: true;
     name: string;

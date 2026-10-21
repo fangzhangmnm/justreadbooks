@@ -8,8 +8,7 @@ export const AUTHORITY = "https://login.microsoftonline.com/consumers";
 export const SCOPES = ["Files.ReadWrite.AppFolder", "offline_access"];
 export const MSAL_URL = "./vendor/msal/msal-browser.min.js";
 
-/** 书的扩展名（0.1 只做 txt；pdf 下一轮出 @internal/pdf-viewer 控件时加入）。身份 = `[夹/]<文件名>.txt`（路径即身份，MASTER §A）。 */
-export const BOOK_EXTS = [".txt"] as const;
+// 书的后缀 / 种类表住 src/identifiers.ts（store 0.16 docKinds；身份 = `[夹/]书名.txt`，路径即身份，MASTER §A）。
 /** 书架里不当书、也不当杂物显示的名字：v1 遗留的两个 json（只读遗留，不迁不删）与写入方的半成品（handoff §4.7 约定）。 */
 export const HIDDEN_NAME_RE = /(^|\/)(session\.json|library\.json|[^/]*\.part|~[^/]*|[^/]*\.tmp)$/i;
 

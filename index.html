@@ -36,7 +36,7 @@
     <!-- ICON-SPRITE:BEGIN — 由 tools/inline-sprites.py 生成，勿手改 -->
 <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none">
 <!--
-  55 icons extracted from the family icon library (../20260708 SVG Icons/icons.svg) by extract-icons.py — do not hand-edit; re-run the script instead.
+  56 icons extracted from the family icon library (../20260708 SVG Icons/icons.svg) by extract-icons.py — do not hand-edit; re-run the script instead.
   Family SVG Icons — MIT License, Copyright (c) 2026 fangzhangmnm.
   Contains work derived from (per-icon provenance in data-src):
     Feather Icons — MIT License, Copyright (c) 2013-2023 Cole Bemis · https://github.com/feathericons/feather
@@ -158,6 +158,8 @@
   <symbol id="keyboard" data-cat="ui" data-src="own" data-note="键盘:圆点加大收紧+空格上移不压框(与 shortcut 不同语义)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="7.2" cy="9.7" r="1.15" fill="currentColor" stroke="none"/><circle cx="10.4" cy="9.7" r="1.15" fill="currentColor" stroke="none"/><circle cx="13.6" cy="9.7" r="1.15" fill="currentColor" stroke="none"/><circle cx="16.8" cy="9.7" r="1.15" fill="currentColor" stroke="none"/><circle cx="7.2" cy="12.8" r="1.15" fill="currentColor" stroke="none"/><circle cx="10.4" cy="12.8" r="1.15" fill="currentColor" stroke="none"/><circle cx="13.6" cy="12.8" r="1.15" fill="currentColor" stroke="none"/><circle cx="16.8" cy="12.8" r="1.15" fill="currentColor" stroke="none"/><path d="M8.6 15.6 H15.4"/></symbol>
   <!-- help — 帮助:圆 + 路径画的问号(不用 text)【WeebPaint ☰ 设置菜单「帮助」= in-app 说明书入口；fable 自画未过目】 -->
   <symbol id="help" data-cat="ui" data-src="own" data-note="帮助:圆 + 路径画的问号(不用 text)【WeebPaint ☰ 设置菜单「帮助」= in-app 说明书入口；fable 自画未过目】" data-review="pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.7 a2.7 2.7 0 0 1 5.4 0 c0 1.9 -2.7 2.1 -2.7 4.1"/><circle cx="12" cy="17.1" r="0.95" fill="currentColor" stroke="none"/></symbol>
+  <!-- archive-box — 归档箱:顶盖条 + 箱体 + 中间把手横线(与 collection 同形, 均出自 lucide:archive) -->
+  <symbol id="archive-box" data-cat="ui" data-src="lucide:archive" data-note="归档箱:顶盖条 + 箱体 + 中间把手横线(与 collection 同形, 均出自 lucide:archive)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18v4H3z"/> <path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/> <path d="M10 13h4"/></symbol>
 </svg>
 <!-- ICON-SPRITE:END -->
 
@@ -197,12 +199,17 @@
           <button class="menu-button cloud-btn" id="galleryCloudBtn" type="button" aria-label="云端" data-i18n-aria="ui.cloud" data-cloud-state="out" aria-haspopup="menu"><svg class="ico" aria-hidden="true"><use href="#cloud"/></svg></button>
           <button class="menu-button" id="galleryRefreshBtn" type="button" aria-label="刷新云端" data-i18n-aria="gal.refresh" data-i18n-title="gal.refresh" hidden><svg class="ico" aria-hidden="true"><use href="#refresh"/></svg></button>
           <button class="menu-button" id="galleryUploadBtn" type="button" aria-label="上传 txt" data-i18n-aria="ui.uploadTxt" data-i18n-title="ui.uploadTxt"><svg class="ico" aria-hidden="true"><use href="#upload"/></svg></button>
-          <button class="menu-button" id="galleryTrashBtn" type="button" aria-label="回收站" data-i18n-aria="gal.trash" data-i18n-title="gal.trash"><svg class="ico" aria-hidden="true"><use href="#trash-can"/></svg></button>
+          <button class="menu-button" id="galleryTrashBtn" type="button" aria-label="回收站和备份箱" data-i18n-aria="gal.aside" data-i18n-title="gal.aside"><svg class="ico" aria-hidden="true"><use href="#trash-can"/></svg></button>
           <button class="menu-button" id="gallerySettingsBtn" type="button" aria-label="设置" data-i18n-aria="gal.settings" data-i18n-title="gal.settings"><svg class="ico" aria-hidden="true"><use href="#wrench"/></svg></button>
         </div>
-        <div class="gallery-trashbar hidden" id="galleryTrashBar">
-          <button class="auth-action" id="galleryTrashBack" type="button"><svg class="ico" aria-hidden="true"><use href="#back"/></svg><span data-i18n="gal.trashBack">回到书架</span></button>
-          <button class="auth-action danger" id="galleryEmptyTrash" type="button" data-i18n="gal.emptyTrash">清空回收站</button>
+        <div class="gallery-asidebar hidden" id="galleryAsideBar">
+          <button class="auth-action" id="galleryAsideBack" type="button"><svg class="ico" aria-hidden="true"><use href="#back"/></svg><span data-i18n="gal.trashBack">回到书架</span></button>
+          <div class="gallery-aside-tabs" role="tablist">
+            <button class="gallery-aside-tab" id="galleryTabTrash" type="button" role="tab" data-aside="trash"><svg class="ico" aria-hidden="true"><use href="#trash-can"/></svg><span data-i18n="gal.trash">回收站</span></button>
+            <button class="gallery-aside-tab" id="galleryTabBackup" type="button" role="tab" data-aside="backup"><svg class="ico" aria-hidden="true"><use href="#archive-box"/></svg><span data-i18n="gal.backup">备份箱</span></button>
+          </div>
+          <span class="spacer"></span>
+          <button class="auth-action danger" id="galleryAsideEmpty" type="button" data-i18n="gal.empty">清空</button>
         </div>
         <div class="gallery-recent" id="galleryRecent" hidden></div>
         <div class="gallery-mount" id="galleryMount"></div>
@@ -337,6 +344,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-9f03a5b10993.mjs"></script>
+    <script type="module" src="./dist/jrb-4638f2fe10d0.mjs"></script>
   </body>
 </html>

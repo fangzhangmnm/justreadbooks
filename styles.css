@@ -140,7 +140,16 @@ body[data-reading="1"][data-chrome="shown"] .reader { padding-top: calc(var(--to
 .gallery-full { position: fixed; inset: 0; z-index: var(--z-overlay); display: flex; flex-direction: column; background: var(--bg-0); color: var(--ink); font-family: var(--font-ui); }
 .gallery-chrome { display: flex; align-items: center; gap: 6px; padding: max(env(safe-area-inset-top, 0px), 8px) 12px 8px; border-bottom: 1px solid var(--line); }
 .gallery-chrome-title { font-weight: 600; }
-.gallery-trashbar { display: flex; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+/* 回收站 / 备份箱共用的一条栏：回到书架 · 两个页签 · 清空（gallery 0.5.0 搁置区；外壳照 WXHW） */
+.gallery-asidebar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.gallery-asidebar.hidden { display: none; }
+.gallery-asidebar .spacer { flex: 1 1 auto; }
+.gallery-asidebar .auth-action .ico { width: 14px; height: 14px; margin-right: 4px; }
+.gallery-aside-tabs { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.gallery-aside-tab { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 11px; border: 0; background: transparent; color: var(--ink-soft); font: inherit; font-size: 13px; cursor: pointer; }
+.gallery-aside-tab + .gallery-aside-tab { border-left: 1px solid var(--line-strong); }
+.gallery-aside-tab .ico { width: 15px; height: 15px; }
+.gallery-aside-tab.is-on { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); font-weight: 600; }
 .gallery-recent { display: flex; align-items: center; gap: 6px; padding: 8px 12px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
 .gallery-recent[hidden] { display: none; }
 .recent-label { font-size: 11px; color: var(--ink-muted); flex: 0 0 auto; }

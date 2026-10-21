@@ -1,5 +1,6 @@
 // 红线守卫（结构性，非行为）：接缝之外不得出现第二条存储/云路径。created 2026-09-19 by Claude Fable 5.1（抄 WXHW）
 //   白名单：src/app-store.ts（store 接缝）、src/device-kv.ts（localStorage 唯一器官）、src/config.ts（常量 SSoT：URL/路径字符串，不是访问）。
+//   src/identifiers.ts（2026-10-21，store 0.16 种类表）只准从 @internal/store 拿纯函数 createIdentifiers（+ type），逐名检查——照 WXHW。
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, assert } from "./runner.mjs";
@@ -55,14 +56,18 @@ describe("redline-guard", () => {
     }
     assert(hits.length === 0, "yellow-line guard hits:\n" + hits.join("\n"));
   });
-  it("@internal/store 值级 import 只在 src/app-store.ts；@internal/encryption 只在 src/encryption.ts；@internal/read-aloud 只在 src/read-aloud-host.ts", () => {
+  it("@internal/store 值级 import 只在 src/app-store.ts（src/identifiers.ts 只准 createIdentifiers）；@internal/encryption 只在 src/encryption.ts；@internal/read-aloud 只在 src/read-aloud-host.ts", () => {
     const hits = [];
     for (const p of walk("src")) {
       const rel = p.replace(/\\/g, "/");
       const src = readFileSync(p, "utf8");
       for (const m of src.matchAll(/^import\s+(type\s+)?[^;]*?from\s+["'](@internal\/(store|encryption|read-aloud))["']/gm)) {
         if (m[1]) continue;
-        if (m[2] === "@internal/store" && rel !== "src/app-store.ts") hits.push(`${rel}: ${m[0]}`);
+        if (m[2] === "@internal/store" && rel !== "src/app-store.ts") {
+          const members = (m[0].match(/\{([^}]*)\}/)?.[1] ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+          const pureOnly = rel === "src/identifiers.ts" && members.length > 0 && members.every((x) => x === "createIdentifiers" || x.startsWith("type "));
+          if (!pureOnly) hits.push(`${rel}: ${m[0]}`);
+        }
         if (m[2] === "@internal/encryption" && rel !== "src/encryption.ts") hits.push(`${rel}: ${m[0]}`);
         if (m[2] === "@internal/read-aloud" && rel !== "src/read-aloud-host.ts") hits.push(`${rel}: ${m[0]}`);
       }

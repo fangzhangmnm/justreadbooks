@@ -1,14 +1,16 @@
+import { type GalleryView, type AsideKind, type AsideScope } from "@internal/gallery";
 export interface GalleryHostDeps {
     mountEl: HTMLElement;
     fullEl: HTMLElement;
+    /** 正在读的那本（身份 = 全路径）。 */
     activeName: () => string | null;
-    /** 打开一本书（全路径 + 已知大小）。返回 true = 阅读器已切过去。 */
-    openBook: (name: string, size?: number) => Promise<boolean>;
+    /** 打开一本书（身份 + 已知大小）。返回 true = 阅读器已切过去。 */
+    openBook: (identifier: string, size?: number) => Promise<boolean>;
+    /** 顶栏改名（阅读器自己的改名 UI）；返回新身份。 */
     renameActive: () => Promise<string | null>;
-    /** 活动书被图库移动/改名 → 阅读器换身份。 */
-    setActiveName: (name: string) => void;
-    pushBook: (name: string) => Promise<void>;
-    offloadBook: (name: string) => Promise<void>;
+    /** 正在读的那本被图库移动 / 改名 → 阅读器换身份。 */
+    setActiveName: (identifier: string) => void;
+    offloadBook: (identifier: string) => Promise<void>;
     flushLocal: () => Promise<void>;
     setStatus: (text: string, opts?: {
         error?: boolean;
@@ -25,9 +27,10 @@ export declare function initGalleryHost(d: GalleryHostDeps): {
     isOpen: () => boolean;
     wasInGallery: () => boolean;
     refresh: () => void | undefined;
-    setView: (v: "files" | "trash") => void;
-    getView: () => "files" | "trash";
-    emptyTrash: (scope: "local" | "cloud" | "both") => void;
+    setView: (v: GalleryView) => void;
+    getView: () => GalleryView;
+    /** 清空回收站 / 备份箱（各清各的；确认框和结果提示是图库包的）。 */
+    emptyAside: (kind: AsideKind, scope: AsideScope) => void;
     currentFolder: () => string;
     setLayout: (l: ShelfLayout) => void;
 };

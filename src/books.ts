@@ -1,17 +1,22 @@
-// books —— 书的动词层：store 之上「一本书」的动词（打开 / 后台追新 / 留离线 / 移除离线 / 上传 / 补推 / 改名）。列举面 = @internal/gallery（直接订阅 store.files.watchFolder），本层不列。
+// books —— 书的动词层：store 之上「一本书」的动词（打开 / 后台追新 / 留离线 / 移除离线 / 上传 / 改名）。列举面 = @internal/gallery（直接订阅 store.files.watchFolder），本层不列。
 // created 2026-09-19 by Claude Fable 5.1（对齐 WXHW docs.ts；红线全在库内 enforce：If-Match / .trash / 冲突 sheet / dirty 永不驱逐）。
-// 本层只做：路径/扩展名约定、把库的结果式返回翻成 UI 能画的东西（隐藏名在 store：createStore({ hiddenName })）。**永不改写既有书**（save 只出现在上传/补推）。
+// 2026-10-21 收 store 2.1.2（Claude Fable 5.1）：切名字全走 store 的身份语法（src/identifiers.ts：parse / join），不再自己剥 `.txt`；
+//   `pushBook`（卡片「推送到云端」= open() 再 save() 的「刷新基准 + 传上去」）删掉——那是库 0.18.3 滥用警示点名的越狱形，gallery 0.8.1 起没同步好的行只有「处理…」→ store file.resolve()。
+// 本层只做：路径约定、把库的结果式返回翻成 UI 能画的东西（隐藏名在 store：createStore({ hidden })）。**永不改写既有书**（save 只出现在上传）。
 import type { FreshResult, RawFile } from "@internal/store";
 import { requireStore, auth } from "./app-store.ts";
-import { BOOK_EXTS, HIDDEN_NAME_RE, BIG_BOOK_BYTES } from "./config.ts";
+import { identifiers, BOOK_SUFFIX } from "./identifiers.ts";
+import { HIDDEN_NAME_RE, BIG_BOOK_BYTES } from "./config.ts";
 import { decodeBytes, encodeUtf8 } from "./encoding.ts";
 
-export function isBookName(path: string): boolean { return BOOK_EXTS.some((e) => path.toLowerCase().endsWith(e)) && !HIDDEN_NAME_RE.test(path); }
+/** 是不是书：种类表认得（`.txt`，大小写不敏感、主干非空）∧ 不是隐藏名（写入方半成品 / v1 遗留 json）。 */
+export function isBookName(path: string): boolean { return identifiers.parse(path) != null && !HIDDEN_NAME_RE.test(path); }
 export function splitPath(path: string): { dir: string; base: string } { const i = path.lastIndexOf("/"); return i < 0 ? { dir: "", base: path } : { dir: path.slice(0, i), base: path.slice(i + 1) }; }
 export function joinPath(dir: string, base: string): string { return dir ? `${dir}/${base}` : base; }
-export function stemOf(path: string): string { return splitPath(path).base.replace(/\.txt$/i, ""); }
+/** 显示名 = 主干（去夹、去 .txt）；不是书的名字退回最后一段。 */
+export function stemOf(path: string): string { return identifiers.parse(path)?.stem ?? splitPath(path).base; }
 
-const file = (name: string, mode: "new" | "existing" = "existing"): RawFile => requireStore().file(name, { isZip: false, mode });
+const file = (name: string, mode: "new" | "existing" = "existing"): RawFile => requireStore().file(name, { mode });
 const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
 
 // ── 打开（计划 §2 前提 0：本地优先，永不为网络转圈）──
@@ -31,9 +36,11 @@ export async function openBook(name: string, opts: { size?: number; allowBig?: b
   if (!blob) return { kind: "unavailable" };
   return { kind: "ok", blob, fromLocal: kept };
 }
-/** 后台追新（前提 0 ①③）：本地 clean ∧ 云端有新版 → 拉新版覆盖本地缓存；返回库的 FreshResult（status "fast-forwarded" = 换了字节，调用方决定静默换底还是出 chip）。 */
-export function refreshBookInBackground(name: string, opts?: { onReplaceStart?: () => void }): Promise<FreshResult> {
-  return file(name).pullIfClean({ isOnline: online, ...(opts?.onReplaceStart ? { onReplaceStart: opts.onReplaceStart } : {}) });
+/** 后台追新（前提 0 ①③）：本地 clean ∧ 云端有新版 → 拉新版覆盖本地缓存；返回库的 FreshResult（status "fast-forwarded" = 换了字节，调用方决定静默换底还是出 chip）。
+ *  askCloud（store 0.18.1 `trustHints:false`）：回前台 / 回线 / 登录后 / 手动刷新 = app 怀疑自己过期的时刻，这次一定问云端、不采信 30 s 内刚列过的清单
+ *  （别的设备可能就在这 30 s 里推过）；开书后那次和 60 s 轮询不传，照旧信清单（启动速度优先）。 */
+export function refreshBookInBackground(name: string, opts?: { onReplaceStart?: () => void; askCloud?: boolean }): Promise<FreshResult> {
+  return file(name).pullIfClean({ isOnline: online, ...(opts?.askCloud ? { trustHints: false } : {}), ...(opts?.onReplaceStart ? { onReplaceStart: opts.onReplaceStart } : {}) });
 }
 export function isBookKeptOffline(name: string): Promise<boolean> { return file(name).isKeptOffline(); }
 export function keepBookOffline(name: string, onProgress?: (done: number, total: number) => void): Promise<void> { return file(name).keepOffline(onProgress ? { onProgress } : undefined); }
@@ -42,26 +49,19 @@ export function offloadBook(name: string): Promise<void> { return file(name).off
 
 // ── 上传（读者唯一的写路径；mode:"new" 撞名不覆盖）──
 export interface UploadResult { name: string; pushed: boolean; encoding: string }
-/** 拖进来的 txt：探测编码，非 UTF-8 先转码（别的设备拿到不乱码）；撞名自动追加 " 1"…；未登录/离线只落本机（local-only，回线 ask 补推）。 */
+/** 拖进来的 txt：探测编码，非 UTF-8 先转码（别的设备拿到不乱码）；撞名自动追加 " 1"…；未登录/离线只落本机（local-only；回线**不会**自动推——见 app-store.ts 头注释，出路 = 书架「处理…」）。 */
 export async function uploadBook(src: File, dir: string): Promise<UploadResult> {
-  const base0 = src.name.replace(/[\\/:*?"<>|]/g, "_").trim() || "book.txt";
-  const base = /\.txt$/i.test(base0) ? base0 : `${base0}.txt`;
+  const base0 = src.name.replace(/[\\/:*?"<>|]/g, "_").trim() || `book${BOOK_SUFFIX}`;
+  const base = base0.toLowerCase().endsWith(BOOK_SUFFIX) ? base0 : `${base0}${BOOK_SUFFIX}`;
+  const stem = identifiers.parse(base)?.stem ?? "book";   // 文件名只剩 ".txt" 这种主干为空的名字退回 book
   const raw = new Uint8Array(await src.arrayBuffer());
   const { text, encoding } = decodeBytes(raw);
   const bytes = encoding === "utf-8" ? raw : encodeUtf8(text);
   const files = requireStore().files;
-  let name = joinPath(dir, base);
-  for (let n = 1; n < 200 && (await files.nameOccupied(name)); n++) name = joinPath(dir, base.replace(/\.txt$/i, ` ${n}.txt`));
+  let name = identifiers.join({ folder: dir, stem, suffix: BOOK_SUFFIX });
+  for (let n = 1; n < 200 && (await files.occupied(name)); n++) name = identifiers.join({ folder: dir, stem: `${stem} ${n}`, suffix: BOOK_SUFFIX });
   const r = await file(name, "new").save(bytes, { tryPush: auth.isSignedIn() && online() });
   return { name, pushed: r.pushed, encoding };
-}
-/** 本机唯一副本的书补推云端（卡片「推送到云端」）：字节不变，只是把 local-only 变 synced。 */
-export async function pushBook(name: string): Promise<boolean> {
-  const f = file(name);
-  const blob = await f.open();
-  if (!blob) return false;
-  const r = await f.save(blob, { tryPush: true });
-  return r.pushed;
 }
 
 // ── 改名（身份变 = tryMove；结果式不抛，撞名报 where）──
@@ -69,7 +69,7 @@ export type RenameResult = { ok: true; name: string } | { ok: false; where: "loc
 export async function renameBook(name: string, newStem: string): Promise<RenameResult> {
   const stem = newStem.replace(/[\\/:*?"<>|]/g, "_").trim();
   if (!stem) return { ok: false, error: "empty" };
-  const target = joinPath(splitPath(name).dir, `${stem}.txt`);
+  const target = identifiers.join({ folder: splitPath(name).dir, stem, suffix: BOOK_SUFFIX });
   if (target === name) return { ok: true, name };
   try {
     const r = await file(name).tryMove(target);

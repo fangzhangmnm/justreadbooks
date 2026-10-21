@@ -1,15 +1,16 @@
 // 组合根：把 store 接缝 / 书架屏 / 阅读器 / 设置 / PWA 壳接成一个 app。created 2026-09-19 by Claude Fable 5.1
 // 这里只有接线与事件编排，没有业务规则（规则住各模块头注释）。计划 = ai-docs/20260919-modernization-plan.md。
 import { APP_VERSION } from "./version.ts";
-import { FOREGROUND_POLL_MS, READER_DEFAULTS, FONT_SIZE_RANGE, BOOK_EXTS } from "./config.ts";
+import { FOREGROUND_POLL_MS, READER_DEFAULTS, FONT_SIZE_RANGE } from "./config.ts";
+import { BOOK_SUFFIX } from "./identifiers.ts";
 import { initI18n, t, lang, setLang, LANGS, LANG_NAME, type Lang } from "./i18n/index.ts";
 import { initErrorBadge, reportError, errorLog } from "./error-badge.ts";
 import { initDiagLog, note as diagNote, entries as diagEntries } from "./diag-log.ts";
 import { initSheets, openConfirmSheet, openChoiceSheet, openInputSheet, withBusy } from "./sheets.ts";
 import { configureFloors, togglePopupMenu, currentPopupMenu, showNotice, closeNotice } from "@internal/workbench-elements";
-import { humanSize } from "@internal/gallery";
+import { humanSize, type GalleryView } from "@internal/gallery";
 import { auth, initCollections, reconcileCollections, flushCollections, requireStore, requestStoragePersistence, setActiveBookName, readingPos } from "./app-store.ts";
-import { openBook, refreshBookInBackground, keepBookOffline, offloadBook, uploadBook, pushBook, renameBook, stemOf, splitPath, isBookName } from "./books.ts";
+import { openBook, refreshBookInBackground, keepBookOffline, offloadBook, uploadBook, renameBook, stemOf, splitPath, isBookName } from "./books.ts";
 import { getPosition, notePosition, markOpened, flushPosition, keepalivePosition, recentBooks } from "./reading-position.ts";
 import { getBookPref, setBookPref, moveBookPref } from "./book-prefs.ts";
 import { split, listBuiltin, statusHeader, type Chapter, type Anchor, type ChapterPref } from "./chapters/index.ts";
@@ -206,13 +207,15 @@ function closeBook(): void { if (!book) return; readAloud?.exit(); keepalivePosi
 
 /** 后台追新（前提 0 ①③）：库快进了字节 → 用户没动就静默换底、动过就出 chip。 */
 let refreshing: Promise<void> | null = null;
-function refreshCurrentBook(): Promise<void> {
+/** askCloud（store 0.18.1 `trustHints:false`）：回前台 / 回线 / 登录后 / 手动「刷新云端」= 怀疑自己过期的时刻，这次一定问云端、不采信 30 s 内刚列过的清单
+ *  （别的设备可能就在这 30 s 里推过；库 0.18.1 发版说明写明的消费方义务）；开书后那次和 60 s 轮询不传，照旧信清单（启动速度优先）。 */
+function refreshCurrentBook(opts: { askCloud?: boolean } = {}): Promise<void> {
   if (!book || !auth.isSignedIn() || navigator.onLine === false) return Promise.resolve();
-  if (refreshing) return refreshing;
+  if (refreshing) return opts.askCloud ? refreshing.then(() => refreshCurrentBook(opts)) : refreshing;   // 正在跑的那次可能信了清单：要问云端的排在它后面再跑一次
   const name = book.name;
   refreshing = (async () => {
     try {
-      const r = await refreshBookInBackground(name);
+      const r = await refreshBookInBackground(name, opts.askCloud ? { askCloud: true } : undefined);
       if (r.status !== "fast-forwarded" || !book || book.name !== name) return;
       const again = await openBook(name);
       if (again.kind !== "ok" || !book || book.name !== name) return;
@@ -245,12 +248,11 @@ const galleryHost = initGalleryHost({
   openBook: (name, size) => openBookByName(name, size != null ? { size } : {}),
   renameActive: renameActiveBook,
   setActiveName: (name) => { if (book && book.name !== name) { book = { ...book, name }; setActiveBookName(name); deviceKvSet(KV_LAST_OPEN, name); renderTopbar(); } },   // 通常 store 的 onRenamed 已先处理；这里只兜底
-  pushBook: async (name) => { const ok = await pushBook(name); setStatus(ok ? t("st.pushed", { name: stemOf(name) }) : t("st.pushFail"), { error: !ok }); },
   offloadBook: async (name) => { try { await offloadBook(name); setStatus(t("st.offloaded", { name: stemOf(name) })); if (book?.name === name) closeBook(); } catch (e) { reportError(e, "warning"); } },
   flushLocal: async () => { await flushCollections(); void flushPosition(); },   // 只等 IDB（毫秒级）；云端推送丢后台
   setStatus,
   currentDir: () => (book ? splitPath(book.name).dir : galleryHost?.currentFolder() ?? ""),
-  onOpened: () => { readAloud?.exit(); $("galleryTrashBar").classList.add("hidden"); renderRecent(); },
+  onOpened: () => { readAloud?.exit(); showLibraryView("files"); renderRecent(); },
   onClosed: () => { setChrome(false); },
 });
 function moveReadingPosition(from: string, to: string): void { const v = readingPos.getItem(from); if (v != null) { readingPos.setItem(to, v); readingPos.deleteItem(from); } }
@@ -274,12 +276,24 @@ $("libraryButton").addEventListener("click", () => { readAloud?.exit(); void gal
 $("landingOpenShelf").addEventListener("click", () => { void galleryHost.open(); });
 $("galleryBack").addEventListener("click", () => galleryHost.close());
 $("gallerySettingsBtn").addEventListener("click", () => openSettings());
-$("galleryTrashBtn").addEventListener("click", () => { galleryHost.setView("trash"); $("galleryTrashBar").classList.remove("hidden"); });
-$("galleryTrashBack").addEventListener("click", () => { galleryHost.setView("files"); $("galleryTrashBar").classList.add("hidden"); });
-$("galleryEmptyTrash").addEventListener("click", () => {
-  void openChoiceSheet<"local" | "cloud" | "both">(t("gal.emptyTrash"), t("gal.emptyTrashWhich"), [
+// 书架的回收站 / 备份箱（gallery 0.5.0 搁置区）：同一条栏上两个页签 + 清空。列表、恢复、彻底删、清空全是图库包的；这里只有外壳（照 WXHW v2.1.23）。
+//   备份箱 = 冲突面里选输的那一版（store 留的底）；读者 app 几乎不产生，但产生了得有地方看、有地方清（2026-10-21 随 gallery 0.8.5 上；要不要露 = 迁库 doc §5-2 等 user）。
+function showLibraryView(v: GalleryView): void {
+  const bar = $("galleryAsideBar");
+  bar.classList.toggle("hidden", v === "files");
+  for (const tab of bar.querySelectorAll<HTMLElement>(".gallery-aside-tab")) { const on = tab.dataset.aside === v; tab.classList.toggle("is-on", on); tab.setAttribute("aria-selected", on ? "true" : "false"); }
+}
+function openLibraryView(v: GalleryView): void { galleryHost.setView(v); showLibraryView(v); }
+$("galleryTrashBtn").addEventListener("click", () => openLibraryView("trash"));
+$("galleryTabTrash").addEventListener("click", () => openLibraryView("trash"));
+$("galleryTabBackup").addEventListener("click", () => openLibraryView("backup"));
+$("galleryAsideBack").addEventListener("click", () => openLibraryView("files"));
+$("galleryAsideEmpty").addEventListener("click", () => {
+  const v = galleryHost.getView();
+  if (v === "files") return;
+  void openChoiceSheet<"local" | "cloud" | "both">(t(v === "trash" ? "gal.emptyTrash" : "gal.emptyBackup"), t("gal.emptyTrashWhich"), [
     { label: t("gal.emptyTrashLocal"), value: "local" }, { label: t("gal.emptyTrashCloud"), value: "cloud" }, { label: t("gal.emptyTrashBoth"), value: "both" },
-  ]).then((v) => { if (v) galleryHost.emptyTrash(v); });
+  ]).then((scope) => { if (scope) galleryHost.emptyAside(v, scope); });
 });
 // 「继续读」条：跨夹最近 N 本（reading-position 的 readAt），宿主 chrome（包只订阅当前夹）
 const recentEl = $("galleryRecent");
@@ -312,7 +326,7 @@ function renderCloudButton(): void {
 }
 async function refreshCloudNow(): Promise<void> {
   if (!auth.isSignedIn() && navigator.onLine !== false) { await auth.retrySilentSignIn().catch((e) => reportError(e, "log")); renderCloudButton(); }
-  galleryHost.refresh(); void reconcileCollections().then(renderRecent); void refreshCurrentBook();
+  galleryHost.refresh(); void reconcileCollections().then(renderRecent); void refreshCurrentBook({ askCloud: true });
 }
 function openCloudMenu(anchor: HTMLElement): void {
   const s = auth.getAuthState(); const who = cloudWho();
@@ -368,7 +382,7 @@ async function uploadFiles(files: File[]): Promise<void> {
   const dir = galleryHost.isOpen() ? galleryHost.currentFolder() : (book ? splitPath(book.name).dir : "");
   let last: string | null = null;
   for (const f of files) {
-    if (!BOOK_EXTS.some((x) => f.name.toLowerCase().endsWith(x)) && !f.type.startsWith("text/")) { setStatus(t("st.notTxt", { name: f.name }), { error: true }); continue; }
+    if (!f.name.toLowerCase().endsWith(BOOK_SUFFIX) && !f.type.startsWith("text/")) { setStatus(t("st.notTxt", { name: f.name }), { error: true }); continue; }
     try {
       void requestStoragePersistence();
       const r = await withBusy(t("st.uploading"), () => uploadBook(f, dir));
@@ -515,7 +529,7 @@ async function resumeSync(): Promise<void> {
   await flushPosition();
   await requireStore().files.drainOfflineQueue().catch((e) => reportError(e, "log"));
   await reconcileCollections();
-  await refreshCurrentBook();
+  await refreshCurrentBook({ askCloud: true });
   if (galleryHost.isOpen()) { galleryHost.refresh(); renderRecent(); }
 }
 {
@@ -532,7 +546,7 @@ const shell = initPwaShell({
   onUpdateAvailable: () => { void authBootSettled().then((how) => { diagNote("sw", `update available → toast (auth boot ${how})`); updateToast.classList.remove("hidden"); }); },
   onForeground: () => {
     if (!auth.isSignedIn() && navigator.onLine !== false) void auth.retrySilentSignIn().catch((e) => reportError(e, "log"));
-    void refreshCurrentBook(); void reconcileCollections().then(() => { if (galleryHost.isOpen()) { galleryHost.refresh(); renderRecent(); } });
+    void refreshCurrentBook({ askCloud: true }); void reconcileCollections().then(() => { if (galleryHost.isOpen()) { galleryHost.refresh(); renderRecent(); } });
   },
   onBeforeReload: async () => { const how = await authBootSettled(); diagNote("sw", `reload requested (auth boot ${how})`); await flushCollections(); void flushPosition(); },
 });
@@ -549,7 +563,7 @@ function afterSignIn(): Promise<void> {
       diagNote("auth", "afterSignIn: reconcile collections + drain offline queue + refresh current book");
       await reconcileCollections();
       void requireStore().files.drainOfflineQueue().catch((e) => reportError(e, "log"));
-      await refreshCurrentBook();
+      await refreshCurrentBook({ askCloud: true });
       if (galleryHost.isOpen()) { galleryHost.refresh(); renderRecent(); }
     } catch (e) { reportError(e, "warning"); }
   })().finally(() => { afterSignInInFlight = null; });

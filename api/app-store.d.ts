@@ -2,7 +2,7 @@ import { requestStoragePersistence, isCached, isDirty } from "@internal/store";
 import type { Store, Collection, OneDriveAuth } from "@internal/store";
 /** OneDrive auth 面（signIn/signOut/isSignedIn/onAuthChanged/retrySilentSignIn）。 */
 export declare const auth: OneDriveAuth;
-/** 当前打开的书（全路径）：cloud-gone 去抖 trash 绝不碰它。 */
+/** 当前打开的书（身份 = 全路径）：cloud-gone 去抖 trash 绝不碰它。 */
 export declare function setActiveBookName(name: string | null): void;
 export declare function activeBookName(): string | null;
 export declare function requireStore(): Store;

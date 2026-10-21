@@ -5,8 +5,9 @@ TXT 网文/轻小说阅读器（0.1 纪元：2026-09-19 在 @internal/store + @i
 - **核心设计前提（user 2026-09-19）：远端一直在更新，新版不用清缓存就能看到，但永不为此转圈**——有本地副本秒开（不等 token / 网），后台 `pullIfClean`；用户没动就静默换底，动过就出「已更新」chip（翻章或点 chip 才换字节）。无副本才带字节进度条下载。
 - **数据**：书 = `store.file("<夹/>书名.txt")`（身份 = 路径；读者永不 `save` 既有书，lint 守 `save(` 只在 `src/books.ts` 的上传/补推）；每本书阅读位置 = synced collection `reading-position`（乙：**没有全局 lastActive funnel**，v1 的跨设备跳书已删）；切章规则 = collection `book-prefs`；设备偏好（字号/行高/字体/行宽两档/主题/语言/本机上次那本）= device-kv。v1 遗留 `session.json` / `library.json` 只读遗留不迁不删（书架隐藏）；旧 IDB `justreadbooks-cache` 留孤儿。
 - **切章 = 独立深模块 `src/chapters/`**（split / tree / anchor / diff / statusHeader；零 DOM 零 store，node 全测）。位置锚 = 序号 + 标题文本 + 章内比例，**只做标题命中 + 序号兜底，不做行 hash**（user：串章是小事）。单行状态头不成章。
-- **接缝**：`src/app-store.ts` 是 `@internal/store` 唯一值级 import；`src/encryption.ts` 零 codec 表态；`src/device-kv.ts` 是 localStorage 唯一器官；`test/redline-guard.test.mjs` + `scripts/build.sh` 机械执法。
-- **书架 = `@internal/gallery` 0.4.0**（`src/gallery-host.ts`；列表视图、云图标在书架顶栏、副标题·未读 hook、留离线动词；提案 `../20260909 internal-gallery/ai-docs/20260919-proposal-list-view.md`）。**切分铁律（user 2026-09-19「gallery 是前端」）**：夹里有什么 = store（`createStore({ hiddenName })`）；改名事件 = `store.files.onRenamed`（阅读位置 / 切章规则 / 上次那本指针跟着搬，app.ts 订阅一次）；图库只画、只发起。
+- **接缝**：`src/app-store.ts` 是 `@internal/store` 唯一值级 import（`src/identifiers.ts` 只准拿纯函数 `createIdentifiers`，守卫逐名查）；`src/encryption.ts` 零 codec 表态；`src/device-kv.ts` 是 localStorage 唯一器官；`test/redline-guard.test.mjs` + `scripts/build.sh` 机械执法。
+- **store = `@internal/store` 2.1.2**（0.2.18，2026-10-21 收货，Claude Fable 5.1；家族周账 F-56 分道 3；**逐版行为差异与开关决定 = `ai-docs/20261021-store-2.1.2-gallery-0.8.5-migration.md`**）：种类表一行（`src/identifiers.ts`：书 = `.txt` 裸字节，**不带 tier = 一等作品**）；2.x 的新开关一个不开（`streaming` 不传、transport / pushRetry 默认 = 0.17.0、`openLineageFromDurable` 默认开）；回前台 / 回线 / 登录后 / 手动刷新的追新 `trustHints:false`（0.18.1），开书后那次和 60 s 轮询信清单；冲突面主按钮 = 云端覆盖本地、措辞按 `cloudState` 分（user 10-16「一切对齐」）。⚠ **未登录时拖进来的书回线不会被问、也不会自动推**（库的补推队列只收「推过但没落地」的；`tryPush:false` 不入队）——出路 = 书架「处理…」→ 面里选「本地覆盖云端」；要不要登录后问一次再 `pushAll` = 迁库 doc §5-1 等 user。
+- **书架 = `@internal/gallery` 0.8.5**（`src/gallery-host.ts`；列表视图、云图标在书架顶栏、副标题·未读 hook、留离线动词；提案 `../20260909 internal-gallery/ai-docs/20260919-proposal-list-view.md`；0.2.18 从 0.4.0 跟上，逐版差异见上一条的 doc §2）。**切分铁律（user 2026-09-19「gallery 是前端」）**：夹里有什么 = store（`createStore({ hidden })`）；身份怎么切 = store（`store.identifiers`，宿主不再给 naming / isDoc）；改名事件 = `store.files.onRenamed`（阅读位置 / 切章规则 / 上次那本指针跟着搬，app.ts 订阅一次）；图库只画、只发起。**卡片上没有「推送到云端」**（gallery 0.8.1 起）：没同步好的行只有「处理…」→ store `file.resolve()`，由人在库弹的面里三选一（user 10-16「禁止越狱」；`books.pushBook` 同日删掉）。回收站钮进去是一条栏：回收站 / 备份箱两个页签 + 清空（gallery 0.5.0 搁置区，外壳照 WXHW；要不要露备份箱 = 迁库 doc §5-2 等 user）。
 - **PDF 本轮 sunset**（user 2026-09-19）：下一轮出 `@internal/pdf-viewer` 极简无框控件（单页/双页/连续多页，按钮归 app）；JRP 是独立产品不动。
 - **目录（整屏 view，`src/chapters-view.ts`）**：分组清单，每深一级缩 20 像素；**展开收起**（0.2.7；user 2026-10-01「目录帮我做一个缩进，然后默认全锁进，可以选择展开几级」「per行小三角也要」）= 顶上「展开到：1 级 / … / 全部」（默认 1 级，书只有一级时不出现）+ 组头左边的小三角单独展开 / 收起这一组（点这一行别处照旧跳章）；收起的组头标底下几章；当前章被收起时高亮它所在的那一级；搜索时不看展开收起、三角藏起来、当前章不在结果里就不高亮。只记在这次打开 app 期间、换书清掉，不新加存储字段。只有 Markdown 书（`#` 分级）有层级，网文的卷 / 章现在是平的一层。
 - **Quest**：手柄 D-pad 4 行量化滚动、Select 目录、Start 书架（`src/reader/keys.ts`）。
@@ -43,12 +44,14 @@ TXT 网文/轻小说阅读器（0.1 纪元：2026-09-19 在 @internal/store + @i
 除此之外：JRB 不接任何第三方网络服务；云端全经 `@internal/store`（OneDrive appfolder，硬规则 #6/#7）。`test/redline-guard.test.mjs` 黄线测试守 `src/` 零非相对 URL fetch。
 
 ## 持久层白名单
-| 层 | 键 / 库 | 内容 |
-|---|---|---|
-| localStorage（device-kv，前缀 `justreadbooks-2f8a41c7b9d3e650:`） | theme / reader-prefs / shelf-layout / lang / last-open / gallery-folder / last-scene / diag-log | 设备属性 + 本机指针 + 黑匣子 |
-| IndexedDB `jrb.defaultStore`（库） | files / trash / backup / collections / staging / dir-index-cache | 书的本地副本 + 两个 collection |
-| 云端 appfolder | `<夹/>书.txt`、`.jrb/reading-position.json`（{anchor, readAt}）、`.jrb/book-prefs.json`（{regexId, regexCustom, encoding, header}）、`.trash/` | 书 + 位置 + 规则 + 状态头 |
-| localStorage 库前缀 `jrb.defaultStore.*` | etag / dirty / pending 账 | 库内部 |
-| localStorage（device-kv）`read-aloud` | { voice（音色 id）, speaker, speed, source, have（这台设备上有没有能用的音色）, mode（off / continuous / sentence）, whole（整句合成，0.2.9） } | 朗读偏好（设备属性，不跟云；0.2.1）。0.2.4–0.2.11 存过的 steady / steadiness 不再读（念法 0.2.12 sunset） |
-| Cache Storage `pwa-models`（家族共享名；`src/model-packs.ts` 唯一读写，0.2.14 起；此前经 `@internal/read-aloud` 的 worker） | 语音包分片 + verified 标记 | 可再生派生缓存（user 2026-10-01 批，同上一句话）。**家族共享**：同源的 WXHW 下过的包这里直接能用（user「最好jrb和wxhw如果都用朗读的话可以共享同一个缓存」）。「清缓存重启」不许动它（`src/pwa-shell.ts` 只清 `jrb-` 前缀，冒烟守着）；删只在设置 →「朗读」里按音色删（别的装着的音色还在用的包留着） |
-| Cache Storage `jrb-<hash>`（service worker 运行时缓存） | 公共字体 `vendor/fonts/sans.ttf.gz`、朗读 worker | 用过才进缓存；换版本重取 |
+等级列 = 家族根 `ai-docs/20261016-data-safety-model.md` §2 的四等表（每个 app 的 CLAUDE.md 要写明自己的每种字节落在哪一等；2026-10-21 补，Claude Fable 5.1）：**一等**作品 = 书；**四等**里允许跨设备合并的「游标」= 阅读位置 / 切章规则（丢了不丢书）；**三等**资源 = 语音包；**四等**设备状态 = device-kv / 黑匣子 / 壳缓存。JRB 没有二等（自动备份）字节。
+
+| 层 | 键 / 库 | 内容 | 等级 |
+|---|---|---|---|
+| localStorage（device-kv，前缀 `justreadbooks-2f8a41c7b9d3e650:`） | theme / reader-prefs / shelf-layout / lang / last-open / gallery-folder / last-scene / diag-log | 设备属性 + 本机指针 + 黑匣子 | 四等（指针只建议，开不了就清掉） |
+| IndexedDB `jrb.defaultStore`（库） | files / trash / backup / collections / staging / dir-index-cache | 书的本地副本 + 两个 collection | 书的本地副本 = 一等（脏的永不驱逐；本机唯一副本 offload 抛错）；staging / dir-index-cache = 可再生 |
+| 云端 appfolder | `<夹/>书.txt`、`.jrb/reading-position.json`（{anchor, readAt}）、`.jrb/book-prefs.json`（{regexId, regexCustom, encoding, header}）、`.trash/`、`.backup/` | 书 + 位置 + 规则 + 状态头 | 书 = 一等；两个 collection = 游标（逐 item 按编辑时间新者胜，库承担） |
+| localStorage 库前缀 `jrb.defaultStore.*` | etag / dirty / pending 账 | 库内部 | 账本（可从字节重建） |
+| localStorage（device-kv）`read-aloud` | { voice（音色 id）, speaker, speed, source, have（这台设备上有没有能用的音色）, mode（off / continuous / sentence）, whole（整句合成，0.2.9） } | 朗读偏好（设备属性，不跟云；0.2.1）。0.2.4–0.2.11 存过的 steady / steadiness 不再读（念法 0.2.12 sunset） | 四等 |
+| Cache Storage `pwa-models`（家族共享名；`src/model-packs.ts` 唯一读写，0.2.14 起；此前经 `@internal/read-aloud` 的 worker） | 语音包分片 + verified 标记 | 三等资源 · 可再生派生缓存（user 2026-10-01 批，同上一句话）。**家族共享**：同源的 WXHW 下过的包这里直接能用（user「最好jrb和wxhw如果都用朗读的话可以共享同一个缓存」）。「清缓存重启」不许动它（`src/pwa-shell.ts` 只清 `jrb-` 前缀，冒烟守着）；删只在设置 →「朗读」里按音色删（别的装着的音色还在用的包留着） |
+| Cache Storage `jrb-<hash>`（service worker 运行时缓存） | 公共字体 `vendor/fonts/sans.ttf.gz`、朗读 worker | 用过才进缓存；换版本重取 | 四等 |

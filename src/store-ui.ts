@@ -1,17 +1,21 @@
 // StoreUI adapter —— 给 @internal/store 的 ui bundle（busy / resolveConflict / reportError / offlineEscape / text / confirmReplay）。
-// created 2026-09-19 by Claude Fable 5.1（WXHW / WeebPaint store-ui.ts 同形）。
+// created 2026-09-19 by Claude Fable 5.1（WXHW / WeebPaint store-ui.ts 同形）· 2026-10-21 收 store 2.1.2（Claude Fable 5.1）：冲突面主按钮 = 云端覆盖本地、措辞按 cloudState 分。
 //   读者 app 的要点：**后台拉取 / 新鲜度检查绝不上全屏遮罩**（user 2026-09-19「我不想开书时转很久」）——
 //   sync.pushing / file.pulling / cloud.checking / file.renaming 走安静状态行；只有用户动作（回收站 / 建删夹 / 重传）才遮罩。
-//   冲突必 surface（ADR-0009）：读者从不改写书，理论上不会撞 412；上传撞名 / 本地副本分叉时仍给真 sheet，绝不静默 cancel。
-import type { StoreUI, StoreTextKey, StoreTextParams } from "@internal/store";
+//   冲突必 surface（ADR-0009）：读者从不改写书，理论上不会撞 412；上传撞名 / 书架「处理…」（store file.resolve()）/ 本地副本分叉时仍给真 sheet，绝不静默 cancel。
+//   词汇表只有三个词（user 2026-10-16「禁止越狱」）：云端覆盖本地 / 本地覆盖云端 / 取消——答案只来自人在这张面上的点击，app 不预设。
+import type { StoreUI, StoreTextKey, StoreTextParams, ResolveChoice } from "@internal/store";
 import { withBusy, lockSyncGate, settleSyncGate, openConfirmSheet } from "./sheets.ts";
+import { identifiers } from "./identifiers.ts";
 import { t, type Key } from "./i18n/index.ts";
 import { reportError } from "./error-badge.ts";
+import { note as diagNote } from "./diag-log.ts";
 
-// 库 15 个 busy 文案 key → 本仓 i18n。穷举 Record：库加 key 本表漏映 = 编译错。
+// 库 16 个 busy 文案 key → 本仓 i18n。穷举 Record：库加 key 本表漏映 = 编译错。
 const STORE_TEXT_KEYS: Record<StoreTextKey, Key> = {
   "sync.pushing": "st.syncPushing",
   "file.renaming": "st.fileRenaming",
+  "file.uploading": "st.fileUploading",   // store 0.17.0 files.uploadStream（本 app 不用流式上传，映射只为穷举表完整）
   "file.pulling": "st.filePulling",
   "cloud.checking": "st.cloudChecking",
   "file.deleting": "st.fileDeleting",
@@ -26,7 +30,8 @@ const STORE_TEXT_KEYS: Record<StoreTextKey, Key> = {
   "folder.creating": "st.folderCreating",
   "folder.deleting": "st.folderDeleting",
 };
-const stripExt = (n: string) => n.replace(/\.txt$/i, "");
+/** 面上只写主干（书名，不带 .txt）；不是书的名字原样。 */
+const stemOf = (identifier: string): string => identifiers.parse(identifier)?.stem ?? identifier;
 
 const QUIET_KEYS = new Set<StoreTextKey>(["sync.pushing", "file.renaming", "file.pulling", "cloud.checking"]);
 let _quietStatus: ((text: string) => void) | null = null;
@@ -41,17 +46,26 @@ export const storeUI: StoreUI = {
     return k ? t(k, params) : undefined;
   },
 
-  resolveConflict: async ({ name, occasion }): Promise<"keepMine" | "takeCloud" | "cancel"> => {
-    const n = stripExt(name);
-    const choice = occasion === "open"
-      ? await lockSyncGate<"cancel" | "takeCloud">({
-          title: t("cf.title"), message: t("cf.bodyOpen", { name: n }), note: t("cf.noteKeptSafe"),
-          actions: [{ label: t("cf.openLocal"), value: "cancel", primary: true }, { label: t("cf.cloudWins"), value: "takeCloud" }],
-        })
-      : await lockSyncGate<"keepMine" | "takeCloud" | "cancel">({
-          title: t("cf.title"), message: t("cf.bodyPush", { name: n }), note: t("cf.noteKeptSafe"),
-          actions: [{ label: t("cf.localWins"), value: "keepMine", primary: true }, { label: t("cf.cloudWins"), value: "takeCloud" }, { label: t("common.cancel"), value: "cancel" }],
-        });
+  resolveConflict: async ({ name, occasion, cloudState }): Promise<ResolveChoice> => {
+    const n = stemOf(name);
+    let choice: ResolveChoice | null;
+    if (occasion === "open") {
+      choice = await lockSyncGate<"cancel" | "takeCloud">({
+        title: t("cf.title"), message: t("cf.bodyOpen", { name: n }), note: t("cf.noteKeptSafe"),
+        actions: [{ label: t("cf.openLocal"), value: "cancel", primary: true }, { label: t("cf.cloudWins"), value: "takeCloud" }],
+      });
+    } else {
+      // 措辞按云端那一侧的状态（store 0.18.2 cloudState；gallery 0.8.1 的「处理…」走到这里）：absent = 云端那份没了、never = 从没传过、unchanged = 云端没变只是本机有没推的、
+      //   changed（或老库不带）= 两边各一版。三个按钮不变、主按钮 = 云端覆盖本地（user 2026-10-16「一切对齐」「默认云端才是 authority」；gallery 0.7.1 / WXHW v2.3.35 同口径）。
+      //   absent / never 时选「云端覆盖本地」= 本机这份进**回收站**（不是备份箱），所以「被替换的那份会进备份箱」那句只在 changed / unchanged 时说，正文里把两个按钮各做什么写清。
+      const gone = cloudState === "absent" || cloudState === "never";
+      const message = cloudState === "absent" ? t("cf.bodyAbsent", { name: n }) : cloudState === "never" ? t("cf.bodyNever", { name: n }) : cloudState === "unchanged" ? t("cf.bodyUnchanged", { name: n }) : t("cf.bodyPush", { name: n });
+      choice = await lockSyncGate<ResolveChoice>({
+        title: gone ? t("cf.cloudGoneTitle") : t("cf.title"), message, ...(gone ? {} : { note: t("cf.noteKeptSafe") }),
+        actions: [{ label: t("cf.cloudWins"), value: "takeCloud", primary: true }, { label: t("cf.localWins"), value: "keepMine" }, { label: t("common.cancel"), value: "cancel" }],
+      });
+    }
+    diagNote("sync", `conflict sheet "${name}" occasion=${occasion} cloud=${cloudState ?? "?"} → ${choice ?? "cancel"}`);   // 黑匣子：真机上「又弹面了」能对出是哪一次
     return choice ?? "cancel";
   },
 
@@ -66,9 +80,9 @@ export const storeUI: StoreUI = {
     reportError(err, level ?? "error");
   },
 
-  // ADR-0018：离线上传的书回线补推（offlineUploadReplay:"ask"）——进度/撞名走状态行/横幅；问一次要不要推。
+  // ADR-0018：推到一半断网的上传回线补推（offlineUploadReplay:"ask"）——进度/撞名走状态行/横幅；问一次要不要推。
   onReplayStatus: ({ phase, name, done, total }): void => {
-    const n = name ? stripExt(name) : "";
+    const n = name ? stemOf(name) : "";
     if (phase === "collision") reportError(new Error(t("replay.collision", { name: n })), "warning");
     else if (phase === "done") reportError(t("replay.done", { done, total }), "info");
     else reportError(t("replay.progress", { done, total }), "info");
