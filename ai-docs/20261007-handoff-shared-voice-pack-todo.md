@@ -17,7 +17,7 @@
 ## JRB 要做的（按顺序）
 
 > 2026-10-21 进度（Claude Fable 5.1，周账 F-29 / 分道 3）：**第 1、2 步已落地 = JRB v0.2.19**（朗读库 0.1.22 + model-packs 0.1.0；`src/model-packs.ts` / `src/sha256.ts` 删掉，红线守卫与 CLAUDE.md 跟着改，`test/model-packs.mjs` 改测库入口）。
-> **第 3 步没动**（改模型仓 `voices/tsukuyomi-chan-zhen.json` = 推公开仓 = 要先问 user）；第 4 步依赖第 3 步；第 5 步要 user 定。第 3 步的改法原样写在该步下面，user 说「做」就照抄。
+> 同日稍后 user「小月相更新对齐同意。开干」→ **第 3、4 步也落地**：模型仓 commit 1e6e0da（voices json + index.json 的 sha256 / packs + README 两行，已推 GitHub Pages）；JRB **v0.2.21** 重新内嵌（`READ_ALOUD_PACKS` 里 20261002 包的清单换成 20261007 的；旧包在设备缓存里成了「不认识的包」，app 不碰）。第 5 步（要不要给「清理旧版音色」一个按钮）仍等 user。
 
 1. **收朗读库 0.1.21**：在 JRB 仓根 `bash "../20261001 internal-read-aloud/scripts/pull-package.sh" 0.1.21` → 跑 JRB 测试。只多了「有 dur_override 就喂 0」这一行，对现在的包没有任何影响。
    （2026-10-07 稍后：朗读库已发 **0.1.22**（= 0.1.21 + 底层出口 `./backend/piper-plus/*`，给 MoonSinger 用），直接收 0.1.22 也行，对 JRB 没有影响。edited by Claude Opus 5.5）
