@@ -9,7 +9,7 @@ export declare function notePosition(name: string, anchor: Anchor): void;
 /** 打开一本书（哪怕没滚）：刷 readAt（最近阅读排序）；没有位置条目就建一条。 */
 export declare function markOpened(name: string): void;
 export declare function isUnread(name: string): boolean;
-/** 最近阅读（跨夹）：按 readAt 降序前 n 本。 */
+/** 最近阅读（跨夹）：按 readAt 降序前 n 本。更新版本写的条目不参与（不猜它的字段）。 */
 export declare function recentBooks(n: number): {
     name: string;
     readAt: number;

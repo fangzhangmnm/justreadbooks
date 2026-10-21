@@ -616,6 +616,14 @@ export declare const S: {
         readonly zh: "有 {n} 本是离线时存到本机的，现在推到云端？";
         readonly en: "{n} book(s) were saved locally while offline. Push them to the cloud now?";
     };
+    readonly "fmt.newerMinor": {
+        readonly zh: "有阅读记录是更新版本的 app 写的：这版没有的内容保存时不会丢，只是看不到。";
+        readonly en: "Some reading records were written by a newer version of the app: what this version does not know is kept on save, just not shown.";
+    };
+    readonly "fmt.tooNew": {
+        readonly zh: "有书的阅读记录是更新版本的 app 写的，这版不认、也不会改它（更新 app 后照常）。";
+        readonly en: "Some reading records were written by a newer app version; this version will neither read nor overwrite them (update the app to use them).";
+    };
     readonly "pushAll.askTitle": {
         readonly zh: "有书只在本机";
         readonly en: "Books only on this device";

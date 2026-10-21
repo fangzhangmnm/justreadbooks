@@ -164,6 +164,8 @@ export const S = {
   "replay.progress": { zh: "正在补推 {done}/{total}…", en: "Uploading {done}/{total}…" },
   "replay.askTitle": { zh: "同步离线时上传的书？", en: "Upload books added offline?" },
   "replay.askMsg": { zh: "有 {n} 本是离线时存到本机的，现在推到云端？", en: "{n} book(s) were saved locally while offline. Push them to the cloud now?" },
+  "fmt.newerMinor": { zh: "有阅读记录是更新版本的 app 写的：这版没有的内容保存时不会丢，只是看不到。", en: "Some reading records were written by a newer version of the app: what this version does not know is kept on save, just not shown." },
+  "fmt.tooNew": { zh: "有书的阅读记录是更新版本的 app 写的，这版不认、也不会改它（更新 app 后照常）。", en: "Some reading records were written by a newer app version; this version will neither read nor overwrite them (update the app to use them)." },
   "pushAll.askTitle": { zh: "有书只在本机", en: "Books only on this device" },
   "pushAll.askMsg": { zh: "有 {n} 本书拖进来时没登录（或没网），还没传到云端。现在传上去吗？云端已有同名的不会覆盖，会留在书架上等你点「处理…」。", en: "{n} book(s) were added while signed out (or offline) and are not in the cloud yet. Upload them now? A name already taken in the cloud is never overwritten; that book stays on the shelf for “Resolve…”." },
   "pushAll.ok": { zh: "传上去", en: "Upload" },

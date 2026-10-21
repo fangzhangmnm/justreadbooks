@@ -5,6 +5,7 @@ import "./chapters.test.mjs";
 import "./chapters-view.test.mjs";
 import "./encoding.test.mjs";
 import "./valuable-save.test.mjs";
+import "./format-migrate.test.mjs";   // 2026-10-21 家族格式版本纪律：collection 条目的拍子 / 直通 / 冻结样本
 import { run } from "./runner.mjs";
 console.log("\n  JustReadBooks —— app 域测试（store / gallery 契约在各包 test/）\n");
 await run();
