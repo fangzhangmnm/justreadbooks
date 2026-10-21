@@ -13,11 +13,12 @@ const BAD = [
   { re: /graph\.microsoft\.com|login\.microsoftonline\.com/, why: "raw Graph/AAD URL" },
   { re: /\bcaches\.(open|keys|delete)\b/, why: "Cache Storage outside SW/pwa-shell" },
 ];
-// src/model-packs.ts（0.2.14 起）= 语音包的字节层：Cache Storage `pwa-models`（家族共享名，只动自己内嵌清单认得的包）唯一在此。
-const ALLOW_CACHES = new Set(["src/pwa-shell.ts", "src/model-packs.ts"]);
+// 语音包的字节层（Cache Storage `pwa-models`，家族共享名，只动自己内嵌清单认得的包）0.2.19 起在 @internal/model-packs 里（周账 F-29；0.2.14–0.2.18 曾是 src/model-packs.ts）——
+//   src/ 里只剩 pwa-shell.ts 碰 Cache Storage（只清 jrb- 前缀）。
+const ALLOW_CACHES = new Set(["src/pwa-shell.ts"]);
 // 黄线区（家规白名单制，2026-09-03）：JRB 的外接服务白名单只有「模型源」（CLAUDE.md「黄线区」；家族级白名单 ②：只读 GET 分片、逐片 sha256）——
-// 唯一准联网的文件 = src/model-packs.ts（0.2.14 起从 @internal/read-aloud 的 worker 搬进宿主；user 2026-10-02「库不知道任何持久化的东西，string in, audio out. app喂」）。
-const ALLOW_NET = new Set(["src/model-packs.ts"]);
+//   发请求的代码 0.2.19 起在 @internal/model-packs（值级 import 只准 src/read-aloud-host.ts，下面那条 seam 测试守）；**src/ 里零联网文件**（0.2.14–0.2.18 曾是 src/model-packs.ts）。
+const ALLOW_NET = new Set([]);
 const NET_BAD = [
   { re: /\bSpeechRecognition\b|webkitSpeechRecognition/, why: "system speech recognition (audio leaves device)" },
   { re: /\bspeechSynthesis\b|SpeechSynthesisUtterance/, why: "system speech synthesis (desktop browsers send the text to a server; read-aloud goes through @internal/read-aloud)" },
@@ -56,12 +57,12 @@ describe("redline-guard", () => {
     }
     assert(hits.length === 0, "yellow-line guard hits:\n" + hits.join("\n"));
   });
-  it("@internal/store 值级 import 只在 src/app-store.ts（src/identifiers.ts 只准 createIdentifiers）；@internal/encryption 只在 src/encryption.ts；@internal/read-aloud 只在 src/read-aloud-host.ts", () => {
+  it("@internal/store 值级 import 只在 src/app-store.ts（src/identifiers.ts 只准 createIdentifiers）；@internal/encryption 只在 src/encryption.ts；@internal/read-aloud 与 @internal/model-packs 只在 src/read-aloud-host.ts", () => {
     const hits = [];
     for (const p of walk("src")) {
       const rel = p.replace(/\\/g, "/");
       const src = readFileSync(p, "utf8");
-      for (const m of src.matchAll(/^import\s+(type\s+)?[^;]*?from\s+["'](@internal\/(store|encryption|read-aloud))["']/gm)) {
+      for (const m of src.matchAll(/^import\s+(type\s+)?[^;]*?from\s+["'](@internal\/(store|encryption|read-aloud|model-packs))["']/gm)) {
         if (m[1]) continue;
         if (m[2] === "@internal/store" && rel !== "src/app-store.ts") {
           const members = (m[0].match(/\{([^}]*)\}/)?.[1] ?? "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -69,7 +70,7 @@ describe("redline-guard", () => {
           if (!pureOnly) hits.push(`${rel}: ${m[0]}`);
         }
         if (m[2] === "@internal/encryption" && rel !== "src/encryption.ts") hits.push(`${rel}: ${m[0]}`);
-        if (m[2] === "@internal/read-aloud" && rel !== "src/read-aloud-host.ts") hits.push(`${rel}: ${m[0]}`);
+        if ((m[2] === "@internal/read-aloud" || m[2] === "@internal/model-packs") && rel !== "src/read-aloud-host.ts") hits.push(`${rel}: ${m[0]}`);
       }
     }
     assert(hits.length === 0, "seam violations:\n" + hits.join("\n"));

@@ -1,4 +1,4 @@
-// 字节层整链：src/model-packs.ts 在无头 Chromium 里对着真 Cache Storage 走「下载 → 逐片校验 → 缓存 → 取分片 → 导入 → 删除」。created 2026-10-06 by Claude Fable 5.1
+// 字节层整链：@internal/model-packs（0.2.19 起；0.2.14–0.2.18 是 src/model-packs.ts，2026-10-21 Claude Fable 5.1 随周账 F-29 换成家族库）在无头 Chromium 里对着真 Cache Storage 走「下载 → 逐片校验 → 缓存 → 取分片 → 导入 → 删除」——留着当宿主的整链冒烟（库自己的测试在库仓）。created 2026-10-06 by Claude Fable 5.1
 // 检查项逐字来自 @internal/read-aloud 0.1.19 的整链测试（那时下载 / 缓存在库的 worker 里；0.1.20 起库不管持久化，这些检查随代码搬到宿主）。
 // 数据 = 兄弟仓模型仓里真的小包（运行时 + 英语 / 中文词典，约 5 MB）；仓不在 → 跳过（退出码 0，明说跳过了）。用法：node test/model-packs.mjs（npm run smoke 里带着）。
 // 缓存名用测试专用的 jrb-model-packs-test（不碰家族共享的 pwa-models），结束时删掉。
@@ -18,7 +18,7 @@ const { chromium } = createRequire(new URL("../../20260524 WeebPaint/package.jso
 
 await mkdir(join(ROOT, "tmp"), { recursive: true });
 const BUNDLE = join(ROOT, "tmp", "model-packs-test.js");
-execFileSync(join(ROOT, "tools/esbuild/esbuild"), [join(ROOT, "src/model-packs.ts"), "--bundle", "--format=esm", "--target=es2022", `--outfile=${BUNDLE}`, "--log-level=warning"]);
+execFileSync(join(ROOT, "tools/esbuild/esbuild"), [join(ROOT, "node_modules/@internal/model-packs/dist/index.js"), "--bundle", "--format=esm", "--target=es2022", `--outfile=${BUNDLE}`, "--log-level=warning"]);
 const PAGE = `<!doctype html><meta charset="utf-8"><script type="module">
 import { createPackStore } from "./bundle.js";
 const hex = async (b) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].map((x) => x.toString(16).padStart(2, "0")).join("");

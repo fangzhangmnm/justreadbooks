@@ -49,8 +49,8 @@ HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"]@internal/store['
 if [ -n "$HITS" ]; then echo "[build] ✗ value-level @internal/store import outside src/app-store.ts:" >&2; echo "$HITS" >&2; exit 1; fi
 HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"]@internal/encryption['\"]" src --include='*.ts' | grep -v "^src/encryption.ts" | grep -v "import type" || true)
 if [ -n "$HITS" ]; then echo "[build] ✗ value-level @internal/encryption import outside src/encryption.ts:" >&2; echo "$HITS" >&2; exit 1; fi
-HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"]@internal/read-aloud(/[^'\"]*)?['\"]" src --include='*.ts' | grep -v "^src/read-aloud-host.ts" | grep -v "import type" || true)
-if [ -n "$HITS" ]; then echo "[build] ✗ value-level @internal/read-aloud import outside src/read-aloud-host.ts:" >&2; echo "$HITS" >&2; exit 1; fi
+HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"]@internal/(read-aloud|model-packs)(/[^'\"]*)?['\"]" src --include='*.ts' | grep -v "^src/read-aloud-host.ts" | grep -v "import type" || true)
+if [ -n "$HITS" ]; then echo "[build] ✗ value-level @internal/read-aloud or @internal/model-packs import outside src/read-aloud-host.ts:" >&2; echo "$HITS" >&2; exit 1; fi
 HITS=$(grep -rnE "(from|import)[[:space:]]*\(?[[:space:]]*['\"](@internal/(store|encryption|gallery|workbench-elements)/[^'\"]+|(\.{1,2}/)+store/[^'\"]*)['\"]" src test --include='*.ts' --include='*.mjs' | grep -vE "@internal/store/testing['\"]|@internal/gallery/gallery.css|@internal/workbench-elements/workbench-elements.css" || true)
 if [ -n "$HITS" ]; then echo "[build] ✗ deep import into package internals / legacy baked store path:" >&2; echo "$HITS" >&2; exit 1; fi
 #   ③ 读者纪律：既有书永不改写——`.save(` 只准出现在上传模块 src/books.ts（uploadBook，mode:"new"）。

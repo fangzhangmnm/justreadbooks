@@ -1,10 +1,10 @@
 import { type SpeechEngine, type EmbeddedPack, type VoiceDef, type SentenceSpan } from "@internal/read-aloud";
-import { type PackStore } from "./model-packs.ts";
+import { type PackStore, type EmbeddedPack as PackStoreEmbeddedPack } from "@internal/model-packs";
 import type { TxtReader } from "./reader/txt.ts";
 /** 随 app 内嵌的音色目录。 */
 export interface ReadAloudCatalog {
     voices: Record<string, VoiceDef>;
-    packs: Record<string, EmbeddedPack>;
+    packs: Record<string, EmbeddedPack & PackStoreEmbeddedPack>;
 }
 export interface ReadAloudHostDeps {
     reader: TxtReader;

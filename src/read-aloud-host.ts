@@ -14,7 +14,7 @@
 //   · 一个音色 = 几个小包（权重 / 运行时 / 每种语言的词典；库的 VoiceDef）。界面只说「音色」；只把这一章的语言装进引擎（日语前端固定占 160 MB 内存）。
 //   · 音色的署名和使用条款（上游要求必须让用户看到的原文）显示在设置的「朗读」栏里：当前选中音色的那一份，可展开的栏，正文字号，不翻译。
 import { availableLangs, coveredPacks, createReadAloud, createSpeechEngine, createWebAudioSink, langsIn, splitSentences, voiceLangs, voicePacks, type ReadAloud, type SpeechEngine, type SpeechLang, type EmbeddedPack, type VoiceDef, type SentenceSpan } from "@internal/read-aloud";
-import { createPackStore, type PackProgress, type PackStore } from "./model-packs.ts";
+import { createPackStore, type PackProgress, type PackStore, type EmbeddedPack as PackStoreEmbeddedPack } from "@internal/model-packs";   // 0.2.19（2026-10-21）：字节层从 src/model-packs.ts 搬进家族库（周账 F-29；user 10-07「抽共享库同意」），接口一样；本文件是它在本仓唯一的值级 import 点
 import { READ_ALOUD_VOICES, READ_ALOUD_PACKS, READ_ALOUD_IMPORT_ONLY } from "./read-aloud-packs.generated.ts";
 import { READ_ALOUD_MODEL_SOURCE, READ_ALOUD_SPEEDS } from "./config.ts";
 import { deviceKvGetJson, deviceKvSetJson } from "./device-kv.ts";
@@ -31,7 +31,7 @@ interface Prefs { voice?: string; speaker?: number; speed?: number; source?: str
 type Mode = "off" | "continuous" | "sentence";
 const MODES: readonly Mode[] = ["off", "continuous", "sentence"];
 /** 随 app 内嵌的音色目录。 */
-export interface ReadAloudCatalog { voices: Record<string, VoiceDef>; packs: Record<string, EmbeddedPack> }
+export interface ReadAloudCatalog { voices: Record<string, VoiceDef>; packs: Record<string, EmbeddedPack & PackStoreEmbeddedPack> }
 /** 每个音色给用户的一句实话（哪种语言是本行、哪种是凑合）：按音色 id 查，没有就不显示。 */
 const VOICE_NOTE: Record<string, Key> = { "tsukuyomi-chan-zhen": "ra.voiceNote.tsukuyomi-chan-zhen", "piper-xiao-ya": "ra.voiceNote.piper-xiao-ya" };
 /** 只准本机导入的音色（tools/local-voices/，许可证不许再分发）：没有下载钮。 */
