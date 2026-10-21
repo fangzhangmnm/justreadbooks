@@ -2,7 +2,9 @@
 //
 // OneDrive：scope 永久 AppFolder（家规硬规则 #6）；authority /consumers = personal-account-only（硬规则 #7）。
 // clientId 沿用 v1 注册（Entra 已翻 Personal only；/dev/ redirect 已加，user 2026-09-19）。
-export const APP_ID = "jrb";   // 本 origin 内唯一命名空间：IDB `jrb.defaultStore` + localStorage 前缀；与 WXHW/JRP/BR 等兄弟隔离。v1 的 `justreadbooks-cache` 库留孤儿不读不删（user 2026-09-19）。
+export const APP_ID = "jrb";
+/** 图库包这台设备的记事本（gallery 0.8.7 起库名归宿主：`configureGalleryRegistry`；家族命名 `<app>-<guid>.<用途>`，GUID 和 device-kv 前缀同一个）。JRB 单库，几乎空；还原出厂一起删。 */
+export const GALLERY_REGISTRY_DB = "justreadbooks-2f8a41c7b9d3e650.gallery-registry";   // 本 origin 内唯一命名空间：IDB `jrb.defaultStore` + localStorage 前缀；与 WXHW/JRP/BR 等兄弟隔离。v1 的 `justreadbooks-cache` 库留孤儿不读不删（user 2026-09-19）。
 export const CLIENT_ID = "691bf41b-349a-46e1-8296-f0a644005421";
 export const AUTHORITY = "https://login.microsoftonline.com/consumers";
 export const SCOPES = ["Files.ReadWrite.AppFolder", "offline_access"];

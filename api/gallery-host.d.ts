@@ -1,4 +1,4 @@
-import { type GalleryView, type AsideKind, type AsideScope } from "@internal/gallery";
+import { type GalleryView } from "@internal/gallery";
 export interface GalleryHostDeps {
     mountEl: HTMLElement;
     fullEl: HTMLElement;
@@ -29,8 +29,6 @@ export declare function initGalleryHost(d: GalleryHostDeps): {
     refresh: () => void | undefined;
     setView: (v: GalleryView) => void;
     getView: () => GalleryView;
-    /** 清空回收站 / 备份箱（各清各的；确认框和结果提示是图库包的）。 */
-    emptyAside: (kind: AsideKind, scope: AsideScope) => void;
     currentFolder: () => string;
     setLayout: (l: ShelfLayout) => void;
 };

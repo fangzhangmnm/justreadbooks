@@ -9,6 +9,8 @@ export interface PwaShell {
     reload: () => Promise<void>;
     /** 清缓存重启（PWA 卡旧版的逃生舱）：unregister 全部 SW + 清 Cache Storage + reload。IDB（书的本地副本）不碰。 */
     forceReset: () => Promise<void>;
+    /** 还原出厂用（src/factory-reset.ts）：forceReset 的前半——只注销管着当前页面的 SW + 只删 `jrb-` 前缀缓存，**不** reload。 */
+    clearOwnShell: () => Promise<void>;
     /** 手动检查更新（设置里的按钮）：poke registration.update()，等新 SW 装完。
      *  "found" = 有新版待应用（调用方弹「有新版本」toast）；"latest" = 已是最新；"unavailable" = 没有 SW（localhost / 不支持）。 */
     checkForUpdate: () => Promise<"found" | "latest" | "unavailable">;

@@ -5,9 +5,10 @@
 //   0.1.3 那套 bare/full 剥 .txt 的边界随之退役）。隐藏名（半成品 / 遗留 json）与改名事件也都在 store（createStore hidden / files.onRenamed），图库只画、只发起。
 //   卡片上的「推送到云端」0.8.1 起不存在：没同步好的行只有「处理…」→ store file.resolve()，由人在库弹的面里三选一（user 2026-10-16「禁止越狱」）。
 import * as Vue from "../vendor/vue/vue.esm-browser.prod.js";
-import { createGallery, type CreateGalleryDeps, type GalleryDocHost, type VueRuntime, type GItem, type VerbStore, type DataFaceStore, type Gallery, type GalleryView, type AsideKind, type AsideScope } from "@internal/gallery";
+import { createGallery, configureGalleryRegistry, type CreateGalleryDeps, type GalleryDocHost, type VueRuntime, type GItem, type VerbStore, type DataFaceStore, type Gallery, type GalleryView } from "@internal/gallery";
 import { iconHtml } from "@internal/workbench-elements";
 import { requireStore, auth } from "./app-store.ts";
+import { GALLERY_REGISTRY_DB } from "./config.ts";
 import { isUnread } from "./reading-position.ts";
 import { getBookPref } from "./book-prefs.ts";
 import { openConfirmSheet, openInputSheet, openChoiceSheet, withBusy } from "./sheets.ts";
@@ -45,6 +46,9 @@ const GALLERY_TEXT_OVERRIDES: Record<string, Parameters<typeof t>[0]> = {
   "gal.firstFrameFailed": "galx.firstFrameFailed", "gal.firstFrameTimeout": "galx.firstFrameTimeout",
   "gal.tile.active": "galx.tileActive", "gal.otherFile": "galx.otherFile",
 };
+
+// gallery 0.8.7：图库包这台设备的记事本（多库登记）库名归宿主——不配会写进包里写死的 WeebPaint GUID 名下。第一次开库之前配一次（import 期即可，包是懒开库）。
+configureGalleryRegistry({ dbName: GALLERY_REGISTRY_DB });
 
 export function initGalleryHost(d: GalleryHostDeps) {
   const vue = Vue as unknown as VueRuntime;   // 整个模块：有全部 helper = 用构建时编好的 render（gallery 0.8.4），运行时不编译模板；Teleport（0.6.2 卡片菜单出卡片）也在里面
@@ -112,8 +116,6 @@ export function initGalleryHost(d: GalleryHostDeps) {
     refresh: () => gallery?.handle.refresh(),
     setView: (v: GalleryView) => ensureMounted().handle.setView(v),
     getView: (): GalleryView => gallery?.handle.getView() ?? "files",
-    /** 清空回收站 / 备份箱（各清各的；确认框和结果提示是图库包的）。 */
-    emptyAside: (kind: AsideKind, scope: AsideScope) => { const h = ensureMounted().handle; if (kind === "trash") h.emptyTrash(scope); else h.emptyBackup(scope); },
     currentFolder: () => gallery?.handle.getFolder() ?? (deviceKvGet(KV_FOLDER) ?? ""),
     setLayout: (l: ShelfLayout) => { deviceKvSet(KV_LAYOUT, l === "cards" ? "cards" : null); gallery?.handle.setLayout(l); },
   };

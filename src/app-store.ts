@@ -67,4 +67,7 @@ export async function reconcileCollections(): Promise<void> { await Promise.allS
 export async function flushCollections(): Promise<void> { await Promise.allSettled([readingPos.flushLocal(), bookPrefs.flushLocal()]); }
 
 export { requestStoragePersistence, isCached, isDirty };
+export { wipeAppNamespace, scanAppNamespace } from "@internal/store";   // maintenance 面经接缝转口（factory-reset.ts 消费；库内 typed consent）
+/** 还原出厂前置：释放本 store 实例（否则库进 blocked 报告）。之后任何面抛 StoreDisposedError——只能 reload。 */
+export async function disposeStore(): Promise<void> { await store.dispose(); }
 export type { Store, Collection, OneDriveAuth };

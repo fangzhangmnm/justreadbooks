@@ -208,8 +208,6 @@
             <button class="gallery-aside-tab" id="galleryTabTrash" type="button" role="tab" data-aside="trash"><svg class="ico" aria-hidden="true"><use href="#trash-can"/></svg><span data-i18n="gal.trash">回收站</span></button>
             <button class="gallery-aside-tab" id="galleryTabBackup" type="button" role="tab" data-aside="backup"><svg class="ico" aria-hidden="true"><use href="#archive-box"/></svg><span data-i18n="gal.backup">备份箱</span></button>
           </div>
-          <span class="spacer"></span>
-          <button class="auth-action danger" id="galleryAsideEmpty" type="button" data-i18n="gal.empty">清空</button>
         </div>
         <div class="gallery-recent" id="galleryRecent" hidden></div>
         <div class="gallery-mount" id="galleryMount"></div>
@@ -271,6 +269,11 @@
         <div class="setting-row"><button class="auth-action" id="checkUpdateButton" type="button" data-i18n="settings.checkUpdate">检查更新</button><button class="auth-action" id="forceUpdateButton" type="button" data-i18n="settings.forceUpdate">清缓存重启</button><button class="auth-action" id="diagButton" type="button" data-i18n="settings.diag">诊断日志</button><button class="auth-action" id="diagCopy" type="button" data-i18n="settings.diagCopy">复制</button></div>
         <pre id="diagLog" class="diag-log" hidden></pre>
         <div class="setting-note" data-i18n="settings.fontCredit">正文黑体：思源黑体（Noto Sans SC）© Adobe，SIL 开源字体许可 1.1，随 app 附许可证全文（vendor/fonts/OFL.txt）。</div>
+        </details>
+        <details class="settings-section" id="secDev">
+        <summary class="settings-section-title" data-i18n="settings.dev">开发者</summary>
+        <div class="setting-note" data-i18n="settings.factoryResetHint">还原出厂设置 = 把这台设备上本 app 的全部数据清成新装：书的本机副本、阅读位置的本机缓存、设置、壳缓存。OneDrive 上的书和记录不动；语音包不动（在「朗读」里逐个删）。两步确认。</div>
+        <div class="setting-row"><button class="auth-action danger" id="factoryResetButton" type="button" data-i18n="settings.factoryReset">还原出厂设置…</button></div>
         </details>
       </div>
     </section>
@@ -344,6 +347,6 @@
       </div>
     </div>
 
-    <script type="module" src="./dist/jrb-78a9e88d562b.mjs"></script>
+    <script type="module" src="./dist/jrb-582ab16c057d.mjs"></script>
   </body>
 </html>

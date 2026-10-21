@@ -1,4 +1,6 @@
 export declare const APP_ID = "jrb";
+/** 图库包这台设备的记事本（gallery 0.8.7 起库名归宿主：`configureGalleryRegistry`；家族命名 `<app>-<guid>.<用途>`，GUID 和 device-kv 前缀同一个）。JRB 单库，几乎空；还原出厂一起删。 */
+export declare const GALLERY_REGISTRY_DB = "justreadbooks-2f8a41c7b9d3e650.gallery-registry";
 export declare const CLIENT_ID = "691bf41b-349a-46e1-8296-f0a644005421";
 export declare const AUTHORITY = "https://login.microsoftonline.com/consumers";
 export declare const SCOPES: string[];

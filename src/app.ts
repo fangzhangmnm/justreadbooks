@@ -20,6 +20,7 @@ import { initKeys } from "./reader/keys.ts";
 import { initChaptersView } from "./chapters-view.ts";
 import { initGalleryHost, shelfLayout } from "./gallery-host.ts";
 import { initPwaShell } from "./pwa-shell.ts";
+import { runFactoryReset } from "./factory-reset.ts";
 import { holdUntilSettled } from "./settle-hold.ts";
 import { setStoreQuietStatus } from "./store-ui.ts";
 import { deviceKvGet, deviceKvSet, deviceKvGetJson, deviceKvSetJson } from "./device-kv.ts";
@@ -288,13 +289,7 @@ $("galleryTrashBtn").addEventListener("click", () => openLibraryView("trash"));
 $("galleryTabTrash").addEventListener("click", () => openLibraryView("trash"));
 $("galleryTabBackup").addEventListener("click", () => openLibraryView("backup"));
 $("galleryAsideBack").addEventListener("click", () => openLibraryView("files"));
-$("galleryAsideEmpty").addEventListener("click", () => {
-  const v = galleryHost.getView();
-  if (v === "files") return;
-  void openChoiceSheet<"local" | "cloud" | "both">(t(v === "trash" ? "gal.emptyTrash" : "gal.emptyBackup"), t("gal.emptyTrashWhich"), [
-    { label: t("gal.emptyTrashLocal"), value: "local" }, { label: t("gal.emptyTrashCloud"), value: "cloud" }, { label: t("gal.emptyTrashBoth"), value: "both" },
-  ]).then((scope) => { if (scope) galleryHost.emptyAside(v, scope); });
-});
+// 「清空回收站… / 清空备份箱…」钮 gallery 0.8.6 起在包里（搁置区视图不空时顶上一粒，scope = both）；宿主那粒 0.2.24 撤掉，不放两个。
 // 「继续读」条：跨夹最近 N 本（reading-position 的 readAt），宿主 chrome（包只订阅当前夹）
 const recentEl = $("galleryRecent");
 function renderRecent(): void {
@@ -554,6 +549,8 @@ const shell = initPwaShell({
 $("updateReloadButton").addEventListener("click", () => { void shell.reload(); });
 $("updateDismissButton").addEventListener("click", () => updateToast.classList.add("hidden"));
 if (shell.isDevRoute) $("settingsBuild").textContent += " · dev";
+// 还原出厂设置（设置 →「开发者」；家族 CLAUDE.md 2½：全家一个语义、两步护栏、不硬拦）：关书 → dispose → 库命名空间 wipe → 自家足迹 → 只注销自己 SW / 只删 jrb- 缓存 → reload。
+$("factoryResetButton").addEventListener("click", () => { void runFactoryReset({ setStatus, beforeWipe: async () => { closeBook(); }, clearOwnShell: () => shell.clearOwnShell() }); });
 
 // ── auth ──
 let afterSignInInFlight: Promise<void> | null = null;

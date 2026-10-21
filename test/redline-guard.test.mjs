@@ -16,6 +16,8 @@ const BAD = [
 // 语音包的字节层（Cache Storage `pwa-models`，家族共享名，只动自己内嵌清单认得的包）0.2.19 起在 @internal/model-packs 里（周账 F-29；0.2.14–0.2.18 曾是 src/model-packs.ts）——
 //   src/ 里只剩 pwa-shell.ts 碰 Cache Storage（只清 jrb- 前缀）。
 const ALLOW_CACHES = new Set(["src/pwa-shell.ts"]);
+// 还原出厂（src/factory-reset.ts，2026-10-21 家规 2½）：store 命名空间走库的 wipeAppNamespace；库之外只多一个 gallery-registry 库（gallery 0.8.7 宿主命名）要它自己 indexedDB.deleteDatabase。
+const ALLOW_IDB = new Set(["src/factory-reset.ts"]);
 // 黄线区（家规白名单制，2026-09-03）：JRB 的外接服务白名单只有「模型源」（CLAUDE.md「黄线区」；家族级白名单 ②：只读 GET 分片、逐片 sha256）——
 //   发请求的代码 0.2.19 起在 @internal/model-packs（值级 import 只准 src/read-aloud-host.ts，下面那条 seam 测试守）；**src/ 里零联网文件**（0.2.14–0.2.18 曾是 src/model-packs.ts）。
 const ALLOW_NET = new Set([]);
@@ -37,6 +39,7 @@ describe("redline-guard", () => {
         if (/^\s*\/\//.test(line)) return;   // 注释行豁免（说明性提及）
         for (const { re, why } of BAD) {
           if (why.startsWith("Cache Storage") && ALLOW_CACHES.has(rel)) continue;
+          if (why === "raw IndexedDB" && ALLOW_IDB.has(rel)) continue;
           if (re.test(line)) hits.push(`${rel}:${i + 1} [${why}] ${line.trim().slice(0, 100)}`);
         }
       });

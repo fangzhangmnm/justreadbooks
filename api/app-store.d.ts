@@ -16,4 +16,7 @@ export declare function initCollections(): Promise<void>;
 export declare function reconcileCollections(): Promise<void>;
 export declare function flushCollections(): Promise<void>;
 export { requestStoragePersistence, isCached, isDirty };
+export { wipeAppNamespace, scanAppNamespace } from "@internal/store";
+/** 还原出厂前置：释放本 store 实例（否则库进 blocked 报告）。之后任何面抛 StoreDisposedError——只能 reload。 */
+export declare function disposeStore(): Promise<void>;
 export type { Store, Collection, OneDriveAuth };

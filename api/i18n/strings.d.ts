@@ -124,34 +124,6 @@ export declare const S: {
         readonly zh: "回到书架";
         readonly en: "Back to shelf";
     };
-    readonly "gal.emptyTrash": {
-        readonly zh: "清空回收站";
-        readonly en: "Empty trash";
-    };
-    readonly "gal.emptyBackup": {
-        readonly zh: "清空备份箱";
-        readonly en: "Empty backups";
-    };
-    readonly "gal.empty": {
-        readonly zh: "清空";
-        readonly en: "Empty";
-    };
-    readonly "gal.emptyTrashWhich": {
-        readonly zh: "清空哪一边？";
-        readonly en: "Empty which side?";
-    };
-    readonly "gal.emptyTrashLocal": {
-        readonly zh: "只清本机";
-        readonly en: "Local only";
-    };
-    readonly "gal.emptyTrashCloud": {
-        readonly zh: "只清云端";
-        readonly en: "Cloud only";
-    };
-    readonly "gal.emptyTrashBoth": {
-        readonly zh: "本机和云端";
-        readonly en: "Both";
-    };
     readonly "gal.settings": {
         readonly zh: "设置";
         readonly en: "Settings";
@@ -1043,6 +1015,62 @@ export declare const S: {
     readonly "settings.app": {
         readonly zh: "应用";
         readonly en: "App";
+    };
+    readonly "settings.dev": {
+        readonly zh: "开发者";
+        readonly en: "Developer";
+    };
+    readonly "settings.factoryReset": {
+        readonly zh: "还原出厂设置…";
+        readonly en: "Factory reset…";
+    };
+    readonly "settings.factoryResetHint": {
+        readonly zh: "还原出厂设置 = 把这台设备上本 app 的全部数据清成新装：书的本机副本、阅读位置的本机缓存、设置、壳缓存。OneDrive 上的书和记录不动；语音包不动（在「朗读」里逐个删）。两步确认。";
+        readonly en: "Factory reset wipes everything this app keeps on this device: local copies of books, cached reading positions, settings, the app shell cache. Books and records in OneDrive are untouched; voice packs are untouched (delete them under Read aloud). Two confirmations.";
+    };
+    readonly "fr.title": {
+        readonly zh: "还原出厂设置";
+        readonly en: "Factory reset";
+    };
+    readonly "fr.introMsg": {
+        readonly zh: "这台设备上本 app 的全部数据会被清掉，变成刚安装的样子。OneDrive 上的书和阅读记录不受影响，重新登录就回来。现在没有只在本机的书。";
+        readonly en: "All data this app keeps on this device will be wiped, as if freshly installed. Books and reading records in OneDrive are not affected and come back when you sign in again. No book exists only on this device right now.";
+    };
+    readonly "fr.introMsgUnsynced": {
+        readonly zh: "这台设备上本 app 的全部数据会被清掉，变成刚安装的样子。⚠ 有 {n} 本书只在本机、还没传到云端——会一起删掉，不会另存副本。想留的话先取消，去书架点那本书的「处理…」传上去。OneDrive 上的书不受影响。";
+        readonly en: "All data this app keeps on this device will be wiped, as if freshly installed. ⚠ {n} book(s) exist only on this device and were never uploaded — they will be deleted too, with no copy kept. To keep them, cancel and use “Resolve…” on the shelf first. Books in OneDrive are not affected.";
+    };
+    readonly "fr.continue": {
+        readonly zh: "继续";
+        readonly en: "Continue";
+    };
+    readonly "fr.consentPhrase": {
+        readonly zh: "还原出厂";
+        readonly en: "factory reset";
+    };
+    readonly "fr.consentPrompt": {
+        readonly zh: "输入「{phrase}」确认。";
+        readonly en: "Type “{phrase}” to confirm.";
+    };
+    readonly "fr.mismatch": {
+        readonly zh: "输入不一致，什么都没动。";
+        readonly en: "Text did not match; nothing was changed.";
+    };
+    readonly "fr.needOnline": {
+        readonly zh: "还原出厂要联网（清掉缓存后需要重新下载 app）。";
+        readonly en: "Factory reset needs a network connection (the app is re-downloaded afterwards).";
+    };
+    readonly "fr.blocked": {
+        readonly zh: "有 {n} 个库被别的标签页占着没删掉。关掉本 app 的其他标签页，再做一次。";
+        readonly en: "{n} database(s) are held open by another tab and were not deleted. Close the other tabs of this app and run it again.";
+    };
+    readonly "fr.doneClean": {
+        readonly zh: "已还原出厂：删了 {db} 个库、{ls} 个本机键，正在重启…";
+        readonly en: "Factory reset done: {db} database(s) and {ls} local key(s) removed; restarting…";
+    };
+    readonly "fr.residue": {
+        readonly zh: "还原出厂做完，但本机还剩 {n} 项没清干净；重启后到「诊断日志」看。";
+        readonly en: "Factory reset finished, but {n} item(s) remain on this device; see the diagnostic log after restart.";
     };
     readonly "settings.build": {
         readonly zh: "版本";
