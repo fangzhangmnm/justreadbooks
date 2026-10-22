@@ -28,7 +28,7 @@
    具体 = 两处字符串替换（2026-10-21 核过该文件现状仍是旧包）：`"packs"` 数组里 `voice-tsukuyomi-chan-zhen-6lang-fp16-20261002` → `voice-tsukuyomi-chan-zhen-dur-6lang-fp16-20261007`；`"packIds"` 里那一行的键同样改名、值 `573d6d41…` → `56d81c8eb51e693e937397e2557ac3af4dff328e420b761c6e5df8b8b5b80ca6`。其余字段不动。
    **顺序硬要求：必须在第 1 步之后**——朗读库 0.1.20 不喂 `dur_override`，JRB 重新生成清单后会在合成时报缺输入。
 4. **JRB 重新内嵌**：`node tools/gen-read-aloud-packs.mjs` → `src/read-aloud-packs.generated.ts` 指向新包；JRB 测试；真机念一段（按家规，真机由 user 定什么时候测）。
-5. **旧包的缓存**（要 user 定）：已经下过旧包（packId `573d6d41…`，约 40 MB）的设备，换包后旧分片留在 `pwa-models` 里没人认领（宿主只删自己清单认得的包）。要不要在 JRB 设置里给一个「清理旧版音色」——user 决定。
+5. **旧包的缓存**（2026-10-21 **已落地 = JRB v0.2.27**，Claude Opus 5.5：user「剩下的尾巴可以收干净吗」；生成器 `RETIRED` 表列 JRB 以前内嵌过的两个权重包 20260613 / 20261002，设置 →「朗读」里缓存里真有它们时露一行「清理旧版音色」，确认后只删这两个包；冒烟 read-aloud-smoke 两条守着）原文：（要 user 定）：已经下过旧包（packId `573d6d41…`，约 40 MB）的设备，换包后旧分片留在 `pwa-models` 里没人认领（宿主只删自己清单认得的包）。要不要在 JRB 设置里给一个「清理旧版音色」——user 决定。
 6. **对用户的影响**：已装旧包的人要重下一次新包（约 40 MB）；之后和唱歌的 app 共用这一份。
 
 ## 注意

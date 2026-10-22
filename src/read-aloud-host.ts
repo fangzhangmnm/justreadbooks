@@ -15,7 +15,7 @@
 //   · 音色的署名和使用条款（上游要求必须让用户看到的原文）显示在设置的「朗读」栏里：当前选中音色的那一份，可展开的栏，正文字号，不翻译。
 import { availableLangs, coveredPacks, createReadAloud, createSpeechEngine, createWebAudioSink, langsIn, splitSentences, voiceLangs, voicePacks, type ReadAloud, type SpeechEngine, type SpeechLang, type EmbeddedPack, type VoiceDef, type SentenceSpan } from "@internal/read-aloud";
 import { createPackStore, type PackProgress, type PackStore, type EmbeddedPack as PackStoreEmbeddedPack } from "@internal/model-packs";   // 0.2.19（2026-10-21）：字节层从 src/model-packs.ts 搬进家族库（周账 F-29；user 10-07「抽共享库同意」），接口一样；本文件是它在本仓唯一的值级 import 点
-import { READ_ALOUD_VOICES, READ_ALOUD_PACKS, READ_ALOUD_IMPORT_ONLY } from "./read-aloud-packs.generated.ts";
+import { READ_ALOUD_VOICES, READ_ALOUD_PACKS, READ_ALOUD_IMPORT_ONLY, READ_ALOUD_RETIRED_PACKS } from "./read-aloud-packs.generated.ts";
 import { READ_ALOUD_MODEL_SOURCE, READ_ALOUD_SPEEDS } from "./config.ts";
 import { deviceKvGetJson, deviceKvSetJson } from "./device-kv.ts";
 import { t, type Key } from "./i18n/index.ts";
@@ -116,6 +116,30 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
   let localUsable = false;
   const localNames = (): string[] => (local ? ["model.onnx", ...(local.config ? ["config.json"] : [])] : []);
   const packs = () => (store ??= createPackStore({ packs: catalog.packs }));
+  // 退役包（0.2.27，周账 F-29 第 5 步，Claude Opus 5.5）：以前内嵌过、现在换掉了的权重包还躺在共享缓存 pwa-models 里没人认领（约 38 MB 一个）。
+  //   只认生成器 RETIRED 表里的 slug（JRB 自己下过的），别的包一个不碰；只在缓存里真有字节时露一行，点了确认再删（家规：共享缓存只在设置里逐包删）。
+  const RETIRED_SLUGS = Object.keys(READ_ALOUD_RETIRED_PACKS);
+  let retiredStore: PackStore | null = null;
+  const retired = () => (retiredStore ??= createPackStore({ packs: READ_ALOUD_RETIRED_PACKS }));
+  let retiredBytes = 0, retiredUnknown = false, retiredBusy = false;
+  /** 逐包问缓存：问不出来的（「已验」标记坏了等）也算有残留、大小未知——清理照样能删（删是安全的，现役包不在表里）。 */
+  async function refreshRetired(): Promise<void> {
+    retiredBytes = 0; retiredUnknown = false;
+    for (const slug of RETIRED_SLUGS) {
+      try { retiredBytes += (await retired().status([slug]))[0]?.bytesCached ?? 0; }
+      catch (e) { deps.logError(e); retiredUnknown = true; }
+    }
+  }
+  const retiredSize = (): string => (retiredUnknown ? t("ra.retiredSizeUnknown") : humanSize(retiredBytes));
+  async function cleanRetired(): Promise<void> {
+    if (retiredBusy) return;
+    const size = retiredSize();
+    if (!(await deps.confirm(t("ra.retiredTitle"), t("ra.retiredMsg", { size })))) return;
+    retiredBusy = true; renderPacks();
+    try { await retired().delete(RETIRED_SLUGS); deps.status(t("ra.retiredDone", { size })); }
+    catch (e) { deps.logError(e); deps.status(t("ra.packFailed", { msg: e instanceof Error ? e.message : String(e) }), { error: true }); }
+    finally { retiredBusy = false; await refreshStatuses(); }
+  }
   /** 这个音色现在的状态（算法同库 0.1.19 以前的 engine.status）：被本地模型整个顶替的包算有；ready = 全部语言的包都齐。 */
   interface VoiceStatus { ready: boolean; langs: SpeechLang[]; bytesCached: number; bytesTotal: number }
   const known = new Map<string, VoiceStatus>();   // 最近一次问的结论（同步问「能不能念」用；没问过 = 不知道）
@@ -430,6 +454,17 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
       if (more) { const n = document.createElement("div"); n.className = "setting-note"; n.textContent = more; box.appendChild(n); }
       packsEl.appendChild(box);
     }
+    if (retiredBytes > 0 || retiredUnknown || retiredBusy) {
+      const box = document.createElement("div"); box.className = "ra-pack ra-retired";
+      const head = document.createElement("div"); head.className = "ra-pack-head";
+      const name = document.createElement("span"); name.className = "ra-pack-name"; name.textContent = t("ra.retired", { size: retiredSize() });
+      const state = document.createElement("span"); state.className = "ra-pack-state"; state.textContent = retiredBusy ? t("ra.retiredBusy") : "";
+      head.append(name, state);
+      const row = document.createElement("div"); row.className = "ra-pack-actions";
+      if (!retiredBusy) { const b = document.createElement("button"); b.type = "button"; b.className = "auth-action"; b.id = "raRetiredClean"; b.textContent = t("ra.retiredClean"); b.addEventListener("click", () => void cleanRetired()); row.appendChild(b); }
+      box.append(head, row);
+      packsEl.appendChild(box);
+    }
     renderTerms();
   }
   // 署名 + 使用条款（user 2026-10-01「使用规矩能不能做成下拉展开的，然后选了语音包展示相应的」）：只放**当前选中音色**的那一份，
@@ -457,6 +492,7 @@ export function initReadAloudHost(deps: ReadAloudHostDeps): ReadAloudHost {
     let asked = 0;
     for (const id of voiceIds()) { try { const st = await statusOf(id); statuses.set(id, { ready: st.ready, langs: st.langs, bytesCached: st.bytesCached }); asked++; } catch (e) { deps.logError(e); } }
     if (asked === voiceIds().length) noteHave([...statuses.values()].some((st) => st.langs.length > 0));
+    await refreshRetired();
     renderPacks();
   }
   function fill(sel: HTMLSelectElement, items: { value: string; label: string }[], value: string): void {

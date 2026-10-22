@@ -341,6 +341,23 @@ try {
   await page.click("#libraryButton"); await page.waitForTimeout(300);
   check("正在念的时候离开这本书（进书架）→ 立刻没声", await page.evaluate(() => window.__live.now === 0));
   check("进书架 → 自动退出朗读", await page.evaluate(() => !window.__jrb.readAloud.active() && document.getElementById("raBar").hidden));
+  // ── 清理旧版音色（0.2.27，F-29 第 5 步）：缓存里有 JRB 以前内嵌过的退役包 → 设置里露一行；点了只删退役包，现役包和别人的包留着 ──
+  await page.evaluate(async () => {
+    const c = await caches.open("pwa-models"), o = location.origin;
+    const put = (k, n) => c.put(`${o}/__pwa-models__/${k}`, new Response("x".repeat(n), { headers: { "content-length": String(n) } }));
+    await put("voice-tsukuyomi-chan-zhen-6lang-fp16-20261002/chunk-000", 3000); await c.put(`${o}/__pwa-models__/voice-tsukuyomi-chan-zhen-6lang-fp16-20261002/verified.json`, new Response(JSON.stringify({ packId: "573d6d418065d8cfb345f146b8b1c4bbed2f90ca7217a1142666ab4c1c71615d", at: "2026-10-02T00:00:00Z" })));
+    await put("voice-tsukuyomi-chan-zhen-dur-6lang-fp16-20261007/chunk-000", 7);   // 现役包：不许动
+    await put("asr-someone-elses-pack/chunk-000", 5);                               // 别的 app 的包：不许动
+  });
+  await page.click("#gallerySettingsBtn"); await page.waitForTimeout(200);
+  await page.evaluate(() => { document.getElementById("secReadAloud").open = true; window.__jrb.readAloud.renderSettings(); });   // 这一栏前面已经展开过；点标题会把它收起，直接设开 + 重画（展开着的栏重画时会去问缓存）
+  await page.waitForFunction(() => !!document.getElementById("raRetiredClean"), null, { timeout: 5000 }).catch(() => {});
+  const ret1 = await page.evaluate(() => ({ row: document.querySelector("#raPacks .ra-retired")?.textContent ?? "", btn: !!document.getElementById("raRetiredClean") }));
+  check("缓存里有退役包 → 设置「朗读」露一行「旧版音色还占着…」+「清理旧版音色」", ret1.btn && ret1.row.includes("旧版音色"), JSON.stringify(ret1));
+  if (ret1.btn) { await page.click("#raRetiredClean"); await page.waitForTimeout(200); await page.click("#sheetConfirm"); await page.waitForTimeout(500); }
+  const ret2 = await page.evaluate(async () => { const keys = (await (await caches.open("pwa-models")).keys()).map((r) => decodeURIComponent(new URL(r.url).pathname)); return { keys, row: !!document.querySelector("#raPacks .ra-retired") }; });
+  check("清理只删退役包；现役包和别人的包留着；那一行收起", !ret2.row && !ret2.keys.some((k) => k.includes("20261002")) && ret2.keys.some((k) => k.includes("dur-6lang-fp16-20261007")) && ret2.keys.some((k) => k.includes("asr-someone-elses-pack")), JSON.stringify(ret2));
+  await page.click("#settingsClose"); await page.waitForTimeout(150);
   // ── 清缓存重启只清自己的：家族共享的模型缓存、兄弟 app 的壳缓存不陪葬 ──
   await page.evaluate(async () => { for (const k of ["pwa-models", "xiaoheiwu-keepme", "jrb-oldshell"]) await (await caches.open(k)).put("/__probe__", new Response("x")); });
   await page.click("#gallerySettingsBtn"); await page.waitForTimeout(200);

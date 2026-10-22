@@ -888,6 +888,34 @@ export declare const S: {
         readonly zh: "删除语音包？";
         readonly en: "Delete voice?";
     };
+    readonly "ra.retired": {
+        readonly zh: "旧版音色还占着 {size}（这台设备以前下过、现在的音色已经换成新版，用不到了）";
+        readonly en: "Old voice versions still take {size} (downloaded earlier on this device; the current voice uses a newer version)";
+    };
+    readonly "ra.retiredClean": {
+        readonly zh: "清理旧版音色";
+        readonly en: "Remove old versions";
+    };
+    readonly "ra.retiredSizeUnknown": {
+        readonly zh: "一些空间（大小读不出来）";
+        readonly en: "some space (size unknown)";
+    };
+    readonly "ra.retiredBusy": {
+        readonly zh: "正在清理…";
+        readonly en: "Removing…";
+    };
+    readonly "ra.retiredTitle": {
+        readonly zh: "清理旧版音色？";
+        readonly en: "Remove old voice versions?";
+    };
+    readonly "ra.retiredMsg": {
+        readonly zh: "删掉这台设备上 {size} 的旧版音色。现在的音色和它要用的运行时、词典都不动。";
+        readonly en: "Removes {size} of old voice versions from this device. The current voice and the runtime / dictionaries it uses are not touched.";
+    };
+    readonly "ra.retiredDone": {
+        readonly zh: "已清理旧版音色（{size}）";
+        readonly en: "Removed old voice versions ({size})";
+    };
     readonly "ra.deleteMsg": {
         readonly zh: "「{name}」会从这台设备上删掉，以后要用得重新下载。";
         readonly en: "“{name}” will be removed from this device; you will need to download it again to use it.";
