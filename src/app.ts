@@ -572,6 +572,9 @@ function afterSignIn(): Promise<void> {
 //   以前靠卡片「推送到云端」，那个按钮 gallery 0.8.1 起没了。这里 = ADR-0018 的 consent 语义接到这批书上：问一次、人点了才 files.dirty.pushAll()。
 //   每次打开 app 最多问一次（「先不传」= 这次不再问，下次打开再问）；pushAll 不带基准、撞名不覆盖（库 If-Match / conflictBehavior:fail 守着），撞上的留在书架上「处理…」。
 //   不上遮罩：库推送的 busy 键 sync.pushing 走安静状态行（store-ui QUIET_KEYS），读者照读。
+// 2026-10-26 改（家族周账 F-98 / F-88；user 10-26「列表面」「收，救火」；CatsUp 同形）：「问一次 → pushAll」是 / 否框撤了——批量传完失败只剩一条状态行、没有动作。
+//   现在：有没同步好的 → 问一句「去处理吗」→ 开书架进「要处理的」视图（gallery 0.8.8：顶部横幅 + 每本一粒可见的「处理…」，点了当场弹库的三选一面：
+//   从没传过的 = 本地覆盖云端即第一次上传）。不再自己批量推：每一本都由人在面里选。store 2.2.1 起谱系丢了的脏书推前会先问云端，没人动就直接推成。
 let askedPushLocalOnly = false;
 async function offerPushLocalOnly(): Promise<void> {
   if (askedPushLocalOnly || !auth.isSignedIn() || navigator.onLine === false) return;
@@ -579,15 +582,10 @@ async function offerPushLocalOnly(): Promise<void> {
   const n = await files.dirty.count().catch((e) => { reportError(e, "log"); return 0; });
   if (n <= 0) return;
   askedPushLocalOnly = true;
-  diagNote("sync", `local-only books after sign-in: ${n} → ask`);
-  if (!(await openConfirmSheet(t("pushAll.askTitle"), t("pushAll.askMsg", { n }), { okLabel: t("pushAll.ok"), cancelLabel: t("pushAll.later") }))) { diagNote("sync", "local-only books: user said not now"); return; }
-  try {
-    const r = await files.dirty.pushAll();
-    diagNote("sync", `dirty.pushAll: pushed=${r.pushed} failed=${r.failed.length}${r.failed.length ? " [" + r.failed.join(", ") + "]" : ""}`);
-    if (r.failed.length) setStatus(t("pushAll.failed", { n: r.failed.length }), { error: true });
-    else if (r.pushed) setStatus(t("pushAll.done", { n: r.pushed }));
-  } catch (e) { reportError(e, "warning"); }
-  galleryHost.refresh();
+  diagNote("sync", `unsynced books after sign-in: ${n} → offer shelf attention view`);
+  if (!(await openConfirmSheet(t("pushAll.askTitle"), t("pushAll.askMsg", { n }), { okLabel: t("pushAll.ok"), cancelLabel: t("pushAll.later") }))) { diagNote("sync", "unsynced books: user said not now"); return; }
+  readAloud?.exit();
+  await galleryHost.openAttention();
 }
 auth.onAuthChanged((st) => { renderCloudButton(); diagNote("auth", `changed signedIn=${st.signedIn} reason=${st.reason ?? "?"}`); if (st.signedIn) void afterSignIn(); });
 

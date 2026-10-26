@@ -119,8 +119,11 @@ export function initGalleryHost(d: GalleryHostDeps) {
     d.onClosed?.();
   }
   const isOpen = () => !d.fullEl.classList.contains("hidden");
+  /** gallery 0.8.8：开书架直接进「要处理的」视图（顶部横幅 + 每本一粒「处理…」）。登录 / 回线后发现有没同步好的 → 「去处理」走这里（2026-10-26，家族周账 F-98 / F-88）。 */
+  async function openAttention(): Promise<void> { await open(); ensureMounted().handle.setAttentionOnly(true); }
   return {
-    open, close, isOpen,
+    open, close, isOpen, openAttention,
+    setAttentionOnly: (on: boolean) => gallery?.handle.setAttentionOnly(on),
     wasInGallery: () => deviceKvGet(KV_SCENE) === "gallery",
     refresh: () => gallery?.handle.refresh(),
     setView: (v: GalleryView) => ensureMounted().handle.setView(v),

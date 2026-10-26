@@ -61,3 +61,5 @@ TXT 网文/轻小说阅读器（0.1 纪元：2026-09-19 在 @internal/store + @i
 | Cache Storage `jrb-<hash>`（service worker 运行时缓存） | 公共字体 `vendor/fonts/sans.ttf.gz`、朗读 worker | 用过才进缓存；换版本重取 | 四等 |
 
 - **2026-10-26 收 store 2.2.1 / gallery 0.8.8（v0.2.28，Claude Fable 5.1；家族周账 F-98「救火」，user「收，救火」）**：2.2.1 = 刷新前改过 + 登录前恢复 → 谱系丢 → 盲推 409 当撞名 = 假「云端有新版本」面的根，推前先问云端（默认开）；面的 cloudState 按真相；`dirty.pushAll` 多返 `failures`。0.8.8 = 要处理的卡片一粒可见「处理…」钮 + 顶部「有 N 份没同步好 → 看列表」筛选、「处理…」不包在宿主 busy 里（10-25 would-deadlock 根）。本版只收包 + 换 gallery.css，app 代码零改动；登录后「问一次 → pushAll」的框按 F-88 改列表口径另记。复盘 = 家族根 `ai-docs/20261026-cloud-conflict-ux-postmortem.md`。
+
+- **2026-10-26 登录后「问一次 → pushAll」改成「去处理」→ 图库「要处理的」视图（v0.2.29，Claude Fable 5.1；家族周账 F-88 / F-98；user 10-26「列表面」）**：是 / 否框 + 批量推撤了（它对「传过、后来改了没传」说的是半句假话，失败只剩一条没有动作的提示）；现在有没同步好的 → 提一次「去处理」→ 开图库直接进「要处理的」（gallery 0.8.8 顶部横幅 + 每张卡可见的「处理…」，点了当场弹库的三选一面），每一份都由人在面里选；gallery-host 多 `openAttention` / `setAttentionOnly`。真机零。
