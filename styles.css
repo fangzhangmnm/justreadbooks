@@ -321,3 +321,10 @@ body[data-read-aloud="1"] .txt-inner { padding-bottom: 180px; }
 .menu-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .popup-menu-sep { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
 @media (prefers-reduced-motion: reduce) { .open-progress-fill, .status-toast, .top-bar { transition: none; } }
+
+/* 闸门的常驻条（家族设计稿 cloud-gate §5；2026-11-03）：「离线 · 还有 N 份没传上去」，点开 = 要处理的列表。贴底居中、尽量小，读书时别压太多字；提示（toast）让到它上面。 */
+.offline-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bottom-floor) + 4px); display: inline-flex; align-items: center; gap: 6px; max-width: calc(100vw - 24px); padding: 4px 11px 4px 8px; white-space: nowrap; background: color-mix(in srgb, var(--ink, #333) 82%, transparent); color: var(--bg, #fff); border: 0; border-radius: 14px; font: inherit; font-size: 12px; cursor: pointer; z-index: var(--z-toast); }
+.offline-bar.hidden { display: none; }
+.offline-bar[data-state="syncing"] { cursor: default; }
+.offline-bar .ico { width: 14px; height: 14px; flex: none; }
+body:has(.offline-bar:not(.hidden)) .status-toast { bottom: calc(var(--bottom-floor) + 34px); }

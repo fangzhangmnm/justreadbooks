@@ -45,6 +45,11 @@ export declare function uploadBook(src: File, dir: string): Promise<UploadResult
 export type RenameResult = {
     ok: true;
     name: string;
+    oldKept?: boolean;
+    oldKeptByUser?: boolean;
+} | {
+    ok: false;
+    cancelled: true;
 } | {
     ok: false;
     where: "local" | "cloud";

@@ -22,6 +22,7 @@ import { DOC_KINDS } from "./identifiers.ts";
 import { storeUI } from "./store-ui.ts";
 import { appEncryption } from "./encryption.ts";
 import { looksLikeBookText } from "./encoding.ts";
+import { cloudOnline } from "./cloud-watch.ts";
 
 const od = createOneDriveProvider({ clientId: CLIENT_ID, scopes: SCOPES, authority: AUTHORITY, msalUrl: MSAL_URL });
 /** OneDrive auth 面（signIn/signOut/isSignedIn/onAuthChanged/retrySilentSignIn）。 */
@@ -47,6 +48,7 @@ const store: Store = createStore({
   offlineUploadReplay: "ask",
   readOnlyFiles: false,
   signedIn: () => od.auth.isSignedIn(),
+  isOnline: cloudOnline,   // 2026-11-03：判成连不上 = 库一条网都不打（store 2.2.4 起 collection 也认这个；家族设计稿 cloud-gate §3）
   activeIdentifier: () => _activeBook,
   // 夹里有什么是 store 的事（0.14.0）：写入方半成品 *.part / ~* / .tmp 与 v1 遗留 session.json / library.json 不进帧、不进 cloud-gone 收敛
   hidden: (identifier) => HIDDEN_NAME_RE.test(identifier),

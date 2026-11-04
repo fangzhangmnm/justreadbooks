@@ -25,6 +25,10 @@ export const TRIVIAL_FRAC_DELTA = 0.05;
 export const READING_LINE_ANCHOR = 0.25;
 /** 冷首帧后，前台轮询云端新鲜度的周期（reconcilePolicy:"app-driven"）；只复查当前书 + 当前夹。 */
 export const FOREGROUND_POLL_MS = 60_000;
+/** 闸门问云端的硬超时（家族设计稿 cloud-gate §4）。 */
+export const CLOUD_CHECK_TIMEOUT_MS = 8000;
+/** 藏到后台多久以内回来不算「醒来」要重核（读书没有闲置锁屏，照小黑屋的 2 分钟）。 */
+export const WAKE_RECHECK_AFTER_MS = 2 * 60 * 1000;
 /** 大件诚实提示阈值（计划 §4.5：先 20 MB，SE2 实测后改，并回写 handoff §4.6 给写入方当分卷上限）。 */
 export const BIG_BOOK_BYTES = 20 * 1024 * 1024;
 /** 状态头（活书文件第一行）最多取这么多字符显示。 */

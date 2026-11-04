@@ -8,6 +8,7 @@ import * as Vue from "../vendor/vue/vue.esm-browser.prod.js";
 import { createGallery, configureGalleryRegistry, type CreateGalleryDeps, type GalleryDocHost, type VueRuntime, type GItem, type VerbStore, type DataFaceStore, type Gallery, type GalleryView } from "@internal/gallery";
 import { iconHtml } from "@internal/workbench-elements";
 import { requireStore, auth } from "./app-store.ts";
+import { cloudOnline } from "./cloud-watch.ts";
 import { GALLERY_REGISTRY_DB } from "./config.ts";
 import { isUnread } from "./reading-position.ts";
 import { getBookPref } from "./book-prefs.ts";
@@ -75,7 +76,7 @@ export function initGalleryHost(d: GalleryHostDeps) {
     store: storeFace,
     doc,
     host: {
-      signedIn: () => auth.isSignedIn(), online: () => (typeof navigator === "undefined" || navigator.onLine !== false), activeIdentifier: () => d.activeName(),
+      signedIn: () => auth.isSignedIn(), online: cloudOnline, activeIdentifier: () => d.activeName(),
       confirm: (title, msg) => openConfirmSheet(title, msg),
       input: (title, def, opts) => openInputSheet(title, { defaultValue: def, placeholder: opts?.placeholder, okLabel: t("common.ok") }),
       chooseFolder: (title, msg, options) => openChoiceSheet<string>(title, msg, options.map((o) => ({ label: o.label, value: o.value }))),

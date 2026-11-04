@@ -8,6 +8,7 @@ import { requireStore, auth } from "./app-store.ts";
 import { identifiers, BOOK_SUFFIX } from "./identifiers.ts";
 import { HIDDEN_NAME_RE, BIG_BOOK_BYTES } from "./config.ts";
 import { decodeBytes, encodeUtf8 } from "./encoding.ts";
+import { cloudOnline } from "./cloud-watch.ts";
 
 /** 是不是书：种类表认得（`.txt`，大小写不敏感、主干非空）∧ 不是隐藏名（写入方半成品 / v1 遗留 json）。 */
 export function isBookName(path: string): boolean { return identifiers.parse(path) != null && !HIDDEN_NAME_RE.test(path); }
@@ -17,7 +18,7 @@ export function joinPath(dir: string, base: string): string { return dir ? `${di
 export function stemOf(path: string): string { return identifiers.parse(path)?.stem ?? splitPath(path).base; }
 
 const file = (name: string, mode: "new" | "existing" = "existing"): RawFile => requireStore().file(name, { mode });
-const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
+const online = cloudOnline;   // 2026-11-03：判成连不上也算离线
 
 // ── 打开（计划 §2 前提 0：本地优先，永不为网络转圈）──
 export type OpenBookResult =
@@ -65,7 +66,8 @@ export async function uploadBook(src: File, dir: string): Promise<UploadResult> 
 }
 
 // ── 改名（身份变 = tryMove；结果式不抛，撞名报 where）──
-export type RenameResult = { ok: true; name: string } | { ok: false; where: "local" | "cloud" } | { ok: false; error: string };
+//   cancelled = 人在「旧的怎么办」面里选了取消（store 2.2.2 起）：一个字节没动，不算失败。oldKept / oldKeptByUser = 按新名字另存了、云端旧名那份还在（后者是人选的）。
+export type RenameResult = { ok: true; name: string; oldKept?: boolean; oldKeptByUser?: boolean } | { ok: false; cancelled: true } | { ok: false; where: "local" | "cloud" } | { ok: false; error: string };
 export async function renameBook(name: string, newStem: string): Promise<RenameResult> {
   const stem = newStem.replace(/[\\/:*?"<>|]/g, "_").trim();
   if (!stem) return { ok: false, error: "empty" };
@@ -73,7 +75,8 @@ export async function renameBook(name: string, newStem: string): Promise<RenameR
   if (target === name) return { ok: true, name };
   try {
     const r = await file(name).tryMove(target);
-    if (r.ok) return { ok: true, name: target };
+    if (r.ok) { const x = r as { oldKept?: boolean; oldKeptByUser?: boolean }; return { ok: true, name: target, oldKept: x.oldKept, oldKeptByUser: x.oldKeptByUser }; }
+    if ((r as { reason?: string }).reason === "cancelled") return { ok: false, cancelled: true };
     return { ok: false, where: (r as { where: "local" | "cloud" }).where };
   } catch (e) { return { ok: false, error: String((e as { message?: unknown })?.message ?? e) }; }
 }

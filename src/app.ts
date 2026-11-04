@@ -1,7 +1,9 @@
 // 组合根：把 store 接缝 / 书架屏 / 阅读器 / 设置 / PWA 壳接成一个 app。created 2026-09-19 by Claude Fable 5.1
 // 这里只有接线与事件编排，没有业务规则（规则住各模块头注释）。计划 = ai-docs/20260919-modernization-plan.md。
 import { APP_VERSION } from "./version.ts";
-import { FOREGROUND_POLL_MS, READER_DEFAULTS, FONT_SIZE_RANGE } from "./config.ts";
+import { FOREGROUND_POLL_MS, READER_DEFAULTS, FONT_SIZE_RANGE, COLLECTIONS, WAKE_RECHECK_AFTER_MS } from "./config.ts";
+import { cloudOnline, createCloudWatch, isCloudOff, onCloudOffChange, rawOnline } from "./cloud-watch.ts";
+import { createOfflineBar } from "./offline-bar.ts";
 import { BOOK_SUFFIX } from "./identifiers.ts";
 import { initI18n, t, lang, setLang, LANGS, LANG_NAME, type Lang } from "./i18n/index.ts";
 import { initErrorBadge, reportError, errorLog } from "./error-badge.ts";
@@ -211,7 +213,7 @@ let refreshing: Promise<void> | null = null;
 /** askCloud（store 0.18.1 `trustHints:false`）：回前台 / 回线 / 登录后 / 手动「刷新云端」= 怀疑自己过期的时刻，这次一定问云端、不采信 30 s 内刚列过的清单
  *  （别的设备可能就在这 30 s 里推过；库 0.18.1 发版说明写明的消费方义务）；开书后那次和 60 s 轮询不传，照旧信清单（启动速度优先）。 */
 function refreshCurrentBook(opts: { askCloud?: boolean } = {}): Promise<void> {
-  if (!book || !auth.isSignedIn() || navigator.onLine === false) return Promise.resolve();
+  if (!book || !auth.isSignedIn() || !cloudOnline()) return Promise.resolve();
   if (refreshing) return opts.askCloud ? refreshing.then(() => refreshCurrentBook(opts)) : refreshing;   // 正在跑的那次可能信了清单：要问云端的排在它后面再跑一次
   const name = book.name;
   refreshing = (async () => {
@@ -269,7 +271,8 @@ async function renameActiveBook(): Promise<string | null> {
   const input = await openInputSheet(t("gal.title"), { defaultValue: stemOf(book.name) });
   if (input == null) return book.name;
   const r = await renameBook(book.name, input);
-  if (r.ok) { if (r.name !== book.name) { book = { ...book, name: r.name }; setActiveBookName(r.name); deviceKvSet(KV_LAST_OPEN, r.name); renderTopbar(); setStatus(t("st.renamed", { name: stemOf(r.name) })); } return r.name; }   // 位置 / 规则由 store 的 onRenamed 搬
+  if ("cancelled" in r) { setStatus(t("st.renameCancelled")); return book.name; }   // 「旧的怎么办」面里选了取消：这次没动，不算失败
+  if (r.ok) { if (r.name !== book.name) { book = { ...book, name: r.name }; setActiveBookName(r.name); deviceKvSet(KV_LAST_OPEN, r.name); renderTopbar(); setStatus(t("st.renamed", { name: stemOf(r.name) })); } if (r.oldKeptByUser) setStatus(t("st.renameOldKeptByUser")); else if (r.oldKept) setStatus(t("st.renameOldKept"), { error: true }); return r.name; }   // 位置 / 规则由 store 的 onRenamed 搬
   setStatus("where" in r ? t("st.renameTaken", { loc: r.where === "local" ? t("st.locLocal") : t("st.locCloud") }) : t("st.renameFail", { e: r.error }), { error: true });
   return book.name;
 }
@@ -310,7 +313,7 @@ const galleryCloudBtn = $<HTMLButtonElement>("galleryCloudBtn"), galleryRefreshB
 const cloudWho = (): string => { const s = auth.getAuthState(); const a = s.account as { username?: string; name?: string } | null; return s.signedIn ? (a?.username || a?.name || t("auth.signedIn")) : ""; };
 function renderCloudButton(): void {
   const s = auth.getAuthState();
-  const offline = navigator.onLine === false;
+  const offline = !cloudOnline();
   const state = s.signedIn ? (offline ? "offline" : "signedin") : "out";
   const who = cloudWho();
   const title = state === "signedin" ? t("cloud.titleIn", { who }) : state === "offline" ? t("cloud.titleOffline", { who }) : t("cloud.titleOut");
@@ -320,7 +323,7 @@ function renderCloudButton(): void {
   galleryRefreshBtn.hidden = state !== "signedin";
 }
 async function refreshCloudNow(): Promise<void> {
-  if (!auth.isSignedIn() && navigator.onLine !== false) { await auth.retrySilentSignIn().catch((e) => reportError(e, "log")); renderCloudButton(); }
+  if (!auth.isSignedIn() && cloudOnline()) { await auth.retrySilentSignIn().catch((e) => reportError(e, "log")); renderCloudButton(); }
   galleryHost.refresh(); void reconcileCollections().then(renderRecent); void refreshCurrentBook({ askCloud: true });
 }
 function openCloudMenu(anchor: HTMLElement): void {
@@ -328,20 +331,21 @@ function openCloudMenu(anchor: HTMLElement): void {
   togglePopupMenu({
     anchor, align: "right",
     items: () => s.signedIn
-      ? [{ id: "who", label: navigator.onLine === false ? t("cloud.accountOffline", { who }) : t("cloud.account", { who }), icon: "cloud-synced", disabled: true },
-         { id: "refresh", label: t("cloud.refresh"), icon: "refresh", hidden: navigator.onLine === false },
+      ? [{ id: "who", label: !cloudOnline() ? t("cloud.accountOffline", { who }) : t("cloud.account", { who }), icon: "cloud-synced", disabled: true },
+         { id: "refresh", label: t("cloud.refresh"), icon: "refresh", hidden: !cloudOnline() },
+         { id: "reconnect", label: t("offline.reconnect"), icon: "refresh", hidden: !(isCloudOff() && rawOnline()) },   // 判成连不上、浏览器说有网：手动再核一次
          { id: "signout", label: t("cloud.disconnect"), icon: "cloud-unavailable", danger: true, separatorBefore: true }]
       : [{ id: "who", label: t("cloud.notConnected"), icon: "cloud", disabled: true }, { id: "signin", label: t("cloud.connect"), icon: "cloud-upload" }],
-    onPick: (id) => { if (id === "refresh") void refreshCloudNow(); else if (id === "signout") void onSignOut(); else if (id === "signin") void onSignIn(); },
+    onPick: (id) => { if (id === "refresh") void refreshCloudNow(); else if (id === "reconnect") void watch.check("menu"); else if (id === "signout") void onSignOut(); else if (id === "signin") void onSignIn(); },
   });
 }
 galleryCloudBtn.addEventListener("click", (e) => { e.stopPropagation(); openCloudMenu(galleryCloudBtn); });
 galleryRefreshBtn.addEventListener("click", () => { void refreshCloudNow(); });
 /** 登录（两步手势，对账 WeebPaint/WXHW）：先落盘，再弹「去登录」，onPick 在 click 同步栈里起跳 redirect。 */
-async function onSignIn(): Promise<void> {
+async function onSignIn(): Promise<boolean | null> {
   try { await flushCollections(); }   // 落本地就够（redirect 回来 afterSignIn 会对齐 + 推）；等云端会让「去登录」卡住
-  catch (e) { reportError(new Error("[sign-in] flush before redirect failed — not navigating: " + String(e)), "error"); setStatus(t("auth.flushFailed"), { error: true }); return; }
-  await openChoiceSheet<"go">(t("auth.readyTitle"), t("auth.readyMsg"), [{
+  catch (e) { reportError(new Error("[sign-in] flush before redirect failed — not navigating: " + String(e)), "error"); setStatus(t("auth.flushFailed"), { error: true }); return null; }
+  const v = await openChoiceSheet<"go">(t("auth.readyTitle"), t("auth.readyMsg"), [{
     label: t("auth.go"), value: "go", primary: true,
     onPick: () => {
       setStatus(t("auth.redirecting"));
@@ -349,6 +353,7 @@ async function onSignIn(): Promise<void> {
       auth.signIn({ prompt: "select_account" }).catch((e) => { reportError(e); setStatus(t("auth.signInFailed", { e: e instanceof Error ? e.message : String(e) }), { error: true }); });
     },
   }]);
+  return v === "go" ? true : null;
 }
 async function onSignOut(): Promise<void> {
   if (!(await openConfirmSheet(t("auth.signOutTitle"), t("auth.signOutMsg")))) return;
@@ -511,15 +516,44 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ── 生命周期：切后台落盘；回前台 / 联网 / 前台轮询 → 追新当前书 + 对齐 collections ──
+// ── 网盘连没连上（家族设计稿 ai-docs/20261103-cloud-gate-design.md；Fable 11-03 裁定「读书不闸，只挂常驻条」；状态机 src/cloud-watch.ts，条 src/offline-bar.ts）──
+//   开机 / 醒来悄悄续签 + 问一次云端（库的探针 collectionPeek），核不上就只挂条，回线自动收。从来不挡人（user 2026-09-19「我不想开书时转很久」）。
+let homeKnown = false;   // 这台设备的 MSAL 里有账号 = 有家。从 initAuth / onAuthChanged 来，不新增存储
+let hiddenAt = 0;        // 这次藏到后台的时刻（0 = 没藏）
+const watch = createCloudWatch({
+  hasHome: () => homeKnown,
+  signedIn: () => auth.isSignedIn(),
+  renew: async () => {
+    if (document.readyState !== "complete") await new Promise((r) => window.addEventListener("load", r, { once: true }));   // 库自己的探测也等 load：load 之前开续签的隐藏 iframe 会吊住 load（库 auth.js 注释）
+    return auth.retrySilentSignIn();
+  },
+  check: async () => ((await requireStore().collectionPeek(COLLECTIONS.readingPos)) === "unknown" ? "cloud-error" : "asked"),   // 「不知道」绝不当没有
+  catchUp: resumeSync,
+  show: createOfflineBar({
+    dirtyCount: () => requireStore().files.dirty.count(),
+    signIn: () => { void onSignIn(); },
+    openList: () => { readAloud?.exit(); void galleryHost.openAttention(); },
+    retry: () => { void watch.check("bar"); },
+  }),
+  note: (line) => diagNote("cloud", line),
+});
+onCloudOffChange(() => { renderCloudButton(); });
+window.addEventListener("pageshow", (e: PageTransitionEvent) => { if (e.persisted) { hiddenAt = 0; void watch.check("wake"); } });   // 从往返缓存恢复 = 醒来（设计稿 §2）
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") hiddenAt ||= Date.now(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { keepalivePosition(); void flushPosition(); void flushCollections(); } });
 window.addEventListener("pagehide", (e: PageTransitionEvent) => { if (!e.persisted) { keepalivePosition(); void flushCollections(); } });
 window.addEventListener("online", () => {
   renderCloudButton();
+  if (isCloudOff()) { void watch.check("online"); return; }   // 条挂着：核一次（续签 → 补 → 条收掉）
   if (auth.isSignedIn()) { setStatus(t("st.online")); void resumeSync(); }
   else void auth.retrySilentSignIn().then((ok) => diagNote("auth", `retrySilentSignIn on online → ${String(ok)}`)).catch((e) => reportError(e, "log"));
 });
-window.addEventListener("offline", () => { renderCloudButton(); });
-setInterval(() => { if (document.visibilityState === "visible") { void refreshCurrentBook(); if (galleryHost.isOpen()) galleryHost.refresh(); } }, FOREGROUND_POLL_MS);
+window.addEventListener("offline", () => { renderCloudButton(); watch.netLost(); });
+setInterval(() => {
+  if (document.visibilityState !== "visible") return;
+  if (isCloudOff() && watch.reason() === "noResponse") void watch.check("poll");   // 网盘没回应：隔一分钟再问一次，好了条自己收（登录过期等人点；没网等 online 事件）
+  void refreshCurrentBook(); if (galleryHost.isOpen()) galleryHost.refresh();
+}, FOREGROUND_POLL_MS);
 async function resumeSync(): Promise<void> {
   await flushPosition();
   await requireStore().files.drainOfflineQueue().catch((e) => reportError(e, "log"));
@@ -541,7 +575,10 @@ const authBootSettled = () => holdUntilSettled(authBootP, 8000);
 const shell = initPwaShell({
   onUpdateAvailable: () => { void authBootSettled().then((how) => { diagNote("sw", `update available → toast (auth boot ${how})`); updateToast.classList.remove("hidden"); }); },
   onForeground: () => {
-    if (!auth.isSignedIn() && navigator.onLine !== false) void auth.retrySilentSignIn().catch((e) => reportError(e, "log"));
+    const away = hiddenAt ? Date.now() - hiddenAt : -1;
+    hiddenAt = 0;
+    if (homeKnown && (away >= WAKE_RECHECK_AFTER_MS || (away >= 0 && isCloudOff()))) void watch.check("wake");   // 醒来（§2）：离开久了，或者条挂着
+    else if (!auth.isSignedIn() && cloudOnline()) void auth.retrySilentSignIn().catch((e) => reportError(e, "log"));
     void refreshCurrentBook({ askCloud: true }); void reconcileCollections().then(() => { if (galleryHost.isOpen()) { galleryHost.refresh(); renderRecent(); } });
   },
   onBeforeReload: async () => { const how = await authBootSettled(); diagNote("sw", `reload requested (auth boot ${how})`); await flushCollections(); void flushPosition(); },
@@ -577,7 +614,7 @@ function afterSignIn(): Promise<void> {
 //   从没传过的 = 本地覆盖云端即第一次上传）。不再自己批量推：每一本都由人在面里选。store 2.2.1 起谱系丢了的脏书推前会先问云端，没人动就直接推成。
 let askedPushLocalOnly = false;
 async function offerPushLocalOnly(): Promise<void> {
-  if (askedPushLocalOnly || !auth.isSignedIn() || navigator.onLine === false) return;
+  if (askedPushLocalOnly || !auth.isSignedIn() || !cloudOnline()) return;
   const files = requireStore().files;
   const n = await files.dirty.count().catch((e) => { reportError(e, "log"); return 0; });
   if (n <= 0) return;
@@ -587,7 +624,12 @@ async function offerPushLocalOnly(): Promise<void> {
   readAloud?.exit();
   await galleryHost.openAttention();
 }
-auth.onAuthChanged((st) => { renderCloudButton(); diagNote("auth", `changed signedIn=${st.signedIn} reason=${st.reason ?? "?"}`); if (st.signedIn) void afterSignIn(); });
+auth.onAuthChanged((st) => {
+  renderCloudButton(); diagNote("auth", `changed signedIn=${st.signedIn} reason=${st.reason ?? "?"}`);
+  if (st.signedIn) homeKnown = true; else if (st.reason === "signOut") homeKnown = false;
+  watch.authChanged(st.signedIn, st.reason as string | undefined);
+  if (st.signedIn) void afterSignIn();
+});
 
 // ── boot（计划 §4.9：首帧 = 本机；没有阻塞蒙层）──
 async function boot(): Promise<void> {
@@ -598,7 +640,13 @@ async function boot(): Promise<void> {
   if (last && !galleryHost.wasInGallery()) opened = await openBookByName(last, { quiet: true });
   if (!opened) { if (last && !galleryHost.wasInGallery()) forgetFailedOpen(last); await galleryHost.open(); }
   // auth 在首帧之后（不阻塞）：silent probe → onAuthChanged 里 afterSignIn
-  auth.initAuth().then((st) => { renderCloudButton(); if (st.signedIn) void afterSignIn(); }).catch((e) => reportError(e, "log")).finally(() => _authBootResolve());
+  auth.initAuth().then((st) => {
+    renderCloudButton();
+    homeKnown = st.signedIn || !!(st as { probing?: boolean }).probing;
+    diagNote("auth", `init: signedIn=${String(st.signedIn)} probing=${String(!!(st as { probing?: boolean }).probing)} home=${String(homeKnown)}`);
+    void watch.check("boot");   // 没有家 = 什么都不发生（设计稿 §2）；首帧早就是本机那本了
+    if (st.signedIn) void afterSignIn();
+  }).catch((e) => reportError(e, "log")).finally(() => _authBootResolve());
   if (new URLSearchParams(location.search).has("reset")) { setStatus(t("st.forceUpdated", { v: APP_VERSION })); try { history.replaceState(null, "", location.pathname + location.hash); } catch { /* ignore */ } }
   // 内置字体排在首帧之后的空闲片里（启动速度优先：书 / 书架先出来，字体晚到自己换上）
   const idle = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }).requestIdleCallback;
@@ -613,6 +661,7 @@ void boot();
 
 // 供 boot smoke / 调试台探针（非 API）
 (window as unknown as { __jrb?: unknown }).__jrb = {
+  watch, cloudOnline, isCloudOff, renameBook,
   chaptersView,
   version: APP_VERSION, openBook: openBookByName, closeBook, reader, gallery: galleryHost, store: requireStore, book: () => book, prefs: readerPrefs, confirm: openConfirmSheet, choice: openChoiceSheet,
   readAloud,

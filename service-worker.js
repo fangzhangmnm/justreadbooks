@@ -20,6 +20,9 @@ const STATIC_PRECACHE = [
 
 let CACHE_NAME = "jrb-boot";
 const SCOPE_IS_DEV = self.location.pathname.includes("/dev/");
+// 正式版和开发版在同一个网址下，Cache Storage 按网址共用：壳缓存名按范围分开，否则一边 activate 就把另一边的离线壳删了、重启后还可能认错成另一边的缓存（家族周账 F-145；2026-11-03 工单 E，Claude Opus 5.5）。
+const OWN_PREFIX = SCOPE_IS_DEV ? "jrb-dev-" : "jrb-";
+const isOwnCache = (k) => k !== "jrb-boot" && k.startsWith(OWN_PREFIX) && (SCOPE_IS_DEV || !k.startsWith("jrb-dev-"));
 const SCOPE_PATH = self.location.pathname.replace(/[^/]*$/, "");
 
 // SW 空闲被杀重启后顶层重跑，CACHE_NAME 会回落 "jrb-boot" → 从 caches.keys() 找回唯一的 jrb-<hash>（家族级坑）。
@@ -27,7 +30,7 @@ let cacheNameResolved = null;
 async function currentCacheName() {
   if (CACHE_NAME !== "jrb-boot") return CACHE_NAME;
   if (!cacheNameResolved) cacheNameResolved = (async () => {
-    const keys = (await caches.keys()).filter((k) => k.startsWith("jrb-") && k !== "jrb-boot");
+    const keys = (await caches.keys()).filter(isOwnCache);
     if (keys.length) CACHE_NAME = keys[keys.length - 1];
     return CACHE_NAME;
   })().finally(() => { cacheNameResolved = null; });
@@ -47,7 +50,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const { bundleUrl } = await getCurrentBundleUrl();
     const bundleHash = bundleUrl.match(/jrb-([a-z0-9-]+)\.mjs/i)?.[1] || "boot";
-    CACHE_NAME = `jrb-${bundleHash}`;
+    CACHE_NAME = `${OWN_PREFIX}${bundleHash}`;
     const cache = await caches.open(CACHE_NAME);
     const urls = [...STATIC_PRECACHE, bundleUrl];
     await Promise.all(urls.map((u) =>
@@ -62,7 +65,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k.startsWith("jrb-") && k !== CACHE_NAME).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => (isOwnCache(k) || k === "jrb-boot") && k !== CACHE_NAME).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });

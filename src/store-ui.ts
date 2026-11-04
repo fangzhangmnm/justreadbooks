@@ -6,6 +6,7 @@
 //   词汇表只有三个词（user 2026-10-16「禁止越狱」）：云端覆盖本地 / 本地覆盖云端 / 取消——答案只来自人在这张面上的点击，app 不预设。
 import type { StoreUI, StoreTextKey, StoreTextParams, ResolveChoice } from "@internal/store";
 import { withBusy, lockSyncGate, settleSyncGate, openConfirmSheet } from "./sheets.ts";
+import { noteAuthFailure } from "./cloud-watch.ts";
 import { identifiers } from "./identifiers.ts";
 import { t, type Key } from "./i18n/index.ts";
 import { reportError } from "./error-badge.ts";
@@ -69,9 +70,21 @@ export const storeUI: StoreUI = {
     return choice ?? "cancel";
   },
 
+  // store 2.2.2（user 2026-10-26「同意，反正不删就行了」）：改名撞上「不知道云端旧的该不该搬」→ 动字节前先问。搬走 = 云端旧的进回收站（能恢复）；留着 = 两份都在；取消 = 什么都没动。
+  resolveRenameOld: async ({ oldName, newName, reason }): Promise<"trash" | "keep" | "cancel"> => {
+    const old = stemOf(oldName), next = stemOf(newName);
+    const choice = await lockSyncGate<"trash" | "keep" | "cancel">({
+      title: t("cf.renameOldTitle", { name: old }), message: t(reason === "diverged" ? "cf.renameOldDiverged" : "cf.renameOldUnknown", { old, next }),
+      actions: [{ label: t("cf.renameOldTrash"), value: "trash", primary: true }, { label: t("cf.renameOldKeep"), value: "keep" }, { label: t("common.cancel"), value: "cancel" }],
+    });
+    diagNote("sync", `rename-old sheet "${old}" → "${next}" reason=${reason} → ${choice ?? "cancel"}`);
+    return choice ?? "cancel";
+  },
+
   reportError: (err: unknown, level): void => {
     // 未登录时库的后台云动作会撞 auth 的 "Not signed in"——正常态不是故障，不上横幅
     if ((err as { message?: string } | null)?.message === "Not signed in") { reportError(err, "log"); return; }
+    noteAuthFailure(String((err as { message?: string } | null)?.message ?? ""));   // 2026-11-03：续签失败的原因码只有这行日志里有（行格式 test/cloud-watch.test.mjs 对着库钉住）
     if ((err as { name?: string } | null)?.name === "CloudNetworkError") {
       reportError(err, "log");
       reportError(new Error(t("err.cloudNetwork")), level ?? "error");

@@ -25,6 +25,8 @@ export declare function initGalleryHost(d: GalleryHostDeps): {
     open: () => Promise<void>;
     close: () => void;
     isOpen: () => boolean;
+    openAttention: () => Promise<void>;
+    setAttentionOnly: (on: boolean) => void | undefined;
     wasInGallery: () => boolean;
     refresh: () => void | undefined;
     setView: (v: GalleryView) => void;

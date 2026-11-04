@@ -1,5 +1,7 @@
 // 跑全部测：`npm test`（node 直跑 .ts：node 24 strip-types）。新测文件在这里 import 一行即可。created 2026-09-19 by Claude Fable 5.1
 import "./redline-guard.test.mjs";
+import "./cloud-watch.test.mjs";   // 2026-11-03 读书不闸、只挂常驻条：状态机 + 结构守卫（家族设计稿 cloud-gate）
+import "./sw-cache-scope.test.mjs";   // 2026-11-03 正式版 / 开发版的壳缓存互不相删（F-145）
 import "./i18n-and-assets.test.mjs";
 import "./chapters.test.mjs";
 import "./chapters-view.test.mjs";

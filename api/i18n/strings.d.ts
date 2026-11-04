@@ -432,6 +432,18 @@ export declare const S: {
         readonly zh: "改名失败：{e}";
         readonly en: "Rename failed: {e}";
     };
+    readonly "st.renameOldKept": {
+        readonly zh: "已按新名字另存，但云端旧名那份还在（列表里会有两份）";
+        readonly en: "Saved under the new name, but the old copy is still in the cloud (you will see both)";
+    };
+    readonly "st.renameOldKeptByUser": {
+        readonly zh: "已按新名字另存；照你的意思，旧名那份云端留着（列表里会有两份）";
+        readonly en: "Saved under the new name; as you chose, the old copy stays in the cloud (you will see both)";
+    };
+    readonly "st.renameCancelled": {
+        readonly zh: "这次没动，名字还是原来的";
+        readonly en: "Nothing changed; the name stays as it was";
+    };
     readonly "st.renameTaken": {
         readonly zh: "{loc}已有同名";
         readonly en: "Name already used in {loc}";
@@ -572,6 +584,46 @@ export declare const S: {
         readonly zh: "「{name}」云端还是上次同步的那一版，本机有改动没上传。";
         readonly en: "“{name}” in the cloud is still the last synced version; this device has changes not uploaded yet.";
     };
+    readonly "cf.renameOldTitle": {
+        readonly zh: "「{name}」云端那份和这台的对不上";
+        readonly en: "The cloud copy of “{name}” doesn't match this device";
+    };
+    readonly "cf.renameOldDiverged": {
+        readonly zh: "云端的「{old}」被别的设备改过、这台的改动还没传上去。新名字「{next}」会传上去；云端那份旧的要搬进回收站（能恢复），还是留着（两份都在）？取消 = 不改名，什么都不动。";
+        readonly en: "“{old}” in the cloud was changed by another device, and this device's changes aren't uploaded yet. “{next}” will be uploaded; should the old cloud copy move to the trash (recoverable) or stay (both remain)? Cancel = no rename, nothing changes.";
+    };
+    readonly "cf.renameOldUnknown": {
+        readonly zh: "这台不知道自己这份是从云端哪一版改出来的。新名字「{next}」会传上去；云端那份旧的「{old}」要搬进回收站（能恢复），还是留着（两份都在）？取消 = 不改名，什么都不动。";
+        readonly en: "This device doesn't know which cloud version its copy came from. “{next}” will be uploaded; should the old cloud copy “{old}” move to the trash (recoverable) or stay (both remain)? Cancel = no rename, nothing changes.";
+    };
+    readonly "cf.renameOldTrash": {
+        readonly zh: "搬走旧的（进回收站）";
+        readonly en: "Move the old one to trash";
+    };
+    readonly "cf.renameOldKeep": {
+        readonly zh: "留着旧的";
+        readonly en: "Keep the old one";
+    };
+    readonly "offline.bar": {
+        readonly zh: "离线 · 还有 {n} 份没传上去";
+        readonly en: "Offline · {n} not uploaded yet";
+    };
+    readonly "offline.barZero": {
+        readonly zh: "离线";
+        readonly en: "Offline";
+    };
+    readonly "offline.barExpired": {
+        readonly zh: "离线 · 登录过期了 · 重新登录";
+        readonly en: "Offline · sign-in expired · Sign in again";
+    };
+    readonly "offline.barSyncing": {
+        readonly zh: "已连上网盘，正在同步…";
+        readonly en: "Connected to OneDrive, syncing…";
+    };
+    readonly "offline.reconnect": {
+        readonly zh: "重新连接";
+        readonly en: "Reconnect";
+    };
     readonly "cf.checkingCloud": {
         readonly zh: "正在检查云端…";
         readonly en: "Checking cloud…";
@@ -609,16 +661,16 @@ export declare const S: {
         readonly en: "Some reading records were written by a newer app version; this version will neither read nor overwrite them (update the app to use them).";
     };
     readonly "pushAll.askTitle": {
-        readonly zh: "有书还没传上去";
-        readonly en: "Books not uploaded yet";
+        readonly zh: "有书没同步好";
+        readonly en: "Books not in sync";
     };
     readonly "pushAll.askMsg": {
-        readonly zh: "有 {n} 本书还没传上去（拖进来时没登录或没网）。现在传吗？云端已有同名的不会覆盖，会留在书架上等你点「处理…」。";
-        readonly en: "{n} book(s) are not uploaded yet (added while signed out or offline). Upload now? A name already taken in the cloud is never overwritten; that book stays on the shelf for “Resolve…”.";
+        readonly zh: "有 {n} 本书没同步好（拖进来时没登录或没网，或改了还没传上去）。到书架上逐本「处理…」，每一本都会问你用云端的还是这台的。";
+        readonly en: "{n} book(s) are not in sync (added while signed out or offline, or edited and not uploaded). Resolve them one by one on the shelf; each one asks you which side to keep.";
     };
     readonly "pushAll.ok": {
-        readonly zh: "传上去";
-        readonly en: "Upload";
+        readonly zh: "去处理";
+        readonly en: "Resolve them";
     };
     readonly "pushAll.later": {
         readonly zh: "先不传";
